@@ -104,9 +104,14 @@ class GitHubTeamPRReporter:
             'updated_datetime': updated_date  # Keep for sorting
         }
     
-    def generate_report(self, usernames: List[str]) -> str:
+    def generate_report(self, usernames: List[str], months: int = None) -> str:
         """Generate the team PR report."""
         report = []
+        
+        # Calculate cutoff date if months filter is specified
+        cutoff_date = None
+        if months is not None:
+            cutoff_date = datetime.now() - timedelta(days=months * 30)
         
         # Fetch all PRs for all users
         all_prs = []
@@ -114,7 +119,10 @@ class GitHubTeamPRReporter:
             user_prs = self.get_user_prs(username)
             for pr in user_prs:
                 formatted_pr = self.format_pr_data(pr)
-                all_prs.append(formatted_pr)
+                
+                # Apply date filter if specified
+                if cutoff_date is None or formatted_pr['updated_datetime'] >= cutoff_date:
+                    all_prs.append(formatted_pr)
         
         if not all_prs:
             return "No open PRs found for any team members."
@@ -126,7 +134,12 @@ class GitHubTeamPRReporter:
         current_user = None
         user_prs = []
         
-        report.append("=== Team Member Open PRs ===")
+        title = "=== Team Member Open PRs ==="
+        if months is not None:
+            title += f" (Modified in Last {months} Months) ==="
+        else:
+            title += " ==="
+        report.append(title)
         report.append("")
         
         for pr in all_prs:
@@ -203,6 +216,7 @@ def main():
     parser.add_argument('usernames', nargs='+', help='GitHub usernames of team members')
     parser.add_argument('--token', help='GitHub personal access token (or set GITHUB_TOKEN env var)')
     parser.add_argument('--output', '-o', help='Output file (default: stdout)')
+    parser.add_argument('--months', '-m', type=int, default=None, help='Only show PRs modified in the last N months (default: all PRs)')
     
     args = parser.parse_args()
     
@@ -215,7 +229,7 @@ def main():
     reporter = GitHubTeamPRReporter(token)
     
     try:
-        report = reporter.generate_report(args.usernames)
+        report = reporter.generate_report(args.usernames, args.months)
         
         if args.output:
             with open(args.output, 'w') as f:
