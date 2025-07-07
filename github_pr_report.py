@@ -13,6 +13,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import argparse
+import time
 
 class GitHubPRReporter:
     def __init__(self, token: str):
@@ -22,30 +23,60 @@ class GitHubPRReporter:
             'Accept': 'application/vnd.github.v3+json'
         }
         self.base_url = 'https://api.github.com'
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
     
-    def get_repo_prs(self, repo: str, state: str = 'open') -> List[Dict[str, Any]]:
-        """Get all PRs for a repository."""
+    def get_repo_prs(self, repo: str, state: str = 'open', cutoff_date: datetime = None) -> List[Dict[str, Any]]:
+        """Get PRs for a repository with optional date filtering."""
         url = f"{self.base_url}/repos/{repo}/pulls"
-        params = {'state': state, 'per_page': 100}
+        params = {'state': state, 'per_page': 100, 'sort': 'updated', 'direction': 'desc'}
         
         all_prs = []
         page = 1
+        max_pages = 50 if state == 'closed' else 100  # Limit pages for closed PRs
         
-        while True:
+        print(f"Fetching {state} PRs for {repo}...", end="", flush=True)
+        
+        while page <= max_pages:
             params['page'] = page
-            response = requests.get(url, headers=self.headers, params=params)
-            
-            if response.status_code != 200:
-                print(f"Error fetching PRs for {repo}: {response.status_code}")
+            try:
+                response = self.session.get(url, params=params, timeout=30)
+                
+                if response.status_code != 200:
+                    print(f"\nError fetching PRs for {repo}: {response.status_code}")
+                    if response.status_code == 403:
+                        print("Rate limit exceeded. Waiting...")
+                        time.sleep(60)
+                        continue
+                    break
+                    
+                prs = response.json()
+                if not prs:
+                    break
+                
+                # If we have a cutoff date, check if we've gone past it
+                if cutoff_date and state == 'closed':
+                    oldest_pr_date = datetime.strptime(prs[-1]['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
+                    if oldest_pr_date < cutoff_date:
+                        # Add only PRs that are newer than cutoff
+                        filtered_prs = [pr for pr in prs if datetime.strptime(pr['updated_at'], '%Y-%m-%dT%H:%M:%SZ') >= cutoff_date]
+                        all_prs.extend(filtered_prs)
+                        break
+                
+                all_prs.extend(prs)
+                page += 1
+                
+                if page % 5 == 0:
+                    print(".", end="", flush=True)
+                    
+            except requests.exceptions.Timeout:
+                print(f"\nTimeout fetching page {page} for {repo}")
+                break
+            except requests.exceptions.RequestException as e:
+                print(f"\nRequest error for {repo}: {e}")
                 break
                 
-            prs = response.json()
-            if not prs:
-                break
-                
-            all_prs.extend(prs)
-            page += 1
-            
+        print(f" Found {len(all_prs)} PRs")
         return all_prs
     
     def count_open_non_draft_prs(self, repo: str) -> int:
@@ -57,9 +88,9 @@ class GitHubPRReporter:
         """Get PR summary for the last N months."""
         cutoff_date = datetime.now() - timedelta(days=months * 30)
         
-        # Get both open and closed PRs
+        # Get both open and closed PRs with cutoff date filtering
         open_prs = self.get_repo_prs(repo, 'open')
-        closed_prs = self.get_repo_prs(repo, 'closed')
+        closed_prs = self.get_repo_prs(repo, 'closed', cutoff_date)
         
         all_prs = open_prs + closed_prs
         
