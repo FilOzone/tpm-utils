@@ -52,7 +52,30 @@ python3 github_pr_report.py owner/repo1 owner/repo2 --output report.txt
 python3 github_pr_report.py --token your_token_here owner/repo1 owner/repo2
 ```
 
+## Team Member PR Report
+
+To generate a report of all open PRs for team members:
+
+```bash
+python3 team_pr_report.py username1 username2 username3
+```
+
+### Example Team Report Usage
+
+```bash
+# Single team member
+python3 team_pr_report.py biglep
+
+# Multiple team members
+python3 team_pr_report.py alice bob charlie
+
+# Save to file
+python3 team_pr_report.py alice bob charlie --output team_report.txt
+```
+
 ## Example Output
+
+### Repository PR Report
 
 ```
 === Open Non-Draft PR Count Summary ===
@@ -68,6 +91,30 @@ owner/repo1     42             2024-01-15      2024-01-20      Fix authenticatio
 owner/repo2     38             2024-01-10      2024-01-18      Add new feature        bob     draft           https://github.com/owner/repo2/pull/38
 ```
 
+### Team Member PR Report
+
+```
+=== Team Member Open PRs ===
+
+User: alice
+--------------------------------------------------------
+Repo               PR#  Created     Modified    Title                  Status           URL
+------------------  ---  ----------  ----------  ---------------------  ---------------  ---
+owner/repo1        42   2024-01-15  2024-01-20  Fix authentication...  ready for review https://...
+owner/repo2        38   2024-01-10  2024-01-18  Add new feature...     draft            https://...
+
+User: bob
+--------------------------------------------------------
+Repo               PR#  Created     Modified    Title                  Status           URL
+------------------  ---  ----------  ----------  ---------------------  ---------------  ---
+owner/repo3        25   2024-01-12  2024-01-19  Update documentation   ready for review https://...
+
+=== Summary ===
+alice: 2 open PRs
+bob: 1 open PR
+Total: 3 open PRs across 2 team members
+```
+
 ## Importing to Spreadsheet
 
 The output uses tab-separated values that can be easily copied and pasted into Excel, Google Sheets, or other spreadsheet applications:
@@ -78,7 +125,13 @@ The output uses tab-separated values that can be easily copied and pasted into E
 
 ## Command Line Options
 
+### github_pr_report.py
 - `repos`: One or more GitHub repositories in `owner/repo` format
+- `--token`: GitHub personal access token (optional if `GITHUB_TOKEN` env var is set)
+- `--output`, `-o`: Output file path (optional, defaults to stdout)
+
+### team_pr_report.py
+- `usernames`: One or more GitHub usernames of team members
 - `--token`: GitHub personal access token (optional if `GITHUB_TOKEN` env var is set)
 - `--output`, `-o`: Output file path (optional, defaults to stdout)
 
