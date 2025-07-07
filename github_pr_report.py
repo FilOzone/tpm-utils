@@ -85,14 +85,13 @@ class GitHubPRReporter:
         return len([pr for pr in prs if not pr.get('draft', False)])
     
     def get_pr_summary(self, repo: str, months: int = 3) -> List[Dict[str, Any]]:
-        """Get PR summary for the last N months."""
+        """Get PR summary for the last N months (open PRs only)."""
         cutoff_date = datetime.now() - timedelta(days=months * 30)
         
-        # Get both open and closed PRs with cutoff date filtering
+        # Get only open PRs
         open_prs = self.get_repo_prs(repo, 'open')
-        closed_prs = self.get_repo_prs(repo, 'closed', cutoff_date)
         
-        all_prs = open_prs + closed_prs
+        all_prs = open_prs
         
         recent_prs = []
         for pr in all_prs:
@@ -102,8 +101,6 @@ class GitHubPRReporter:
             # Include PRs that were created or modified in the last N months
             if created_date >= cutoff_date or updated_date >= cutoff_date:
                 status = "draft" if pr.get('draft', False) else "ready for review"
-                if pr['state'] == 'closed':
-                    status = "closed"
                 
                 recent_prs.append({
                     'repo': repo,
@@ -136,7 +133,7 @@ class GitHubPRReporter:
         report.append("")
         
         # Detailed PR information
-        report.append("=== PR Details (Last 3 Months) ===")
+        report.append("=== Open PR Details (Last 3 Months) ===")
         report.append("Repository\tPR Number\tCreated Date\tLast Modified\tTitle\tAuthor\tStatus\tURL")
         
         all_recent_prs = []
