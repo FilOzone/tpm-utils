@@ -132,18 +132,55 @@ class GitHubPRReporter:
         
         # Detailed PR information
         report.append("=== Open PRs Modified in Last 3 Months ===")
-        report.append("Repository\tPR Number\tCreated Date\tLast Modified\tTitle\tAuthor\tStatus\tURL")
+        report.append("")
         
-        all_recent_prs = []
+        # Process repos in order, with PRs sorted by last modified date descending within each repo
         for repo in repos:
             recent_prs = self.get_pr_summary(repo)
-            all_recent_prs.extend(recent_prs)
-        
-        # Sort by last modified date
-        all_recent_prs.sort(key=lambda x: x['updated_date'], reverse=True)
-        
-        for pr in all_recent_prs:
-            report.append(f"{pr['repo']}\t{pr['number']}\t{pr['created_date']}\t{pr['updated_date']}\t{pr['title']}\t{pr['author']}\t{pr['status']}\t{pr['url']}")
+            if not recent_prs:
+                continue
+                
+            # Sort PRs for this repo by last modified date descending
+            recent_prs.sort(key=lambda x: x['updated_date'], reverse=True)
+            
+            # Add repo header
+            report.append(f"Repository: {repo}")
+            report.append("-" * 120)
+            
+            # Format as pretty table
+            headers = ["PR#", "Created", "Modified", "Title", "Author", "Status", "URL"]
+            rows = []
+            
+            for pr in recent_prs:
+                # Truncate title if too long
+                title = pr['title'][:50] + "..." if len(pr['title']) > 50 else pr['title']
+                rows.append([
+                    str(pr['number']),
+                    pr['created_date'],
+                    pr['updated_date'],
+                    title,
+                    pr['author'],
+                    pr['status'],
+                    pr['url']
+                ])
+            
+            # Calculate column widths
+            col_widths = [len(h) for h in headers]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    col_widths[i] = max(col_widths[i], len(str(cell)))
+            
+            # Format header
+            header_row = "  ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
+            report.append(header_row)
+            report.append("  ".join("-" * col_widths[i] for i in range(len(headers))))
+            
+            # Format data rows
+            for row in rows:
+                formatted_row = "  ".join(str(cell).ljust(col_widths[i]) for i, cell in enumerate(row))
+                report.append(formatted_row)
+            
+            report.append("")
         
         return "\n".join(report)
 
