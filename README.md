@@ -26,6 +26,14 @@ A Python script that queries GitHub repositories for pull request information an
 
 ## Usage
 
+### FilOz Weekly Report
+
+To generate the FilOz Weekly Report on repos @biglep runs:
+
+```bash
+python3 github_pr_report.py filecoin-project/lotus filecoin-project/go-state-types filecoin-project/filecoin-ffi filecoin-project/builtin-actors filecoin-project/ref-fvm filecoin-project/actors-utils filecoin-project/lotus-infra filecoin-project/go-jsonrpc filecoin-project/go-crypto filecoin-project/go-f3 filecoin-project/lotus-docs filecoin-project/rust-filecoin-proofs-api filecoin-project/rust-gpu-tools filecoin-project/bellperson filecoin-project/rust-fil-proofs filecoin-project/ec-gpu filecoin-project/merkletree filecoin-project/blstrs filecoin-project/go-paramfetch
+```
+
 ### Basic Usage
 
 ```bash
