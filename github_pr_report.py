@@ -117,13 +117,20 @@ class GitHubPRReporter:
         """Generate the full report."""
         report = []
         
+        # Fetch all PRs once per repo to avoid duplicate API calls
+        repo_prs = {}
+        for repo in repos:
+            prs = self.get_repo_prs(repo, 'open')
+            repo_prs[repo] = prs
+        
         # Summary table
         report.append("=== Open Non-Draft PR Count Summary ===")
         report.append("Repository\tOpen Non-Draft PRs")
         
         total_prs = 0
         for repo in repos:
-            count = self.count_open_non_draft_prs(repo)
+            prs = repo_prs[repo]
+            count = len([pr for pr in prs if not pr.get('draft', False)])
             total_prs += count
             report.append(f"{repo}\t{count}")
         
@@ -134,9 +141,31 @@ class GitHubPRReporter:
         report.append("=== Open PRs Modified in Last 3 Months ===")
         report.append("")
         
+        cutoff_date = datetime.now() - timedelta(days=3 * 30)
+        
         # Process repos in order, with PRs sorted by last modified date descending within each repo
         for repo in repos:
-            recent_prs = self.get_pr_summary(repo)
+            prs = repo_prs[repo]
+            recent_prs = []
+            
+            for pr in prs:
+                created_date = datetime.strptime(pr['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+                updated_date = datetime.strptime(pr['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
+                
+                # Include PRs that were modified in the last 3 months (regardless of draft status)
+                if updated_date >= cutoff_date:
+                    status = "draft" if pr.get('draft', False) else "ready for review"
+                    
+                    recent_prs.append({
+                        'repo': repo,
+                        'number': pr['number'],
+                        'title': pr['title'],
+                        'author': pr['user']['login'],
+                        'created_date': created_date.strftime('%Y-%m-%d'),
+                        'updated_date': updated_date.strftime('%Y-%m-%d'),
+                        'status': status,
+                        'url': pr['html_url']
+                    })
             if not recent_prs:
                 continue
                 
