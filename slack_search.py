@@ -26,6 +26,10 @@ class SlackSearcher:
         self.base_url = 'https://slack.com/api'
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        
+        # In-memory caches for channel and user names
+        self.channel_cache = {}
+        self.user_cache = {}
     
     def search_messages(self, query: str, count: int = 10) -> Dict[str, Any]:
         """Search for messages in the Slack workspace."""
@@ -63,7 +67,15 @@ class SlackSearcher:
             return {}
     
     def get_channel_info(self, channel_id: str) -> str:
-        """Get channel name from channel ID."""
+        """Get channel name from channel ID with caching."""
+        if not channel_id:
+            return 'Unknown'
+            
+        # Check cache first
+        if channel_id in self.channel_cache:
+            return self.channel_cache[channel_id]
+            
+        # Fetch from API
         url = f"{self.base_url}/conversations.info"
         params = {'channel': channel_id}
         
@@ -72,14 +84,31 @@ class SlackSearcher:
             data = response.json()
             
             if data.get('ok') and data.get('channel'):
-                return data['channel'].get('name', channel_id)
-            return channel_id
-            
-        except:
+                channel_name = data['channel'].get('name', channel_id)
+                # Cache the result
+                self.channel_cache[channel_id] = channel_name
+                return channel_name
+            else:
+                # Cache the fallback too
+                self.channel_cache[channel_id] = channel_id
+                return channel_id
+                
+        except Exception as e:
+            print(f"Error fetching channel info for {channel_id}: {e}", file=sys.stderr)
+            # Cache the fallback
+            self.channel_cache[channel_id] = channel_id
             return channel_id
     
     def get_user_info(self, user_id: str) -> str:
-        """Get user name from user ID."""
+        """Get user name from user ID with caching."""
+        if not user_id:
+            return 'Unknown'
+            
+        # Check cache first
+        if user_id in self.user_cache:
+            return self.user_cache[user_id]
+            
+        # Fetch from API
         url = f"{self.base_url}/users.info"
         params = {'user': user_id}
         
@@ -88,10 +117,23 @@ class SlackSearcher:
             data = response.json()
             
             if data.get('ok') and data.get('user'):
-                return data['user'].get('name', user_id)
-            return user_id
-            
-        except:
+                # Try to get display name first, then real name, then username
+                user = data['user']
+                user_name = (user.get('profile', {}).get('display_name') or 
+                           user.get('real_name') or 
+                           user.get('name', user_id))
+                # Cache the result
+                self.user_cache[user_id] = user_name
+                return user_name
+            else:
+                # Cache the fallback too
+                self.user_cache[user_id] = user_id
+                return user_id
+                
+        except Exception as e:
+            print(f"Error fetching user info for {user_id}: {e}", file=sys.stderr)
+            # Cache the fallback
+            self.user_cache[user_id] = user_id
             return user_id
     
     def format_message(self, message: Dict[str, Any]) -> str:
@@ -150,10 +192,15 @@ class SlackSearcher:
         output.append(f"Showing: {len(messages)} most recent results")
         output.append("")
         
+        print(f"Resolving channel and user names...", file=sys.stderr)
+        
         for i, message in enumerate(messages, 1):
             output.append(f"--- Result {i} ---")
             output.append(self.format_message(message))
             output.append("")
+        
+        # Print cache statistics
+        print(f"Cache stats - Channels: {len(self.channel_cache)}, Users: {len(self.user_cache)}", file=sys.stderr)
         
         return '\n'.join(output)
 

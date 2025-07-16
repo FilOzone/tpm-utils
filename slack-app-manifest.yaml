@@ -11,6 +11,11 @@ oauth_config:
   scopes:
     user:
       - search:read
+      - users:read
+      - channels:read
+      - groups:read
+      - im:read
+      - mpim:read
 
 settings:
   org_deploy_enabled: false

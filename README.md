@@ -183,4 +183,4 @@ python3 slack_search.py --output results.txt "your search query"
 - Python 3.6+
 - `requests` library
 - GitHub Personal Access Token with `repo` scope (for PR reports)
-- Slack User OAuth Token with `search:read` scope (for Slack search)
+- Slack User OAuth Token with `search:read`, `users:read`, `channels:read`, `groups:read`, `im:read`, `mpim:read` scopes (for Slack search)
