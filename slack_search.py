@@ -16,9 +16,10 @@ import argparse
 import time
 
 class SlackSearcher:
-    def __init__(self, token: str, workspace: str = "filecoinproject"):
+    def __init__(self, token: str, workspace: str = "filecoinproject", excluded_urls: List[str] = None):
         self.token = token
         self.workspace = workspace
+        self.excluded_urls = set(excluded_urls) if excluded_urls else set()
         self.headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
@@ -194,6 +195,14 @@ class SlackSearcher:
         messages = results['messages']['matches']
         total_count = results['messages']['total']
         
+        # Filter out excluded URLs
+        if self.excluded_urls:
+            original_count = len(messages)
+            messages = [msg for msg in messages if msg.get('permalink') not in self.excluded_urls]
+            filtered_count = original_count - len(messages)
+            if filtered_count > 0:
+                print(f"Filtered out {filtered_count} excluded messages", file=sys.stderr)
+        
         # Limit to 10 most recent results
         messages = messages[:10]
         
@@ -207,12 +216,7 @@ class SlackSearcher:
         print(f"Resolving channel and user names...", file=sys.stderr)
         
         for i, message in enumerate(messages, 1):
-            # Create anchor-friendly query for result headings
-            import re
-            query_anchor = query.lower().replace(' ', '-')
-            query_anchor = re.sub(r'[^a-z0-9\-]', '', query_anchor)
-            
-            output.append(f"### Result {i} {{#{query_anchor}-result-{i}}}")
+            output.append(f"### {query} Result {i}")
             output.append("")
             output.append(self.format_message(message))
             output.append("")
@@ -228,6 +232,8 @@ def main():
     parser.add_argument('--workspace', default='filecoinproject', help='Slack workspace name (default: filecoinproject)')
     parser.add_argument('--output', '-o', help='Output file (default: stdout)')
     parser.add_argument('--count', '-c', type=int, default=10, help='Number of results per query (default: 10)')
+    parser.add_argument('--exclude-url', action='append', help='Exclude messages with these URLs from results (can be used multiple times)')
+    parser.add_argument('--exclude-urls-file', help='File containing URLs to exclude (one per line)')
     parser.add_argument('queries', nargs='*', help='Search queries (or read from stdin)')
     
     args = parser.parse_args()
@@ -245,7 +251,26 @@ def main():
         print("Note: User tokens can search all channels you have access to (including private channels)")
         sys.exit(1)
     
-    searcher = SlackSearcher(token, args.workspace)
+    # Process excluded URLs
+    excluded_urls = []
+    if args.exclude_url:
+        excluded_urls.extend(args.exclude_url)
+    
+    if args.exclude_urls_file:
+        try:
+            with open(args.exclude_urls_file, 'r') as f:
+                for line in f:
+                    url = line.strip()
+                    if url and not url.startswith('#'):  # Skip empty lines and comments
+                        excluded_urls.append(url)
+        except FileNotFoundError:
+            print(f"Error: Exclude URLs file not found: {args.exclude_urls_file}", file=sys.stderr)
+            sys.exit(1)
+    
+    if excluded_urls:
+        print(f"Excluding {len(excluded_urls)} URLs from results", file=sys.stderr)
+    
+    searcher = SlackSearcher(token, args.workspace, excluded_urls)
     
     # Get queries from command line args or stdin
     if args.queries:
@@ -296,7 +321,7 @@ def main():
             i_line = 0
             while i_line < len(result_lines):
                 line = result_lines[i_line]
-                if line.startswith('### Result '):
+                if line.startswith(f'### {qr["query"]} Result '):
                     result_num += 1
                     # Extract date, channel, and user from the next few lines
                     date = channel = user = "Unknown"
@@ -312,7 +337,9 @@ def main():
                             # Extract just the date part (YYYY-MM-DD)
                             date = date.split(' ')[0] if ' ' in date else date
                     
-                    result_anchor = f"{query_anchor}-result-{result_num}"
+                    # Create anchor for the result heading
+                    result_anchor = f"{qr['query']}-result-{result_num}".lower().replace(' ', '-')
+                    result_anchor = re.sub(r'[^a-z0-9\-]', '', result_anchor)
                     toc.append(f"   {i}.{result_num} [{date} - {channel} - {user}](#{result_anchor})")
                 
                 i_line += 1
