@@ -135,8 +135,51 @@ The output uses tab-separated values that can be easily copied and pasted into E
 - `--token`: GitHub personal access token (optional if `GITHUB_TOKEN` env var is set)
 - `--output`, `-o`: Output file path (optional, defaults to stdout)
 
+## Slack Search Script
+
+To search for messages in the filecoinproject Slack workspace:
+
+```bash
+python3 slack_search.py "your search query"
+```
+
+### Interactive Mode
+
+```bash
+python3 slack_search.py
+# Enter queries one per line, Ctrl+D to finish
+```
+
+### Multiple Queries
+
+```bash
+python3 slack_search.py "query1" "query2" "query3"
+```
+
+### Save Results
+
+```bash
+python3 slack_search.py --output results.txt "your search query"
+```
+
+### Setup for Slack
+
+1. Get a Slack Bot Token:
+   - Go to [Slack API Apps](https://api.slack.com/apps)
+   - Create a new app or select existing app
+   - Go to 'OAuth & Permissions'
+   - Add the `search:read` scope
+   - Install the app to your workspace
+   - Copy the 'Bot User OAuth Token'
+
+2. Set the token as an environment variable:
+   ```bash
+   export SLACK_TOKEN="xoxb-your-token-here"
+   ```
+
 ## Requirements
 
 - Python 3.6+
 - `requests` library
-- GitHub Personal Access Token with `repo` scope
+- GitHub Personal Access Token with `repo` scope (for PR reports)
+- Slack Bot User OAuth Token with `search:read` scope (for Slack search)
