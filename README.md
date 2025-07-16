@@ -164,22 +164,23 @@ python3 slack_search.py --output results.txt "your search query"
 
 ### Setup for Slack
 
-1. Get a Slack Bot Token:
+1. Get a Slack User Token:
    - Go to [Slack API Apps](https://api.slack.com/apps)
-   - Create a new app or select existing app
+   - Create a new app using the provided `slack-app-manifest.yaml`
    - Go to 'OAuth & Permissions'
-   - Add the `search:read` scope
    - Install the app to your workspace
-   - Copy the 'Bot User OAuth Token'
+   - Copy the 'User OAuth Token' (starts with `xoxp-`)
 
 2. Set the token as an environment variable:
    ```bash
-   export SLACK_TOKEN="xoxb-your-token-here"
+   export SLACK_USER_TOKEN="xoxp-your-token-here"
    ```
+
+**Note:** User tokens can search all channels you have access to (including private channels), unlike bot tokens which are limited to public channels.
 
 ## Requirements
 
 - Python 3.6+
 - `requests` library
 - GitHub Personal Access Token with `repo` scope (for PR reports)
-- Slack Bot User OAuth Token with `search:read` scope (for Slack search)
+- Slack User OAuth Token with `search:read` scope (for Slack search)

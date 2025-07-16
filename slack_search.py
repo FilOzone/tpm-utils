@@ -27,7 +27,7 @@ class SlackSearcher:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
     
-    def search_messages(self, query: str, count: int = 100) -> Dict[str, Any]:
+    def search_messages(self, query: str, count: int = 10) -> Dict[str, Any]:
         """Search for messages in the Slack workspace."""
         url = f"{self.base_url}/search.messages"
         params = {
@@ -141,10 +141,13 @@ class SlackSearcher:
         messages = results['messages']['matches']
         total_count = results['messages']['total']
         
+        # Limit to 10 most recent results
+        messages = messages[:10]
+        
         output = []
         output.append(f"=== Search Results for: '{query}' ===")
         output.append(f"Total matches: {total_count}")
-        output.append(f"Showing: {len(messages)} results")
+        output.append(f"Showing: {len(messages)} most recent results")
         output.append("")
         
         for i, message in enumerate(messages, 1):
@@ -156,25 +159,25 @@ class SlackSearcher:
 
 def main():
     parser = argparse.ArgumentParser(description='Search Slack workspace for messages')
-    parser.add_argument('--token', help='Slack Bot User OAuth Token (or set SLACK_TOKEN env var)')
+    parser.add_argument('--token', help='Slack User OAuth Token (or set SLACK_USER_TOKEN env var)')
     parser.add_argument('--workspace', default='filecoinproject', help='Slack workspace name (default: filecoinproject)')
     parser.add_argument('--output', '-o', help='Output file (default: stdout)')
-    parser.add_argument('--count', '-c', type=int, default=20, help='Number of results per query (default: 20)')
+    parser.add_argument('--count', '-c', type=int, default=10, help='Number of results per query (default: 10)')
     parser.add_argument('queries', nargs='*', help='Search queries (or read from stdin)')
     
     args = parser.parse_args()
     
     # Get Slack token
-    token = args.token or os.getenv('SLACK_TOKEN')
+    token = args.token or os.getenv('SLACK_USER_TOKEN')
     if not token:
-        print("Error: Slack token required. Set SLACK_TOKEN environment variable or use --token flag.")
-        print("To get a token:")
+        print("Error: Slack user token required. Set SLACK_USER_TOKEN environment variable or use --token flag.")
+        print("To get a user token:")
         print("1. Go to https://api.slack.com/apps")
-        print("2. Create a new app or select existing app")
+        print("2. Create a new app using the provided manifest")
         print("3. Go to 'OAuth & Permissions'")
-        print("4. Add the 'search:read' scope")
-        print("5. Install the app to your workspace")
-        print("6. Copy the 'Bot User OAuth Token'")
+        print("4. Install the app to your workspace")
+        print("5. Copy the 'User OAuth Token' (starts with xoxp-)")
+        print("Note: User tokens can search all channels you have access to (including private channels)")
         sys.exit(1)
     
     searcher = SlackSearcher(token, args.workspace)

@@ -1,0 +1,18 @@
+display_information:
+  name: Personal Slack Search
+  description: Personal search tool for accessing all your Slack channels
+  background_color: "#2c2d30"
+  long_description: |
+    This app provides personal search functionality for your Slack workspace.
+    It uses a user token to search through all channels you have access to,
+    including private channels and direct messages.
+
+oauth_config:
+  scopes:
+    user:
+      - search:read
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
