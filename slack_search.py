@@ -158,16 +158,17 @@ class SlackSearcher:
         channel_name = self.get_channel_info(channel_id) if channel_id else 'Unknown'
         user_name = self.get_user_info(user_id) if user_id else 'Unknown'
         
-        # Format message
+        # Format message in markdown
         output = []
-        output.append(f"Channel: #{channel_name}")
-        output.append(f"User: {user_name}")
-        output.append(f"Date: {date_str}")
-        output.append(f"Message: {text}")
+        output.append(f"**Channel:** #{channel_name}")
+        output.append(f"**User:** {user_name}")
+        output.append(f"**Date:** {date_str}")
         
         # Add permalink if available
         if message.get('permalink'):
-            output.append(f"Link: {message['permalink']}")
+            output.append(f"**Link:** {message['permalink']}")
+        
+        output.append(f"**Message:**\n{text}")
         
         return '\n'.join(output)
     
@@ -178,7 +179,7 @@ class SlackSearcher:
         results = self.search_messages(query)
         
         if not results or not results.get('messages'):
-            return f"No results found for query: '{query}'"
+            return f"## {query}\n\nNo results found for query: '{query}'"
         
         messages = results['messages']['matches']
         total_count = results['messages']['total']
@@ -187,15 +188,17 @@ class SlackSearcher:
         messages = messages[:10]
         
         output = []
-        output.append(f"=== Search Results for: '{query}' ===")
-        output.append(f"Total matches: {total_count}")
-        output.append(f"Showing: {len(messages)} most recent results")
+        output.append(f"## {query}")
+        output.append("")
+        output.append(f"**Total matches:** {total_count}")
+        output.append(f"**Showing:** {len(messages)} most recent results")
         output.append("")
         
         print(f"Resolving channel and user names...", file=sys.stderr)
         
         for i, message in enumerate(messages, 1):
-            output.append(f"--- Result {i} ---")
+            output.append(f"### Result {i}")
+            output.append("")
             output.append(self.format_message(message))
             output.append("")
         
@@ -250,15 +253,33 @@ def main():
     
     # Perform searches
     results = []
+    query_results = []
+    
     for query in queries:
         try:
             result = searcher.search_and_format(query)
-            results.append(result)
-            results.append("=" * 80)
-            results.append("")
+            query_results.append({'query': query, 'result': result})
         except Exception as e:
             print(f"Error searching for '{query}': {e}", file=sys.stderr)
             continue
+    
+    # Generate table of contents
+    if query_results:
+        toc = ["# Slack Search Results", "", "## Table of Contents", ""]
+        for i, qr in enumerate(query_results, 1):
+            # Create markdown-friendly anchor link
+            anchor = qr['query'].lower().replace(' ', '-')
+            # Remove common special characters that cause issues in markdown anchors
+            import re
+            anchor = re.sub(r'[^a-z0-9\-]', '', anchor)
+            toc.append(f"{i}. [{qr['query']}](#{anchor})")
+        toc.append("")
+        results.extend(toc)
+    
+    # Add search results
+    for qr in query_results:
+        results.append(qr['result'])
+        results.append("")
     
     # Output results
     output_text = '\n'.join(results)
