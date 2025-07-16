@@ -168,7 +168,17 @@ class SlackSearcher:
         if message.get('permalink'):
             output.append(f"**Link:** {message['permalink']}")
         
-        output.append(f"**Message:**\n{text}")
+        # Clean up code block formatting - ensure triple backticks are on their own lines
+        cleaned_text = text
+        if '```' in cleaned_text:
+            # Replace cases where text is adjacent to ```
+            import re
+            # Handle ```text -> ```\ntext
+            cleaned_text = re.sub(r'```([^\n])', r'```\n\1', cleaned_text)
+            # Handle text``` -> text\n```
+            cleaned_text = re.sub(r'([^\n])```', r'\1\n```', cleaned_text)
+        
+        output.append(f"**Message:**\n{cleaned_text}")
         
         return '\n'.join(output)
     
@@ -197,7 +207,12 @@ class SlackSearcher:
         print(f"Resolving channel and user names...", file=sys.stderr)
         
         for i, message in enumerate(messages, 1):
-            output.append(f"### Result {i}")
+            # Create anchor-friendly query for result headings
+            import re
+            query_anchor = query.lower().replace(' ', '-')
+            query_anchor = re.sub(r'[^a-z0-9\-]', '', query_anchor)
+            
+            output.append(f"### Result {i} {{#{query_anchor}-result-{i}}}")
             output.append("")
             output.append(self.format_message(message))
             output.append("")
@@ -266,13 +281,42 @@ def main():
     # Generate table of contents
     if query_results:
         toc = ["# Slack Search Results", "", "## Table of Contents", ""]
+        import re
+        
         for i, qr in enumerate(query_results, 1):
-            # Create markdown-friendly anchor link
-            anchor = qr['query'].lower().replace(' ', '-')
-            # Remove common special characters that cause issues in markdown anchors
-            import re
-            anchor = re.sub(r'[^a-z0-9\-]', '', anchor)
-            toc.append(f"{i}. [{qr['query']}](#{anchor})")
+            # Create markdown-friendly anchor link for query
+            query_anchor = qr['query'].lower().replace(' ', '-')
+            query_anchor = re.sub(r'[^a-z0-9\-]', '', query_anchor)
+            toc.append(f"{i}. [{qr['query']}](#{query_anchor})")
+            
+            # Parse the result to extract result details for TOC
+            result_lines = qr['result'].split('\n')
+            result_num = 0
+            
+            i_line = 0
+            while i_line < len(result_lines):
+                line = result_lines[i_line]
+                if line.startswith('### Result '):
+                    result_num += 1
+                    # Extract date, channel, and user from the next few lines
+                    date = channel = user = "Unknown"
+                    
+                    # Look for the formatted message details in the following lines
+                    for j in range(i_line + 1, min(i_line + 10, len(result_lines))):
+                        if result_lines[j].startswith('**Channel:**'):
+                            channel = result_lines[j].replace('**Channel:** #', '').strip()
+                        elif result_lines[j].startswith('**User:**'):
+                            user = result_lines[j].replace('**User:** ', '').strip()
+                        elif result_lines[j].startswith('**Date:**'):
+                            date = result_lines[j].replace('**Date:** ', '').strip()
+                            # Extract just the date part (YYYY-MM-DD)
+                            date = date.split(' ')[0] if ' ' in date else date
+                    
+                    result_anchor = f"{query_anchor}-result-{result_num}"
+                    toc.append(f"   {i}.{result_num} [{date} - {channel} - {user}](#{result_anchor})")
+                
+                i_line += 1
+                
         toc.append("")
         results.extend(toc)
     
