@@ -11,9 +11,40 @@ import sys
 import json
 import requests
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import argparse
 import time
+from dataclasses import dataclass, asdict
+
+@dataclass
+class SearchResult:
+    """Represents a single search result message."""
+    channel_id: str
+    channel_name: str
+    user_id: str
+    user_name: str
+    timestamp: str
+    date: str
+    text: str
+    permalink: str
+    query: str
+    result_number: int
+
+@dataclass
+class QueryResults:
+    """Represents all results for a single query."""
+    query: str
+    total_matches: int
+    results: List[SearchResult]
+    filtered_count: int = 0
+
+@dataclass
+class SearchSession:
+    """Represents a complete search session with multiple queries."""
+    queries: List[QueryResults]
+    excluded_urls: List[str]
+    timestamp: str
+    workspace: str
 
 class SlackSearcher:
     def __init__(self, token: str, workspace: str = "filecoinproject", excluded_urls: List[str] = None):
@@ -183,19 +214,20 @@ class SlackSearcher:
         
         return '\n'.join(output)
     
-    def search_and_format(self, query: str) -> str:
-        """Search for messages and format the results."""
+    def search_and_collect(self, query: str, count: int = 10) -> QueryResults:
+        """Search for messages and collect data into structured format."""
         print(f"Searching for: '{query}'", file=sys.stderr)
         
-        results = self.search_messages(query)
+        results = self.search_messages(query, count)
         
         if not results or not results.get('messages'):
-            return f"## {query}\n\nNo results found for query: '{query}'"
+            return QueryResults(query=query, total_matches=0, results=[])
         
         messages = results['messages']['matches']
         total_count = results['messages']['total']
         
         # Filter out excluded URLs
+        filtered_count = 0
         if self.excluded_urls:
             original_count = len(messages)
             messages = [msg for msg in messages if msg.get('permalink') not in self.excluded_urls]
@@ -203,26 +235,151 @@ class SlackSearcher:
             if filtered_count > 0:
                 print(f"Filtered out {filtered_count} excluded messages", file=sys.stderr)
         
-        # Limit to 10 most recent results
-        messages = messages[:10]
-        
-        output = []
-        output.append(f"## {query}")
-        output.append("")
-        output.append(f"**Total matches:** {total_count}")
-        output.append(f"**Showing:** {len(messages)} most recent results")
-        output.append("")
+        # Limit to specified count
+        messages = messages[:count]
         
         print(f"Resolving channel and user names...", file=sys.stderr)
         
+        search_results = []
         for i, message in enumerate(messages, 1):
-            output.append(f"### {query} Result {i}")
-            output.append("")
-            output.append(self.format_message(message))
-            output.append("")
+            # Extract basic info
+            text = message.get('text', '')
+            user_id = message.get('user', '')
+            channel_id = message.get('channel', {}).get('id', '')
+            timestamp = message.get('ts', '')
+            permalink = message.get('permalink', '')
+            
+            # Convert timestamp to readable date
+            if timestamp:
+                try:
+                    dt = datetime.fromtimestamp(float(timestamp))
+                    date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    date_str = timestamp
+            else:
+                date_str = 'Unknown'
+            
+            # Get channel and user names
+            channel_name = self.get_channel_info(channel_id) if channel_id else 'Unknown'
+            user_name = self.get_user_info(user_id) if user_id else 'Unknown'
+            
+            # Clean up code block formatting
+            cleaned_text = text
+            if '```' in cleaned_text:
+                import re
+                cleaned_text = re.sub(r'```([^\n])', r'```\n\1', cleaned_text)
+                cleaned_text = re.sub(r'([^\n])```', r'\1\n```', cleaned_text)
+            
+            search_result = SearchResult(
+                channel_id=channel_id,
+                channel_name=channel_name,
+                user_id=user_id,
+                user_name=user_name,
+                timestamp=timestamp,
+                date=date_str,
+                text=cleaned_text,
+                permalink=permalink,
+                query=query,
+                result_number=i
+            )
+            search_results.append(search_result)
         
         # Print cache statistics
         print(f"Cache stats - Channels: {len(self.channel_cache)}, Users: {len(self.user_cache)}", file=sys.stderr)
+        
+        return QueryResults(
+            query=query,
+            total_matches=total_count,
+            results=search_results,
+            filtered_count=filtered_count
+        )
+
+class SearchResultsRenderer:
+    """Renders search results data model to various formats."""
+    
+    @staticmethod
+    def to_json(session: SearchSession) -> str:
+        """Convert search session to JSON string."""
+        return json.dumps(asdict(session), indent=2)
+    
+    @staticmethod
+    def from_json(json_str: str) -> SearchSession:
+        """Create search session from JSON string."""
+        data = json.loads(json_str)
+        
+        # Convert back to dataclass instances
+        queries = []
+        for query_data in data['queries']:
+            results = [SearchResult(**result) for result in query_data['results']]
+            query_results = QueryResults(
+                query=query_data['query'],
+                total_matches=query_data['total_matches'],
+                results=results,
+                filtered_count=query_data.get('filtered_count', 0)
+            )
+            queries.append(query_results)
+        
+        return SearchSession(
+            queries=queries,
+            excluded_urls=data['excluded_urls'],
+            timestamp=data['timestamp'],
+            workspace=data['workspace']
+        )
+    
+    @staticmethod
+    def to_markdown(session: SearchSession) -> str:
+        """Convert search session to markdown format."""
+        if not session.queries:
+            return "# Slack Search Results\n\nNo queries found."
+        
+        output = []
+        
+        # Generate table of contents
+        toc = ["# Slack Search Results", "", "## Table of Contents", ""]
+        import re
+        
+        for i, query_results in enumerate(session.queries, 1):
+            # Create markdown-friendly anchor link for query
+            query_anchor = query_results.query.lower().replace(' ', '-')
+            query_anchor = re.sub(r'[^a-z0-9\-]', '', query_anchor)
+            toc.append(f"{i}. [{query_results.query}](#{query_anchor})")
+            
+            # Add sub-items for each result
+            for j, result in enumerate(query_results.results, 1):
+                # Extract just the date part (YYYY-MM-DD)
+                date = result.date.split(' ')[0] if ' ' in result.date else result.date
+                
+                # Create anchor for the result heading
+                result_anchor = f"{query_results.query}-result-{j}".lower().replace(' ', '-')
+                result_anchor = re.sub(r'[^a-z0-9\-]', '', result_anchor)
+                toc.append(f"   {i}.{j} [{date} - {result.channel_name} - {result.user_name}](#{result_anchor})")
+        
+        toc.append("")
+        output.extend(toc)
+        
+        # Add search results
+        for query_results in session.queries:
+            output.append(f"## {query_results.query}")
+            output.append("")
+            output.append(f"**Total matches:** {query_results.total_matches}")
+            output.append(f"**Showing:** {len(query_results.results)} most recent results")
+            output.append("")
+            
+            for result in query_results.results:
+                output.append(f"### {query_results.query} Result {result.result_number}")
+                output.append("")
+                output.append(f"**Channel:** #{result.channel_name}")
+                output.append(f"**User:** {result.user_name}")
+                output.append(f"**Date:** {result.date}")
+                
+                # Add permalink if available
+                if result.permalink:
+                    output.append(f"**Link:** {result.permalink}")
+                
+                output.append(f"**Message:**\n{result.text}")
+                output.append("")
+            
+            output.append("")
         
         return '\n'.join(output)
 
@@ -234,11 +391,46 @@ def main():
     parser.add_argument('--count', '-c', type=int, default=10, help='Number of results per query (default: 10)')
     parser.add_argument('--exclude-url', action='append', help='Exclude messages with these URLs from results (can be used multiple times)')
     parser.add_argument('--exclude-urls-file', help='File containing URLs to exclude (one per line)')
+    
+    # New workflow options
+    parser.add_argument('--export-json', help='Export search results to JSON file')
+    parser.add_argument('--import-json', help='Import search results from JSON file and convert to markdown')
+    parser.add_argument('--format', choices=['markdown', 'json'], default='markdown', help='Output format (default: markdown)')
+    
     parser.add_argument('queries', nargs='*', help='Search queries (or read from stdin)')
     
     args = parser.parse_args()
     
-    # Get Slack token
+    # Handle import mode
+    if args.import_json:
+        try:
+            with open(args.import_json, 'r') as f:
+                json_data = f.read()
+            
+            session = SearchResultsRenderer.from_json(json_data)
+            
+            if args.format == 'markdown':
+                output_text = SearchResultsRenderer.to_markdown(session)
+            else:
+                output_text = SearchResultsRenderer.to_json(session)
+            
+            if args.output:
+                with open(args.output, 'w') as f:
+                    f.write(output_text)
+                print(f"Results saved to {args.output}", file=sys.stderr)
+            else:
+                print(output_text)
+            
+            return
+            
+        except FileNotFoundError:
+            print(f"Error: JSON file not found: {args.import_json}", file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in {args.import_json}: {e}", file=sys.stderr)
+            sys.exit(1)
+    
+    # Normal search mode - need token and queries
     token = args.token or os.getenv('SLACK_USER_TOKEN')
     if not token:
         print("Error: Slack user token required. Set SLACK_USER_TOKEN environment variable or use --token flag.")
@@ -270,8 +462,6 @@ def main():
     if excluded_urls:
         print(f"Excluding {len(excluded_urls)} URLs from results", file=sys.stderr)
     
-    searcher = SlackSearcher(token, args.workspace, excluded_urls)
-    
     # Get queries from command line args or stdin
     if args.queries:
         queries = args.queries
@@ -291,69 +481,38 @@ def main():
         print("No queries provided.", file=sys.stderr)
         sys.exit(1)
     
-    # Perform searches
-    results = []
+    # Perform searches and collect data
+    searcher = SlackSearcher(token, args.workspace, excluded_urls)
     query_results = []
     
     for query in queries:
         try:
-            result = searcher.search_and_format(query)
-            query_results.append({'query': query, 'result': result})
+            result = searcher.search_and_collect(query, args.count)
+            query_results.append(result)
         except Exception as e:
             print(f"Error searching for '{query}': {e}", file=sys.stderr)
             continue
     
-    # Generate table of contents
-    if query_results:
-        toc = ["# Slack Search Results", "", "## Table of Contents", ""]
-        import re
-        
-        for i, qr in enumerate(query_results, 1):
-            # Create markdown-friendly anchor link for query
-            query_anchor = qr['query'].lower().replace(' ', '-')
-            query_anchor = re.sub(r'[^a-z0-9\-]', '', query_anchor)
-            toc.append(f"{i}. [{qr['query']}](#{query_anchor})")
-            
-            # Parse the result to extract result details for TOC
-            result_lines = qr['result'].split('\n')
-            result_num = 0
-            
-            i_line = 0
-            while i_line < len(result_lines):
-                line = result_lines[i_line]
-                if line.startswith(f'### {qr["query"]} Result '):
-                    result_num += 1
-                    # Extract date, channel, and user from the next few lines
-                    date = channel = user = "Unknown"
-                    
-                    # Look for the formatted message details in the following lines
-                    for j in range(i_line + 1, min(i_line + 10, len(result_lines))):
-                        if result_lines[j].startswith('**Channel:**'):
-                            channel = result_lines[j].replace('**Channel:** #', '').strip()
-                        elif result_lines[j].startswith('**User:**'):
-                            user = result_lines[j].replace('**User:** ', '').strip()
-                        elif result_lines[j].startswith('**Date:**'):
-                            date = result_lines[j].replace('**Date:** ', '').strip()
-                            # Extract just the date part (YYYY-MM-DD)
-                            date = date.split(' ')[0] if ' ' in date else date
-                    
-                    # Create anchor for the result heading
-                    result_anchor = f"{qr['query']}-result-{result_num}".lower().replace(' ', '-')
-                    result_anchor = re.sub(r'[^a-z0-9\-]', '', result_anchor)
-                    toc.append(f"   {i}.{result_num} [{date} - {channel} - {user}](#{result_anchor})")
-                
-                i_line += 1
-                
-        toc.append("")
-        results.extend(toc)
+    # Create search session
+    session = SearchSession(
+        queries=query_results,
+        excluded_urls=excluded_urls,
+        timestamp=datetime.now().isoformat(),
+        workspace=args.workspace
+    )
     
-    # Add search results
-    for qr in query_results:
-        results.append(qr['result'])
-        results.append("")
+    # Export to JSON if requested
+    if args.export_json:
+        json_output = SearchResultsRenderer.to_json(session)
+        with open(args.export_json, 'w') as f:
+            f.write(json_output)
+        print(f"Data exported to {args.export_json}", file=sys.stderr)
     
-    # Output results
-    output_text = '\n'.join(results)
+    # Generate output
+    if args.format == 'json':
+        output_text = SearchResultsRenderer.to_json(session)
+    else:
+        output_text = SearchResultsRenderer.to_markdown(session)
     
     if args.output:
         with open(args.output, 'w') as f:
