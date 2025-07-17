@@ -391,6 +391,7 @@ def main():
     parser.add_argument('--count', '-c', type=int, default=10, help='Number of results per query (default: 10)')
     parser.add_argument('--exclude-url', action='append', help='Exclude messages with these URLs from results (can be used multiple times)')
     parser.add_argument('--exclude-urls-file', help='File containing URLs to exclude (one per line)')
+    parser.add_argument('--delay', type=float, default=0.5, help='Delay between search queries in seconds (default: 0.5)')
     
     # New workflow options
     parser.add_argument('--export-json', help='Export search results to JSON file')
@@ -485,8 +486,13 @@ def main():
     searcher = SlackSearcher(token, args.workspace, excluded_urls)
     query_results = []
     
-    for query in queries:
+    for i, query in enumerate(queries):
         try:
+            # Add delay between queries (except for the first one)
+            if i > 0:
+                print(f"Waiting {args.delay} seconds before next query...", file=sys.stderr)
+                time.sleep(args.delay)
+            
             result = searcher.search_and_collect(query, args.count)
             query_results.append(result)
         except Exception as e:
