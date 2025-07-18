@@ -1,186 +1,59 @@
-# GitHub PR Report Generator
+# FilOz TPM Utilities
 
-A Python script that queries GitHub repositories for pull request information and generates reports with open PR counts and detailed PR summaries.
+This repository contains various scripts and documentation to help [FilOz](https://www.filoz.org/) Technical Program Managers (TPMs) with weekly reporting, investigations, and other operational tasks.
 
-## Features
+## Overview
 
-- Count open non-draft PRs for each repository
-- Generate detailed PR summaries for the last 3 months
-- Tab-separated output for easy spreadsheet import
-- Includes PR number, creation date, last modified date, title, author, status, and URL
+FilOz TPMs regularly need to:
+- Generate reports on GitHub pull requests and development activity
+- Find and analyze Filecoin Slack conversations related to specific miner IDs
+- Track storage provider issues and communications
+- Investigate technical problems across the Filecoin ecosystem
 
-## Setup
+This repository provides tools and workflows to streamline these tasks.
 
-1. Install dependencies:
+## Available Tools & Documentation
+
+### 📊 GitHub PR Report Generator
+**File:** [GITHUB_PR_REPORT_GENERATOR.md](GITHUB_PR_REPORT_GENERATOR.md)
+
+Generate comprehensive reports of GitHub pull requests across repositories, with filtering capabilities for date ranges, repositories, and specific criteria. Useful for weekly development activity summaries.
+
+### 🔍 Slack Miner ID Search Workflow
+**File:** [FINDING_MINERIDS_ON_SLACK.md](FINDING_MINERIDS_ON_SLACK.md)
+
+Complete workflow for finding relevant Filecoin Slack messages related to specific miner IDs. Includes:
+- Automated searching across Slack channels
+- Filtering out automated chain messages
+- Post-processing to focus on human conversations
+- Clean markdown report generation
+
+This is particularly useful for investigating storage provider issues and tracking community discussions.
+
+## Getting Started
+
+1. **Clone the repository**
    ```bash
-   pip install -r requirements.txt
+   git clone https://github.com/FilOzone/tpm-utils.git
+   cd tpm-utils
    ```
 
-2. Create a GitHub Personal Access Token:
-   - Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
-   - Generate a new token with `repo` scope
-   - Set the token as an environment variable:
-     ```bash
-     export GITHUB_TOKEN="your_token_here"
-     ```
+2. **Review the documentation** for the specific tool you need
+3. **Set up any required dependencies** (Python 3, jq, etc.)
+4. **Follow the workflow steps** outlined in each documentation file
 
-## Usage
+## Contributing
 
-### FilOz Weekly Report
+If you have additional tools or improvements to existing workflows:
+1. Fork the repository
+2. Create a feature branch
+3. Add your tools with appropriate documentation
+4. Submit a pull request
 
-To generate the FilOz Weekly Report on repos @biglep runs:
+## Support
 
-```bash
-python3 github_pr_report.py filecoin-project/lotus filecoin-project/go-state-types filecoin-project/filecoin-ffi filecoin-project/builtin-actors filecoin-project/ref-fvm filecoin-project/actors-utils filecoin-project/lotus-infra filecoin-project/go-jsonrpc filecoin-project/go-crypto filecoin-project/go-f3 filecoin-project/lotus-docs filecoin-project/rust-filecoin-proofs-api filecoin-project/rust-gpu-tools filecoin-project/bellperson filecoin-project/rust-fil-proofs filecoin-project/ec-gpu filecoin-project/merkletree filecoin-project/blstrs filecoin-project/go-paramfetch
-```
+For questions or issues with these tools, please open an issue in this repository or reach out to the FilOz team.
 
-### Basic Usage
+---
 
-```bash
-python3 github_pr_report.py owner/repo1 owner/repo2 owner/repo3
-```
-
-### Save to File
-
-```bash
-python3 github_pr_report.py owner/repo1 owner/repo2 --output report.txt
-```
-
-### Using Token Flag
-
-```bash
-python3 github_pr_report.py --token your_token_here owner/repo1 owner/repo2
-```
-
-## Team Member PR Report
-
-To generate a report of all open PRs for team members:
-
-```bash
-python3 team_pr_report.py username1 username2 username3
-```
-
-### Example Team Report Usage
-
-```bash
-# Single team member
-python3 team_pr_report.py biglep
-
-# Multiple team members
-python3 team_pr_report.py alice bob charlie
-
-# Save to file
-python3 team_pr_report.py alice bob charlie --output team_report.txt
-```
-
-## Example Output
-
-### Repository PR Report
-
-```
-=== Open Non-Draft PR Count Summary ===
-Repository              Open Non-Draft PRs
-owner/repo1             5
-owner/repo2             3
-owner/repo3             2
-TOTAL                   10
-
-=== PR Details (Last 3 Months) ===
-Repository      PR Number       Created Date    Last Modified   Title                   Author  Status          URL
-owner/repo1     42             2024-01-15      2024-01-20      Fix authentication bug  alice   ready for review https://github.com/owner/repo1/pull/42
-owner/repo2     38             2024-01-10      2024-01-18      Add new feature        bob     draft           https://github.com/owner/repo2/pull/38
-```
-
-### Team Member PR Report
-
-```
-=== Team Member Open PRs ===
-
-User: alice
---------------------------------------------------------
-Repo               PR#  Created     Modified    Title                  Status           URL
-------------------  ---  ----------  ----------  ---------------------  ---------------  ---
-owner/repo1        42   2024-01-15  2024-01-20  Fix authentication...  ready for review https://...
-owner/repo2        38   2024-01-10  2024-01-18  Add new feature...     draft            https://...
-
-User: bob
---------------------------------------------------------
-Repo               PR#  Created     Modified    Title                  Status           URL
-------------------  ---  ----------  ----------  ---------------------  ---------------  ---
-owner/repo3        25   2024-01-12  2024-01-19  Update documentation   ready for review https://...
-
-=== Summary ===
-alice: 2 open PRs
-bob: 1 open PR
-Total: 3 open PRs across 2 team members
-```
-
-## Importing to Spreadsheet
-
-The output uses tab-separated values that can be easily copied and pasted into Excel, Google Sheets, or other spreadsheet applications:
-
-1. Run the script and copy the output
-2. Open your spreadsheet application
-3. Paste the data - it will automatically separate into columns
-
-## Command Line Options
-
-### github_pr_report.py
-- `repos`: One or more GitHub repositories in `owner/repo` format
-- `--token`: GitHub personal access token (optional if `GITHUB_TOKEN` env var is set)
-- `--output`, `-o`: Output file path (optional, defaults to stdout)
-
-### team_pr_report.py
-- `usernames`: One or more GitHub usernames of team members
-- `--token`: GitHub personal access token (optional if `GITHUB_TOKEN` env var is set)
-- `--output`, `-o`: Output file path (optional, defaults to stdout)
-
-## Slack Search Script
-
-To search for messages in the filecoinproject Slack workspace:
-
-```bash
-python3 slack_search.py "your search query"
-```
-
-### Interactive Mode
-
-```bash
-python3 slack_search.py
-# Enter queries one per line, Ctrl+D to finish
-```
-
-### Multiple Queries
-
-```bash
-python3 slack_search.py "query1" "query2" "query3"
-```
-
-### Save Results
-
-```bash
-python3 slack_search.py --output results.txt "your search query"
-```
-
-### Setup for Slack
-
-1. Get a Slack User Token:
-   - Go to [Slack API Apps](https://api.slack.com/apps)
-   - Create a new app using the provided `slack-app-manifest.yaml`
-   - Go to 'OAuth & Permissions'
-   - Install the app to your workspace
-   - Copy the 'User OAuth Token' (starts with `xoxp-`)
-
-2. Set the token as an environment variable:
-   ```bash
-   export SLACK_USER_TOKEN="xoxp-your-token-here"
-   ```
-
-**Note:** User tokens can search all channels you have access to (including private channels), unlike bot tokens which are limited to public channels.
-
-## Requirements
-
-- Python 3.6+
-- `requests` library
-- GitHub Personal Access Token with `repo` scope (for PR reports)
-- Slack User OAuth Token with `search:read`, `users:read`, `channels:read`, `groups:read`, `im:read`, `mpim:read` scopes (for Slack search)
+*Part of the [FilOz](https://www.filoz.org/) Technical Program Management toolkit*
