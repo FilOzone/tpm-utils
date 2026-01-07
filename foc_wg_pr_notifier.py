@@ -128,6 +128,17 @@ class FOCWGNotifier:
                                     createdAt
                                     updatedAt
                                     author { login }
+                                    assignees(first: 10) {
+                                        nodes { login }
+                                    }
+                                    reviewRequests(first: 10) {
+                                        nodes {
+                                            requestedReviewer {
+                                                ... on User { login }
+                                                ... on Team { name }
+                                            }
+                                        }
+                                    }
                                     repository { nameWithOwner }
                                     milestone { title }
                                 }
@@ -220,17 +231,30 @@ class FOCWGNotifier:
         print(f"Filtered to {len(filtered)} PRs (from {len(items)} total items)")
         return filtered
 
-    def format_slack_message(self, prs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Format PRs into a Slack message with blocks."""
+    def _safe_field_text(self, label: str, value: str, max_length: int = 100) -> str:
+        """Safely format a field text, ensuring it doesn't exceed limits."""
+        # Handle None or empty values
+        if not value or value.strip() == '' or value == 'None':
+            value = 'None'
+        else:
+            # Truncate value if needed
+            if len(value) > max_length:
+                value = value[:max_length - 3] + "..."
+        return f"*{label}:*\n{value}"
+
+    def format_slack_messages(self, prs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format PRs into one or more Slack messages with blocks (splits if >50 blocks)."""
+        SLACK_MAX_BLOCKS = 50
+        
         if not prs:
-            return {
-                "text": "FOC-WG PR Report: No open PRs matching filters",
+            return [{
+                "text": "FOC-WG Daily PR Summary: No open PRs matching filters",
                 "blocks": [
                     {
                         "type": "header",
                         "text": {
                             "type": "plain_text",
-                            "text": "📋 FOC-WG PR Report",
+                            "text": "📋 FOC-WG Daily PR Summary",
                             "emoji": True
                         }
                     },
@@ -242,31 +266,10 @@ class FOCWGNotifier:
                         }
                     }
                 ]
-            }
+            }]
 
         # Sort by updated date (most recent first)
         prs_sorted = sorted(prs, key=lambda x: x.get('updatedAt', ''), reverse=True)
-
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "📋 FOC-WG PR Report",
-                    "emoji": True
-                }
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*{len(prs_sorted)} open PRs* from <https://github.com/orgs/FilOzone/projects/14/views/32|FilOzone Project 14 (View 32)>"
-                    }
-                ]
-            },
-            {"type": "divider"}
-        ]
 
         # Group PRs by repository
         prs_by_repo: Dict[str, List[Dict]] = {}
@@ -276,60 +279,231 @@ class FOCWGNotifier:
                 prs_by_repo[repo] = []
             prs_by_repo[repo].append(pr)
 
-        for repo, repo_prs in prs_by_repo.items():
-            # Repo header
-            blocks.append({
+        messages = []
+        current_blocks = []
+        message_num = 1
+        total_messages = 1  # Will be calculated if we need to split
+        
+        # Compact header for first message
+        header_blocks = [
+            {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*{repo}* ({len(repo_prs)} PRs)"
+                    "text": f"*📋 FOC-WG Daily PR Summary* · {len(prs_sorted)} open PRs · <https://github.com/orgs/FilOzone/projects/14/views/32|View 32>"
+                }
+            }
+        ]
+        
+        # Group PRs by repository first
+        prs_by_repo: Dict[str, List[Dict]] = {}
+        for pr in prs_sorted:
+            repo = pr.get('repository', {}).get('nameWithOwner', 'Unknown')
+            if repo not in prs_by_repo:
+                prs_by_repo[repo] = []
+            prs_by_repo[repo].append(pr)
+
+        # Estimate if we need to split (now: 1 block per PR + 1 per repo header + header + footer)
+        estimated_blocks = len(header_blocks) + len(prs_sorted) + len(prs_by_repo) + 1  # +1 for footer
+        if estimated_blocks > SLACK_MAX_BLOCKS:
+            # Calculate how many messages we'll need
+            blocks_per_message = SLACK_MAX_BLOCKS - len(header_blocks) - 2  # Reserve for footer
+            prs_per_message = blocks_per_message - len(prs_by_repo)  # Rough estimate
+            if prs_per_message < 10:
+                prs_per_message = 10  # Minimum
+            total_messages = (len(prs_sorted) + prs_per_message - 1) // prs_per_message
+        else:
+            total_messages = 1
+        
+        current_blocks.extend(header_blocks)
+
+        repo_list = list(prs_by_repo.items())
+        for repo_idx, (repo, repo_prs) in enumerate(repo_list):
+            # Check if we need to start a new message
+            # Each PR takes ~1 block (section with fields), repo header takes 1, divider takes 1
+            estimated_new_blocks = 1 + len(repo_prs) + 1  # repo header + PRs + divider
+            if len(current_blocks) + estimated_new_blocks > SLACK_MAX_BLOCKS - 3:  # Reserve for footer
+                # Finish current message
+                now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                current_blocks.append({
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"Part {message_num} · Generated {now}"
+                        }
+                    ]
+                })
+                messages.append({
+                    "text": f"FOC-WG Daily PR Summary (Part {message_num})",
+                    "blocks": current_blocks
+                })
+                
+                # Start new message
+                message_num += 1
+                current_blocks = [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"*📋 FOC-WG Daily PR Summary (Part {message_num})* · <https://github.com/orgs/FilOzone/projects/14/views/32|View 32>"
+                        }
+                    }
+                ]
+            
+            # Compact repo header
+            current_blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*{repo}* ({len(repo_prs)})"
                 }
             })
 
-            # PR list for this repo
-            pr_lines = []
-            for pr in repo_prs:
+            # PR list for this repo - compact format
+            for pr_idx, pr in enumerate(repo_prs):
                 number = pr.get('number')
                 title = pr.get('title', 'Untitled')
                 url = pr.get('url', '')
                 author = pr.get('author', {}).get('login', 'unknown')
                 is_draft = pr.get('isDraft', False)
-                status = pr.get('_project_fields', {}).get('Status', '')
-
-                # Truncate title if too long
-                if len(title) > 60:
-                    title = title[:57] + "..."
-
+                
+                # Get assignees
+                assignees = pr.get('assignees', {}).get('nodes', [])
+                assignee_logins = [a.get('login') for a in assignees if a]
+                assignees_str = ', '.join(assignee_logins) if assignee_logins else 'None'
+                # Truncate if too long (Slack field limit is 2000 chars)
+                if len(assignees_str) > 100:
+                    assignees_str = assignees_str[:97] + "..."
+                
+                # Get requested reviewers
+                review_requests = pr.get('reviewRequests', {}).get('nodes', [])
+                reviewers = []
+                for rr in review_requests:
+                    reviewer = rr.get('requestedReviewer', {})
+                    if reviewer:
+                        # Could be User or Team
+                        reviewer_name = reviewer.get('login') or reviewer.get('name')
+                        if reviewer_name:
+                            reviewers.append(reviewer_name)
+                reviewers_str = ', '.join(reviewers) if reviewers else 'None'
+                # Truncate if too long
+                if len(reviewers_str) > 100:
+                    reviewers_str = reviewers_str[:97] + "..."
+                
+                # Dates - parse ISO format dates
+                created_at = pr.get('createdAt', '')
+                updated_at = pr.get('updatedAt', '')
+                try:
+                    if created_at:
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).strftime('%Y-%m-%d')
+                    else:
+                        created_date = 'Unknown'
+                except (ValueError, AttributeError):
+                    created_date = 'Unknown'
+                
+                try:
+                    if updated_at:
+                        updated_date = datetime.fromisoformat(updated_at.replace('Z', '+00:00')).strftime('%Y-%m-%d')
+                    else:
+                        updated_date = 'Unknown'
+                except (ValueError, AttributeError):
+                    updated_date = 'Unknown'
+                
+                # Project fields
+                project_fields = pr.get('_project_fields', {})
+                status = project_fields.get('Status', '') or 'None'
+                cycle = project_fields.get('Cycle', '') or project_fields.get('Iteration', '') or 'None'
+                # Truncate if too long
+                if len(status) > 50:
+                    status = status[:47] + "..."
+                if len(cycle) > 50:
+                    cycle = cycle[:47] + "..."
+                
+                # Ultra-compact single-line format per PR
                 draft_indicator = " 📝" if is_draft else ""
-                status_indicator = f" [{status}]" if status else ""
+                
+                # Truncate title if too long
+                display_title = title
+                if len(display_title) > 70:
+                    display_title = display_title[:67] + "..."
+                
+                # Build compact single line: PR link, author, assignee (if different), reviewer, created date, status
+                pr_line = f"• <{url}|#{number}>{draft_indicator} {display_title}"
+                
+                # Add author
+                pr_line += f" · _{author}_"
+                
+                # Add assignee only if different from author
+                if assignees_str != 'None' and assignees_str != author:
+                    # Truncate assignees if multiple
+                    if len(assignees_str) > 30:
+                        assignees_str = assignees_str[:27] + "..."
+                    pr_line += f" → _{assignees_str}_"
+                
+                # Add reviewer if exists
+                if reviewers_str != 'None':
+                    # Truncate reviewers if multiple
+                    if len(reviewers_str) > 30:
+                        reviewers_str = reviewers_str[:27] + "..."
+                    pr_line += f" 👀 _{reviewers_str}_"
+                
+                # Add created date
+                pr_line += f" · {created_date}"
+                
+                # Add status (truncate if too long)
+                if status and status != 'None':
+                    status_short = status[:20] if len(status) > 20 else status
+                    pr_line += f" · {status_short}"
+                
+                current_blocks.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": pr_line
+                    }
+                })
+            
+            # No divider between repos - repo headers provide enough separation
 
-                pr_lines.append(f"• <{url}|#{number}>{draft_indicator} {title} - _{author}_{status_indicator}")
-
-            blocks.append({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "\n".join(pr_lines)
-                }
-            })
-
-        # Footer with timestamp
+        # Compact footer with timestamp
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        blocks.append({"type": "divider"})
-        blocks.append({
+        footer_text = f"Generated {now}"
+        current_blocks.append({
             "type": "context",
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": f"Generated at {now} | <https://github.com/orgs/FilOzone/projects/14/views/32|View in GitHub>"
+                    "text": footer_text
                 }
             ]
         })
 
-        return {
-            "text": f"FOC-WG PR Report: {len(prs_sorted)} open PRs",
-            "blocks": blocks
-        }
+        messages.append({
+            "text": f"FOC-WG Daily PR Summary: {len(prs_sorted)} open PRs",
+            "blocks": current_blocks
+        })
+
+        # Update footers with part indicators only if we actually have multiple messages
+        if len(messages) > 1:
+            for i, msg in enumerate(messages, 1):
+                # Update footer in each message
+                for block in reversed(msg['blocks']):
+                    if block.get('type') == 'context':
+                        elements = block.get('elements', [])
+                        if elements and 'Generated' in str(elements[0].get('text', '')):
+                            elements[0]['text'] = f"Part {i}/{len(messages)} · {elements[0]['text']}"
+                            break
+                # Update header if it's a continuation message
+                if i > 1:
+                    for block in msg['blocks']:
+                        if block.get('type') == 'section' and 'Part' in str(block.get('text', {}).get('text', '')):
+                            block['text']['text'] = block['text']['text'].replace(
+                                f"Part {i})", f"Part {i}/{len(messages)})"
+                            )
+                            break
+
+        return messages
 
     def post_to_slack(self, message: Dict[str, Any]) -> bool:
         """Post message to Slack webhook."""
@@ -359,13 +533,15 @@ class FOCWGNotifier:
             print("Applying view 32 filters...")
             filtered_prs = self.filter_items(items)
 
-            # Format message
-            print("Formatting Slack message...")
-            message = self.format_slack_message(filtered_prs)
+            # Format messages (may be split into multiple)
+            print("Formatting Slack message(s)...")
+            messages = self.format_slack_messages(filtered_prs)
 
             if dry_run:
-                print("\n=== DRY RUN - Message that would be sent ===")
-                print(json.dumps(message, indent=2))
+                print(f"\n=== DRY RUN - {len(messages)} message(s) that would be sent ===")
+                for i, message in enumerate(messages, 1):
+                    print(f"\n--- Message {i} of {len(messages)} ---")
+                    print(json.dumps(message, indent=2))
                 print("\n=== PR Summary ===")
                 for pr in filtered_prs:
                     repo = pr.get('repository', {}).get('nameWithOwner', 'Unknown')
@@ -374,9 +550,19 @@ class FOCWGNotifier:
                     print(f"  {repo}#{number}: {title}")
                 return True
 
-            # Post to Slack
-            print("Posting to Slack...")
-            success = self.post_to_slack(message)
+            # Post to Slack (may be multiple messages)
+            print(f"Posting {len(messages)} message(s) to Slack...")
+            success = True
+            for i, message in enumerate(messages, 1):
+                if len(messages) > 1:
+                    print(f"  Posting message {i} of {len(messages)}...")
+                if not self.post_to_slack(message):
+                    success = False
+                    break
+                # Small delay between messages to avoid rate limiting
+                if i < len(messages):
+                    import time
+                    time.sleep(1)
 
             if success:
                 print("✅ Successfully posted to Slack!")
