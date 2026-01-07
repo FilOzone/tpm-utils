@@ -1,0 +1,43 @@
+name: FOC-WG PR Notifier
+
+on:
+  schedule:
+    # Run at 9 AM EST (14:00 UTC) on weekdays
+    - cron: '0 14 * * 1-5'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+    inputs:
+      dry_run:
+        description: 'Dry run (show message without posting to Slack)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run PR Notifier
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python foc_wg_pr_notifier.py --dry-run
+          else
+            python foc_wg_pr_notifier.py
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
