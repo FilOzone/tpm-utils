@@ -66,7 +66,8 @@ Automated daily notification system that fetches open PRs from FilOzone GitHub P
 - GitHub PAT with `read:project` organization permission (stored as `FOC_WG_NOTIFIER_PAT` secret)
 - Slack incoming webhook URL for `#foc-wg` channel (stored as `SLACK_WEBHOOK_URL` secret)
 
-The workflow runs automatically every weekday at 9 AM EST, but can also be triggered manually for testing.
+***Periodic Runs:***
+This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
 
 ## Getting Started
 
