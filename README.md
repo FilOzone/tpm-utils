@@ -33,7 +33,7 @@ This is particularly useful for investigating storage provider issues and tracki
 ### 📢 FOC-WG PR Notifier
 **File:** `foc_wg_pr_notifier.py`
 
-Automated daily notification system that fetches open PRs from FilOzone GitHub Project 14 (View 32) and posts a formatted summary to the `#foc-wg` Slack channel.
+Automated daily notification system that fetches open PRs from [FilOzone GitHub Project 14 (View 32)](https://github.com/orgs/FilOzone/projects/14/views/32) and posts a formatted summary to the `#foc-wg` Slack channel.
 
 **Features:**
 - Queries GitHub Project 14 via GraphQL API
@@ -61,10 +61,6 @@ Automated daily notification system that fetches open PRs from FilOzone GitHub P
    - Click "Run workflow"
    - Choose "true" for dry_run to test without posting, or "false" to post to Slack
    - Click "Run workflow" button
-
-**Prerequisites:**
-- GitHub PAT with `read:project` organization permission (stored as `FOC_WG_NOTIFIER_PAT` secret)
-- Slack incoming webhook URL for `#foc-wg` channel (stored as `SLACK_WEBHOOK_URL` secret)
 
 ***Periodic Runs:***
 This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).

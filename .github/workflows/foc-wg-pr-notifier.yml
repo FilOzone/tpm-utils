@@ -39,5 +39,7 @@ jobs:
             python foc_wg_pr_notifier.py
           fi
         env:
+          # GitHub PAT with `read:project` organization permission
           GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
+          # Slack incoming webhook URL for #foc-wg channel
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

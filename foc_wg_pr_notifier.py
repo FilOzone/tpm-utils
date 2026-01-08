@@ -5,7 +5,7 @@ FOC-WG PR Notifier
 This script queries FilOzone GitHub Project 14 for open PRs matching view 32 filters
 and posts a daily summary to the #foc-wg Slack channel.
 
-View 32 filters:
+View 32 filters (https://github.com/orgs/FilOzone/projects/14/views/32):
 - is:pr
 - -status:"🎉 Done"
 - -milestone:"MX: Priority and sequencing TBD"
