@@ -40,7 +40,7 @@ Automated daily notification system that fetches open PRs from FilOzone GitHub P
 - Applies View 32 filters (excludes "Done" status, specific milestones)
 - Groups PRs by repository
 - Posts formatted Slack messages with PR details
-- Runs automatically via GitHub Actions (daily at 9 AM EST on weekdays)
+- Runs automatically via GitHub Actions (see [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml))
 
 **Testing:**
 
