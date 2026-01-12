@@ -40,7 +40,7 @@ jobs:
           fi
         env:
           # GitHub PAT with `read:project` organization permission
-          # Set up by @rjan90 on 2026-01-12 using FilOzzy PAT
+          # Set up by @rjan90 on 2026-01-12 using rjan90 PAT
           GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
           # Slack incoming webhook URL for #foc-wg channel
           # Set up by @rjan90 on 2026-01-06 using "FOC-WG PR Notifier" Slack app
