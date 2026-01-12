@@ -201,6 +201,10 @@ class FOCWGNotifier:
             if content.get('state') != 'OPEN':
                 continue
 
+            # Filter: Exclude draft PRs
+            if content.get('isDraft'):
+                continue
+
             # Get project field values
             field_values = {}
             for fv in item.get('fieldValues', {}).get('nodes', []):
@@ -366,7 +370,6 @@ class FOCWGNotifier:
                 title = pr.get('title', 'Untitled')
                 url = pr.get('url', '')
                 author = pr.get('author', {}).get('login', 'unknown')
-                is_draft = pr.get('isDraft', False)
                 
                 # Get assignees
                 assignees = pr.get('assignees', {}).get('nodes', [])
@@ -420,16 +423,13 @@ class FOCWGNotifier:
                 if len(cycle) > 50:
                     cycle = cycle[:47] + "..."
                 
-                # Ultra-compact single-line format per PR
-                draft_indicator = " 📝" if is_draft else ""
-                
                 # Truncate title if too long
                 display_title = title
                 if len(display_title) > 70:
                     display_title = display_title[:67] + "..."
                 
                 # Build compact single line: PR link, author, assignee (if different), reviewer, created date, status
-                pr_line = f"• <{url}|#{number}>{draft_indicator} {display_title}"
+                pr_line = f"• <{url}|#{number}> {display_title}"
                 
                 # Add author
                 pr_line += f" · _{author}_"
