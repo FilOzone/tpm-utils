@@ -30,6 +30,41 @@ Complete workflow for finding relevant Filecoin Slack messages related to specif
 
 This is particularly useful for investigating storage provider issues and tracking community discussions.
 
+### 📢 FOC-WG PR Notifier
+**File:** `foc_wg_pr_notifier.py`
+
+Automated daily notification system that fetches open PRs from [FilOzone GitHub Project 14 (View 32)](https://github.com/orgs/FilOzone/projects/14/views/32) and posts a formatted summary to the `#foc-wg` Slack channel.
+
+**Features:**
+- Queries GitHub Project 14 via GraphQL API
+- Applies View 32 filters (excludes "Done" status, specific milestones)
+- Groups PRs by repository
+- Posts formatted Slack messages with PR details
+- Runs automatically via GitHub Actions (see [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml))
+
+**Testing:**
+
+1. **Local dry-run test** (recommended first step):
+   ```bash
+   GITHUB_TOKEN=your_token python foc_wg_pr_notifier.py --dry-run
+   ```
+   This will fetch PRs and show the message that would be posted without actually sending to Slack.
+
+2. **Local full test** (posts to Slack):
+   ```bash
+   GITHUB_TOKEN=your_token SLACK_WEBHOOK_URL=your_webhook python foc_wg_pr_notifier.py
+   ```
+
+3. **GitHub Actions test**:
+   - Go to the [Actions tab](https://github.com/FilOzone/tpm-utils/actions) in the repository
+   - Select "FOC-WG PR Notifier" workflow
+   - Click "Run workflow"
+   - Choose "true" for dry_run to test without posting, or "false" to post to Slack
+   - Click "Run workflow" button
+
+***Periodic Runs:***
+This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
+
 ## Getting Started
 
 1. **Clone the repository**

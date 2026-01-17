@@ -1,0 +1,47 @@
+name: FOC-WG PR Notifier
+
+on:
+  schedule:
+    # Run at 9 AM EST (14:00 UTC) on weekdays
+    - cron: '0 14 * * 1-5'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+    inputs:
+      dry_run:
+        description: 'Dry run (show message without posting to Slack)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run PR Notifier
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python foc_wg_pr_notifier.py --dry-run
+          else
+            python foc_wg_pr_notifier.py
+          fi
+        env:
+          # GitHub PAT with `read:project` organization permission
+          # Set up by @rjan90 on 2026-01-12 using FilOzzy PAT
+          GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
+          # Slack incoming webhook URL for #foc-wg channel
+          # Set up by @rjan90 on 2026-01-06 using "FOC-WG PR Notifier" Slack app
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
