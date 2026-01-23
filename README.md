@@ -30,6 +30,19 @@ Complete workflow for finding relevant Filecoin Slack messages related to specif
 
 This is particularly useful for investigating storage provider issues and tracking community discussions.
 
+### 📋 GitHub Projects v2 Exporter (FOC GA Tracker)
+**Directory:** [foc-ga-tracker/](foc-ga-tracker/)
+
+Export and interact with GitHub Projects v2 data, specifically designed for the [FilOzone FOC GA Tracker project](https://github.com/orgs/FilOzone/projects/14/views/22). 
+
+Features:
+- Export project items to CSV/TSV/JSON formats
+- Preserve all custom fields and metadata
+- Compatible with spreadsheet applications
+- Full GraphQL API integration
+
+See [foc-ga-tracker/README.md](foc-ga-tracker/README.md) for detailed usage instructions.
+
 ## Getting Started
 
 1. **Clone the repository**
