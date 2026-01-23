@@ -1,0 +1,31 @@
+{
+  "repos": [
+    "FilOzone/filecoin-services"
+  ],
+  "milestones": [
+    {
+      "name": "M4.0: mainnet staged",
+      "description": "See See https://www.notion.so/filecoindev/FOC-GA-Related-Milestones-2f1dc41950c18055819cc59673e6de57",
+      "dueDate": "2026-01-30"
+    },
+    {
+      "name": "M4.1: mainnet ready",
+      "existingNameToRename": "M4: Filecoin Service Liftoff",
+      "description": "See https://www.notion.so/filecoindev/FOC-GA-Related-Milestones-2f1dc41950c18055819cc59673e6de57",
+      "dueDate": "2026-02-14"
+    },
+    {
+      "name": "M4.2: mainnet GA",
+      "description": "See https://www.notion.so/filecoindev/FOC-GA-Related-Milestones-2f1dc41950c18055819cc59673e6de57",
+      "dueDate": "2026-02-28"
+    },
+    {
+      "name": "M4.5: GA Fast Follows",
+      "description": "Items that will get worked on immediately"
+    },
+    {
+      "name": "MX: Priority and sequencing TBD",
+      "description": "Items whose priority we don't know yet"
+    }
+  ]
+}
