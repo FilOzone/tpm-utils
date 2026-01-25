@@ -332,7 +332,13 @@ class GitHubMilestoneCreator:
             'milestone_number': None,
             'milestone_url': None,
             'name': None,
-            'error': None
+            'error': None,
+            'previous_name': None,
+            'previous_description': None,
+            'previous_due_date': None,
+            'new_name': None,
+            'new_description': None,
+            'new_due_date': None
         }
 
         try:
@@ -374,9 +380,19 @@ class GitHubMilestoneCreator:
             if not existing_milestone:
                 existing_milestone = self.find_milestone_by_name(owner, repo_name, milestone_name)
 
+            # Store new values
+            result['new_name'] = milestone_name
+            result['new_description'] = description
+            result['new_due_date'] = due_date
+
             # Determine if we're creating or updating
             if existing_milestone:
                 # Update existing milestone
+                # Capture previous values
+                result['previous_name'] = existing_milestone.get('title')
+                result['previous_description'] = existing_milestone.get('description') or None
+                result['previous_due_date'] = existing_milestone.get('due_on') or None
+                
                 # If we found it by existingNameToRename, we need to rename it to the target name
                 # (which could be from referenceMilestoneUrl or the provided name)
                 needs_rename = found_by_rename and existing_milestone['title'] != milestone_name
@@ -394,7 +410,11 @@ class GitHubMilestoneCreator:
                     result['milestone_number'] = existing_milestone['number']
                     result['action'] = 'update'
             else:
-                # Create new milestone
+                # Create new milestone - no previous values
+                result['previous_name'] = None
+                result['previous_description'] = None
+                result['previous_due_date'] = None
+                
                 if not dry_run:
                     created = self.create_milestone(
                         owner, repo_name, milestone_name,
@@ -414,6 +434,36 @@ class GitHubMilestoneCreator:
             result['error'] = str(e)
 
         return result
+
+    def _format_value_change(self, field_name: str, previous: Optional[str], new: Optional[str], is_date: bool = False) -> str:
+        """Format a field change for display."""
+        # For dates, normalize None and empty strings
+        if is_date:
+            prev_str = previous if previous and previous != "(not set)" else "(not set)"
+            new_str = new if new and new != "(not set)" else "(not set)"
+        else:
+            prev_str = previous if previous is not None else "(not set)"
+            new_str = new if new is not None else "(not set)"
+        
+        # Compare normalized values
+        prev_normalized = prev_str if prev_str != "(not set)" else None
+        new_normalized = new_str if new_str != "(not set)" else None
+        
+        if prev_normalized == new_normalized:
+            return f"    {field_name}: {new_str} (unchanged)"
+        else:
+            return f"    {field_name}: {prev_str} → {new_str}"
+
+    def _format_date(self, date_str: Optional[str]) -> Optional[str]:
+        """Format a date string for display (YYYY-MM-DDTHH:MM:SSZ -> YYYY-MM-DD)."""
+        if not date_str:
+            return None
+        try:
+            # Parse ISO 8601 format and return just the date part
+            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            return dt.strftime('%Y-%m-%d')
+        except (ValueError, AttributeError):
+            return date_str
 
     def run(self, config: Dict[str, Any], dry_run: bool = False) -> List[Dict[str, Any]]:
         """Execute the milestone creation/update process."""
@@ -437,17 +487,34 @@ class GitHubMilestoneCreator:
                     print(f"  ❌ Error: {result['error']}")
                 else:
                     action = result['action']
-                    name = result['name']
+                    name = result['new_name']
+                    
+                    # Format dates for display
+                    prev_due_date = self._format_date(result['previous_due_date'])
+                    new_due_date = self._format_date(result['new_due_date'])
+                    
                     if dry_run:
                         if action == 'create':
                             print(f"  Would CREATE: {name}")
+                            print(self._format_value_change("Name", None, name))
+                            print(self._format_value_change("Description", None, result['new_description']))
+                            print(self._format_value_change("Due Date", None, new_due_date, is_date=True))
                         elif action == 'update':
                             print(f"  Would UPDATE: {name} (milestone #{result['milestone_number']})")
+                            print(self._format_value_change("Name", result['previous_name'], name))
+                            print(self._format_value_change("Description", result['previous_description'], result['new_description']))
+                            print(self._format_value_change("Due Date", prev_due_date, new_due_date, is_date=True))
                     else:
                         if action == 'created':
                             print(f"  ✅ Created: {name} - {result['milestone_url']}")
+                            print(self._format_value_change("Name", None, name))
+                            print(self._format_value_change("Description", None, result['new_description']))
+                            print(self._format_value_change("Due Date", None, new_due_date, is_date=True))
                         elif action == 'updated':
                             print(f"  ✅ Updated: {name} - {result['milestone_url']}")
+                            print(self._format_value_change("Name", result['previous_name'], name))
+                            print(self._format_value_change("Description", result['previous_description'], result['new_description']))
+                            print(self._format_value_change("Due Date", prev_due_date, new_due_date, is_date=True))
 
         return results
 
