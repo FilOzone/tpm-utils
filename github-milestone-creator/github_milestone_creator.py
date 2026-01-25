@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#     "requests",
+#     "jsonschema",
+# ]
+# ///
 """
 GitHub Milestone Creator
 
@@ -16,12 +23,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import argparse
 import time
 from pathlib import Path
-
-try:
-    import jsonschema
-except ImportError:
-    print("Error: jsonschema library required. Install with: pip install jsonschema")
-    sys.exit(1)
+import jsonschema
 
 
 class GitHubMilestoneCreator:

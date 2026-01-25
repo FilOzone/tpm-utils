@@ -1,21 +1,18 @@
 {
   "repos": [
-    // Intentionally not including "filecoin-services" because it serves as the source of truth for the FOC GA milestones in GitHub.
     "FilOzone/SessionKeyRegistry",
     "FilOzone/dealbot",
     "FilOzone/filecoin-cloud",
     "FilOzone/filecoin-pay",
     "FilOzone/filecoin-pay-auction-bot",
     "FilOzone/filecoin-pay-explorer",
-    "FilOzone/filecoin-services",
+    // "FilOzone/filecoin-services" // Intentionally not including because it serves as the source of truth for the FOC GA milestones in GitHub.
     "FilOzone/foc-devnet",
     "FilOzone/fs-pm",
-    "FilOzone/github-mgmt",
     "FilOzone/infra",
     "FilOzone/pdp",
     "FilOzone/pdp-explorer",
     "FilOzone/synapse-sdk",
-    "FilOzone/synapse-website",
     "FilOzone/tpm-utils",
     "filecoin-project/curio",
     "filecoin-project/filecoin-pin",
@@ -25,24 +22,24 @@
   "milestones": [
     {
       // "M4.0: mainnet staged",
-      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/TBD"
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/10"
     },
     {
       // "M4.1: mainnet ready",
-      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/TBD",
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/7",
       "existingNameToRename": "M4: Filecoin Service Liftoff"
     },
     {
       // "M4.2: mainnet GA",
-      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/TBD"
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/11"
     },
     {
       // "M4.5: GA Fast Follows",
-      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/TBD"
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/9"
     },
     {
       // "MX: Priority and sequencing TBD",
-      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/TBD"
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/2"
     }
   ]
 }
