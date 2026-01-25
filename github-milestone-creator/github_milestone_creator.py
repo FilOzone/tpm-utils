@@ -349,36 +349,37 @@ class GitHubMilestoneCreator:
             description = self.resolve_description(milestone_config, reference_milestone)
             due_date = self.resolve_due_date(milestone_config, reference_milestone)
 
-            # Find existing milestone to update (priority order):
-            # 1. If existingNameToRename is specified, use that (explicit rename)
-            # 2. If referenceMilestoneUrl is provided, check if milestone with reference name exists
-            #    (allows automatic matching without needing existingNameToRename)
-            # 3. Check if milestone with resolved name already exists (general case)
+            # Find existing milestone to update - check BOTH names before creating:
+            # 1. Check for milestone with existingNameToRename name (if provided)
+            # 2. Check for milestone with reference milestone name (if referenceMilestoneUrl provided)
+            # 3. Only create new milestone if neither exists
             existing_milestone = None
+            found_by_rename = False
             
+            # First, check for milestone with existingNameToRename name
             if 'existingNameToRename' in milestone_config and milestone_config['existingNameToRename']:
-                # Explicit rename requested - find milestone with old name
                 existing_milestone = self.find_milestone_by_name(
                     owner, repo_name, milestone_config['existingNameToRename']
                 )
-            elif reference_milestone:
-                # If using reference milestone, automatically check if milestone with reference name exists
-                # This allows syncing without needing to specify existingNameToRename
+                if existing_milestone:
+                    found_by_rename = True
+            
+            # Also check for milestone with reference milestone name (if not already found)
+            if not existing_milestone and reference_milestone:
                 # milestone_name is already the reference milestone's title at this point
                 existing_milestone = self.find_milestone_by_name(owner, repo_name, milestone_name)
             
+            # Fallback: check if milestone with resolved name already exists
+            # (handles case where name is provided directly without reference or existingNameToRename)
             if not existing_milestone:
-                # Fallback: check if milestone with resolved name already exists
-                # (handles case where name is provided directly without reference)
                 existing_milestone = self.find_milestone_by_name(owner, repo_name, milestone_name)
 
             # Determine if we're creating or updating
             if existing_milestone:
                 # Update existing milestone
-                # If existingNameToRename was used, we may need to rename it
-                needs_rename = ('existingNameToRename' in milestone_config and 
-                               milestone_config['existingNameToRename'] and
-                               existing_milestone['title'] != milestone_name)
+                # If we found it by existingNameToRename, we need to rename it to the target name
+                # (which could be from referenceMilestoneUrl or the provided name)
+                needs_rename = found_by_rename and existing_milestone['title'] != milestone_name
                 
                 if not dry_run:
                     updated = self.update_milestone(
