@@ -65,7 +65,7 @@ Automated daily notification system that fetches open PRs from [FilOzone GitHub 
 ***Periodic Runs:***
 This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
 
-### 🎯 GitHub Milestone Creator
+### 🎯 GitHub Milestone Manager
 **Directory:** [github-milestone-creator/](github-milestone-creator/)
 
 Tool for creating and updating GitHub milestones across multiple repositories from a JSON configuration file. Supports syncing milestones from reference repositories, automatic milestone matching, renaming, and detailed change tracking.

@@ -7,7 +7,7 @@
 # ]
 # ///
 """
-GitHub Milestone Creator
+GitHub Milestone Manager
 
 This script validates a milestones.json file against a schema and creates/updates
 GitHub milestones across multiple repositories.
@@ -26,7 +26,7 @@ from pathlib import Path
 import jsonschema
 
 
-class GitHubMilestoneCreator:
+class GitHubMilestoneManager:
     """Creates and updates GitHub milestones across repositories."""
 
     BASE_URL = "https://api.github.com"
@@ -581,10 +581,10 @@ def main():
         epilog="""
 Examples:
   # Dry run
-  GITHUB_TOKEN=xxx python github-milestone-creator/github_milestone_creator.py --config milestones.json --dry-run
+  uv run github_milestone_manager.py --config milestones.json --token $(gh auth token) --dry-run
 
   # Execute
-  GITHUB_TOKEN=xxx python github-milestone-creator/github_milestone_creator.py --config milestones.json
+  uv run github_milestone_manager.py --config milestones.json --token $(gh auth token)
         """
     )
     parser.add_argument(
@@ -616,16 +616,16 @@ Examples:
 
     # Validate and load config
     try:
-        creator = GitHubMilestoneCreator(github_token)
-        config = creator.validate_config(args.config, str(schema_path))
+        manager = GitHubMilestoneManager(github_token)
+        config = manager.validate_config(args.config, str(schema_path))
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
 
     # Run the process
     try:
-        results = creator.run(config, dry_run=args.dry_run)
-        creator.print_summary(results, dry_run=args.dry_run)
+        results = manager.run(config, dry_run=args.dry_run)
+        manager.print_summary(results, dry_run=args.dry_run)
         
         # Exit with error code if there were errors
         errors = [r for r in results if r['error']]

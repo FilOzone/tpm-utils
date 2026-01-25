@@ -1,4 +1,4 @@
-# GitHub Milestone Creator
+# GitHub Milestone Manager
 
 A Python script for creating and updating GitHub milestones across multiple repositories from a JSON configuration file.
 
@@ -41,7 +41,7 @@ No installation needed! The script uses `uv run` which automatically handles dep
 
 ```bash
 cd github-milestone-creator
-uv run github_milestone_creator.py --config <config-file.json> --token $(gh auth token) [--dry-run]
+uv run github_milestone_manager.py --config <config-file.json> --token $(gh auth token) [--dry-run]
 ```
 
 ### Options
@@ -54,7 +54,7 @@ uv run github_milestone_creator.py --config <config-file.json> --token $(gh auth
 
 **Dry-run (recommended first step):**
 ```bash
-uv run github_milestone_creator.py \
+uv run github_milestone_manager.py \
   --config milestones-FOCRepos-2026-01-23.json \
   --token $(gh auth token) \
   --dry-run
@@ -62,7 +62,7 @@ uv run github_milestone_creator.py \
 
 **Execute changes:**
 ```bash
-uv run github_milestone_creator.py \
+uv run github_milestone_manager.py \
   --config milestones-FOCRepos-2026-01-23.json \
   --token $(gh auth token)
 ```
@@ -70,7 +70,7 @@ uv run github_milestone_creator.py \
 **Using environment variable for token:**
 ```bash
 export GITHUB_TOKEN=$(gh auth token)
-uv run github_milestone_creator.py \
+uv run github_milestone_manager.py \
   --config milestones-FOCRepos-2026-01-23.json \
   --dry-run
 ```
