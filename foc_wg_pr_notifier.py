@@ -400,7 +400,7 @@ class FOCWGNotifier:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"{mention} {pr_links} (<{view_link}|view all>)"
+                        "text": f"  • {mention}: {pr_links} (<{view_link}|view all>)"
                     }
                 })
 
@@ -426,7 +426,7 @@ class FOCWGNotifier:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"{mention} {pr_links} (<{view_link}|view all>)"
+                        "text": f"  • {mention}: {pr_links} (<{view_link}|view all>)"
                     }
                 })
 
@@ -456,7 +456,7 @@ class FOCWGNotifier:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"• <{url}|{repo}#{number}> - {title} (authored by {author_mention})"
+                        "text": f"  • <{url}|{repo}#{number}> - {title} (authored by {author_mention})"
                     }
                 })
 
