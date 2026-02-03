@@ -389,8 +389,8 @@ class FOCWGNotifier:
                 }
             })
 
-            # Sort by username for consistent ordering
-            for username in sorted(mapped_awaiting.keys()):
+            # Sort by username alphabetically (case-insensitive)
+            for username in sorted(mapped_awaiting.keys(), key=str.lower):
                 pr_list = mapped_awaiting[username]
                 mention = self._get_slack_mention(username)
                 view_link = self.build_github_link(username)
@@ -415,8 +415,8 @@ class FOCWGNotifier:
                 }
             })
 
-            # Sort by username for consistent ordering
-            for username in sorted(mapped_in_progress.keys()):
+            # Sort by username alphabetically (case-insensitive)
+            for username in sorted(mapped_in_progress.keys(), key=str.lower):
                 pr_list = mapped_in_progress[username]
                 mention = self._get_slack_mention(username)
                 view_link = self.build_github_link(username)
@@ -445,6 +445,8 @@ class FOCWGNotifier:
                 number = pr.get('number')
                 title = pr.get('title', 'Untitled')
                 url = pr.get('url', '')
+                author = pr.get('author', {}).get('login', 'unknown')
+                author_mention = self._get_slack_mention(author)
 
                 # Truncate title if too long
                 if len(title) > 60:
@@ -454,7 +456,7 @@ class FOCWGNotifier:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"• <{url}|{repo}#{number}> - {title}"
+                        "text": f"• <{url}|{repo}#{number}> - {title} (authored by {author_mention})"
                     }
                 })
 
