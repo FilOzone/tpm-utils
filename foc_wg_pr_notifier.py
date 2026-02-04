@@ -18,6 +18,7 @@ import json
 import requests
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from urllib.parse import quote
 import argparse
 
 # FilOzone Project 14 ID (from the project URL)
@@ -30,8 +31,13 @@ EXCLUDED_MILESTONES = [
     "M4.5: GA Fast Follows",
 ]
 
-# Status to exclude
-EXCLUDED_STATUS = "🎉 Done"
+# Status constants for categorization
+AWAITING_REVIEW_STATUS = "🔎 Awaiting review"
+IN_PROGRESS_STATUSES = ["📌 Triage", "🐱 Todo", "⌨️ In Progress"]
+DONE_STATUS = "🎉 Done"
+
+# Base URL for personalized GitHub project views
+PROJECT_VIEW_BASE_URL = "https://github.com/orgs/FilOzone/projects/14/views/18"
 
 
 class FOCWGNotifier:
@@ -39,7 +45,8 @@ class FOCWGNotifier:
 
     GRAPHQL_URL = "https://api.github.com/graphql"
 
-    def __init__(self, github_token: str, slack_webhook_url: Optional[str] = None):
+    def __init__(self, github_token: str, slack_webhook_url: Optional[str] = None,
+                 user_map_path: Optional[str] = None):
         self.github_token = github_token
         self.slack_webhook_url = slack_webhook_url
         self.session = requests.Session()
@@ -47,6 +54,26 @@ class FOCWGNotifier:
             'Authorization': f'Bearer {github_token}',
             'Content-Type': 'application/json',
         })
+        self.user_map = self._load_user_map(user_map_path)
+
+    def _load_user_map(self, user_map_path: Optional[str] = None) -> Dict[str, str]:
+        """Load GitHub username to Slack user ID mapping from JSON file."""
+        if user_map_path is None:
+            # Default to gh_slack_users.json in the same directory as the script
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            user_map_path = os.path.join(script_dir, 'gh_slack_users.json')
+
+        try:
+            with open(user_map_path, 'r') as f:
+                user_map = json.load(f)
+                print(f"Loaded {len(user_map)} user mappings from {user_map_path}")
+                return user_map
+        except FileNotFoundError:
+            print(f"User map file not found: {user_map_path} (using empty mapping)")
+            return {}
+        except json.JSONDecodeError as e:
+            print(f"Error parsing user map file: {e} (using empty mapping)")
+            return {}
 
     def _graphql_query(self, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute a GraphQL query against GitHub API."""
@@ -185,7 +212,7 @@ class FOCWGNotifier:
         return all_items
 
     def filter_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Apply view 32 filters to the items."""
+        """Apply filters to the items (open PRs, non-draft, excluding certain milestones and Done status)."""
         filtered = []
 
         for item in items:
@@ -219,7 +246,7 @@ class FOCWGNotifier:
 
             # Filter: Exclude status "🎉 Done"
             status = field_values.get('Status')
-            if status == EXCLUDED_STATUS:
+            if status == DONE_STATUS:
                 continue
 
             # Filter: Exclude specific milestones
@@ -245,6 +272,210 @@ class FOCWGNotifier:
             if len(value) > max_length:
                 value = value[:max_length - 3] + "..."
         return f"*{label}:*\n{value}"
+
+    def build_github_link(self, username: str) -> str:
+        """Build a URL-encoded link to View 18 filtered by username."""
+        filter_query = f'is:pr -status:"🎉 Done" {username}'
+        return f"{PROJECT_VIEW_BASE_URL}?filterQuery={quote(filter_query)}"
+
+    def _get_slack_mention(self, github_username: str) -> str:
+        """Get Slack mention for a GitHub user, or fallback to plain text."""
+        slack_id = self.user_map.get(github_username)
+        if slack_id:
+            return f"<@{slack_id}>"
+        return f"@{github_username}"
+
+    def group_prs_by_person(self, prs: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Group PRs by person based on their status.
+
+        Returns dict with three keys:
+        - awaiting_review: {reviewer_username: [(repo, number, url), ...]}
+        - in_progress: {assignee_or_author: [(repo, number, url), ...]}
+        - no_reviewer: [prs with "Awaiting Review" status but no reviewer]
+        """
+        awaiting_review: Dict[str, List[tuple]] = {}
+        in_progress: Dict[str, List[tuple]] = {}
+        no_reviewer: List[Dict[str, Any]] = []
+
+        for pr in prs:
+            status = pr.get('_project_fields', {}).get('Status', '')
+            url = pr.get('url', '')
+            number = pr.get('number')
+            repo = pr.get('repository', {}).get('nameWithOwner', 'Unknown')
+            # Get short repo name (without org)
+            short_repo = repo.split('/')[-1] if '/' in repo else repo
+            pr_info = (short_repo, number, url)
+
+            if status == AWAITING_REVIEW_STATUS:
+                # Get requested reviewers
+                review_requests = pr.get('reviewRequests', {}).get('nodes', [])
+                reviewers = []
+                for rr in review_requests:
+                    reviewer = rr.get('requestedReviewer', {})
+                    if reviewer:
+                        # Could be User or Team
+                        reviewer_name = reviewer.get('login') or reviewer.get('name')
+                        if reviewer_name:
+                            reviewers.append(reviewer_name)
+
+                if reviewers:
+                    # Add to each reviewer's list
+                    for reviewer in reviewers:
+                        if reviewer not in awaiting_review:
+                            awaiting_review[reviewer] = []
+                        awaiting_review[reviewer].append(pr_info)
+                else:
+                    # No reviewer assigned
+                    no_reviewer.append(pr)
+
+            elif status in IN_PROGRESS_STATUSES:
+                # Get assignee, or fall back to author
+                assignees = pr.get('assignees', {}).get('nodes', [])
+                assignee_logins = [a.get('login') for a in assignees if a and a.get('login')]
+
+                if assignee_logins:
+                    # Add to first assignee's list (primary assignee)
+                    person = assignee_logins[0]
+                else:
+                    # Fall back to author
+                    person = pr.get('author', {}).get('login', 'unknown')
+
+                if person not in in_progress:
+                    in_progress[person] = []
+                in_progress[person].append(pr_info)
+
+        return {
+            'awaiting_review': awaiting_review,
+            'in_progress': in_progress,
+            'no_reviewer': no_reviewer,
+        }
+
+    def format_person_centric_message(self, prs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format PRs into a person-centric Slack message with @mentions and personalized links."""
+        if not prs:
+            return [{
+                "text": "FOC-WG PR Summary: No open PRs matching filters",
+                "blocks": [
+                    {
+                        "type": "header",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "FOC-WG PR Summary",
+                            "emoji": True
+                        }
+                    },
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "No open PRs matching the current filters."
+                        }
+                    }
+                ]
+            }]
+
+        grouped = self.group_prs_by_person(prs)
+        blocks = []
+
+        # Section: PRs Awaiting Your Review (only users in mapping)
+        mapped_awaiting = {u: prs for u, prs in grouped['awaiting_review'].items() if u in self.user_map}
+        if mapped_awaiting:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*:mag: PRs Awaiting Your Review*"
+                }
+            })
+
+            # Sort by username alphabetically (case-insensitive)
+            for username in sorted(mapped_awaiting.keys(), key=str.lower):
+                pr_list = mapped_awaiting[username]
+                mention = self._get_slack_mention(username)
+                view_link = self.build_github_link(username)
+                # Format: <@USER> repo#123 repo#456 (view all)
+                pr_links = ' '.join([f"<{url}|{repo}#{num}>" for repo, num, url in pr_list])
+                blocks.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"  • {mention}: {pr_links} (<{view_link}|view all>)"
+                    }
+                })
+
+        # Section: PRs In Progress (only users in mapping)
+        mapped_in_progress = {u: prs for u, prs in grouped['in_progress'].items() if u in self.user_map}
+        if mapped_in_progress:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*:construction: PRs In Progress*"
+                }
+            })
+
+            # Sort by username alphabetically (case-insensitive)
+            for username in sorted(mapped_in_progress.keys(), key=str.lower):
+                pr_list = mapped_in_progress[username]
+                mention = self._get_slack_mention(username)
+                view_link = self.build_github_link(username)
+                # Format: <@USER> repo#123 repo#456 (view all)
+                pr_links = ' '.join([f"<{url}|{repo}#{num}>" for repo, num, url in pr_list])
+                blocks.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"  • {mention}: {pr_links} (<{view_link}|view all>)"
+                    }
+                })
+
+        # Section: PRs Awaiting Review (No Reviewer Assigned)
+        if grouped['no_reviewer']:
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*:warning: PRs Awaiting Review (No Reviewer Assigned)*"
+                }
+            })
+
+            for pr in grouped['no_reviewer']:
+                repo = pr.get('repository', {}).get('nameWithOwner', 'Unknown')
+                number = pr.get('number')
+                title = pr.get('title', 'Untitled')
+                url = pr.get('url', '')
+                author = pr.get('author', {}).get('login', 'unknown')
+                author_mention = self._get_slack_mention(author)
+
+                # Truncate title if too long
+                if len(title) > 60:
+                    title = title[:57] + "..."
+
+                blocks.append({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"  • <{url}|{repo}#{number}> - {title} (authored by {author_mention})"
+                    }
+                })
+
+        # Footer with timestamp
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        blocks.append({
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Generated {now}"
+                }
+            ]
+        })
+
+        return [{
+            "text": f"FOC-WG PR Summary: {len(prs)} open PRs",
+            "blocks": blocks
+        }]
 
     def format_slack_messages(self, prs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Format PRs into one or more Slack messages with blocks (splits if >50 blocks)."""
@@ -533,9 +764,9 @@ class FOCWGNotifier:
             print("Applying view 32 filters...")
             filtered_prs = self.filter_items(items)
 
-            # Format messages (may be split into multiple)
+            # Format messages using person-centric format
             print("Formatting Slack message(s)...")
-            messages = self.format_slack_messages(filtered_prs)
+            messages = self.format_person_centric_message(filtered_prs)
 
             if dry_run:
                 print(f"\n=== DRY RUN - {len(messages)} message(s) that would be sent ===")
@@ -590,6 +821,9 @@ Examples:
 
   # Use command-line arguments instead of env vars
   python foc_wg_pr_notifier.py --token xxx --webhook yyy
+
+  # Use a custom user mapping file
+  python foc_wg_pr_notifier.py --user-map /path/to/users.json --dry-run
         """
     )
     parser.add_argument(
@@ -599,6 +833,10 @@ Examples:
     parser.add_argument(
         '--webhook',
         help='Slack webhook URL (or set SLACK_WEBHOOK_URL env var)'
+    )
+    parser.add_argument(
+        '--user-map',
+        help='Path to JSON file mapping GitHub usernames to Slack user IDs (default: gh_slack_users.json in script directory)'
     )
     parser.add_argument(
         '--dry-run',
@@ -621,7 +859,7 @@ Examples:
         print("Tip: Use --dry-run to test without posting to Slack.")
         sys.exit(1)
 
-    notifier = FOCWGNotifier(github_token, slack_webhook)
+    notifier = FOCWGNotifier(github_token, slack_webhook, args.user_map)
     success = notifier.run(dry_run=args.dry_run)
 
     sys.exit(0 if success else 1)
