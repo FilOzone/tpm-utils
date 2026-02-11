@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Milestones Configuration Schema",
+  "description": "Schema for JSON configuration file defining milestones to create/update across GitHub repositories",
+  "type": "object",
+  "required": ["repos", "milestones"],
+  "properties": {
+    "repos": {
+      "type": "array",
+      "description": "Array of repository names in 'owner/repo' format",
+      "items": {
+        "type": "string",
+        "pattern": "^[^/]+/[^/]+$",
+        "examples": ["FilOzone/filecoin-services", "FilOzone/example-repo"]
+      },
+      "minItems": 1
+    },
+    "milestones": {
+      "type": "array",
+      "description": "Array of milestone objects to create/update",
+      "items": {
+        "type": "object",
+        "anyOf": [
+          {
+            "required": ["name"]
+          },
+          {
+            "required": ["referenceMilestoneUrl"]
+          }
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the milestone to create or update. Required if referenceMilestoneUrl is not provided. If both are provided, referenceMilestoneUrl takes precedence.",
+            "minLength": 1
+          },
+          "referenceMilestoneUrl": {
+            "type": "string",
+            "description": "URL to a GitHub milestone in a different repo to sync with. If provided, this supersedes the name field, and the reference milestone's due date and description take precedence. The description will be set to a pointer to this URL.",
+            "format": "uri",
+            "pattern": "^https://github\\.com/[^/]+/[^/]+/milestone/\\d+"
+          },
+          "existingNameToRename": {
+            "type": "string",
+            "description": "If provided, renames an existing milestone with this name to the new name (optional)",
+            "minLength": 1
+          },
+          "description": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "Description text for the milestone (optional). Behavior: undefined/not present = field won't be touched; null or empty string \"\" = field will be cleared; non-empty string = field will be set to that value. Ignored if referenceMilestoneUrl is set."
+          },
+          "dueDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "enum": [""]
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              }
+            ],
+            "description": "Due date for the milestone in ISO-8601 format (YYYY-MM-DD). Optional. Behavior: undefined/not present = field won't be touched; null or empty string \"\" = field will be cleared; date string (YYYY-MM-DD) = field will be set to that value. Ignored if referenceMilestoneUrl is set (reference milestone's due date takes precedence)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}
