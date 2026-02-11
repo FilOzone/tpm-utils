@@ -477,11 +477,12 @@ class GitHubMilestoneManager:
         if dry_run:
             print("DRY RUN MODE - No changes will be made\n")
 
-        for repo in repos:
-            print(f"\nRepository: {repo}")
+        for repo_idx, repo in enumerate(repos):
+            print(f"\nRepository: {repo} ({repo_idx + 1}/{len(repos)})")
             print("-" * 80)
-            
-            for milestone_config in milestones:
+
+            for milestone_idx, milestone_config in enumerate(milestones):
+                print(f"  Processing milestone {milestone_idx + 1}/{len(milestones)}...")
                 result = self.process_milestone(repo, milestone_config, dry_run)
                 results.append(result)
                 
@@ -490,11 +491,11 @@ class GitHubMilestoneManager:
                 else:
                     action = result['action']
                     name = result['new_name']
-                    
+
                     # Format dates for display
                     prev_due_date = self._format_date(result['previous_due_date'])
                     new_due_date = self._format_date(result['new_due_date'])
-                    
+
                     if dry_run:
                         if action == 'create':
                             print(f"  Would CREATE: {name}")
@@ -603,6 +604,10 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # Use line-buffered stdout so progress appears incrementally (e.g. when piped or run non-interactively)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
 
     # Get GitHub token
     github_token = args.token or os.getenv('GITHUB_TOKEN')
