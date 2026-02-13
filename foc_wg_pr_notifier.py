@@ -166,6 +166,12 @@ class FOCWGNotifier:
                                             }
                                         }
                                     }
+                                    latestReviews(first: 10) {
+                                        nodes {
+                                            author { login }
+                                            state
+                                        }
+                                    }
                                     repository { nameWithOwner }
                                     milestone { title }
                                 }
@@ -308,16 +314,33 @@ class FOCWGNotifier:
             pr_info = (short_repo, number, url)
 
             if status == AWAITING_REVIEW_STATUS:
-                # Get requested reviewers
+                # Get explicitly requested reviewers
                 review_requests = pr.get('reviewRequests', {}).get('nodes', [])
-                reviewers = []
+                reviewers = set()
                 for rr in review_requests:
                     reviewer = rr.get('requestedReviewer', {})
                     if reviewer:
                         # Could be User or Team
                         reviewer_name = reviewer.get('login') or reviewer.get('name')
                         if reviewer_name:
-                            reviewers.append(reviewer_name)
+                            reviewers.add(reviewer_name)
+
+                # Also include people who have actually submitted reviews
+                latest_reviews = pr.get('latestReviews', {}).get('nodes', [])
+                for review in latest_reviews:
+                    if not review:
+                        continue
+                    reviewer_login = review.get('author', {}).get('login')
+                    state = review.get('state', '')
+                    # Include reviewers with non-dismissed reviews, skip bots
+                    if (reviewer_login and state != 'DISMISSED'
+                            and 'bot' not in reviewer_login.lower()
+                            and reviewer_login != 'copilot-pull-request-reviewer'):
+                        reviewers.add(reviewer_login)
+
+                # Remove the PR author from reviewers (they aren't reviewing their own PR)
+                pr_author = pr.get('author', {}).get('login')
+                reviewers.discard(pr_author)
 
                 if reviewers:
                     # Add to each reviewer's list
@@ -326,7 +349,9 @@ class FOCWGNotifier:
                             awaiting_review[reviewer] = []
                         awaiting_review[reviewer].append(pr_info)
                 else:
-                    # No reviewer assigned
+                    # No reviewer assigned - skip dependabot PRs
+                    if pr_author and pr_author.lower() in ('dependabot', 'dependabot[bot]'):
+                        continue
                     no_reviewer.append(pr)
 
             elif status in IN_PROGRESS_STATUSES:
