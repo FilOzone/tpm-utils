@@ -332,8 +332,9 @@ class FOCWGNotifier:
                         continue
                     reviewer_login = review.get('author', {}).get('login')
                     state = review.get('state', '')
-                    # Include reviewers with non-dismissed reviews, skip bots
-                    if (reviewer_login and state != 'DISMISSED'
+                    # Include reviewers who still need to act, skip bots
+                    # Exclude DISMISSED (review invalidated) and APPROVED (already approved)
+                    if (reviewer_login and state not in ('DISMISSED', 'APPROVED')
                             and 'bot' not in reviewer_login.lower()
                             and reviewer_login != 'copilot-pull-request-reviewer'):
                         reviewers.add(reviewer_login)
