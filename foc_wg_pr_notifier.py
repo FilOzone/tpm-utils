@@ -325,19 +325,6 @@ class FOCWGNotifier:
                         if reviewer_name:
                             reviewers.add(reviewer_name)
 
-                # Also include people who have actually submitted reviews
-                latest_reviews = pr.get('latestReviews', {}).get('nodes', [])
-                for review in latest_reviews:
-                    if not review:
-                        continue
-                    reviewer_login = review.get('author', {}).get('login')
-                    state = review.get('state', '')
-                    # Include reviewers with non-dismissed reviews, skip bots
-                    if (reviewer_login and state != 'DISMISSED'
-                            and 'bot' not in reviewer_login.lower()
-                            and reviewer_login != 'copilot-pull-request-reviewer'):
-                        reviewers.add(reviewer_login)
-
                 # Remove the PR author from reviewers (they aren't reviewing their own PR)
                 pr_author = pr.get('author', {}).get('login')
                 reviewers.discard(pr_author)
