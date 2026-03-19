@@ -33,7 +33,7 @@ This is particularly useful for investigating storage provider issues and tracki
 ### 📢 FOC-WG PR Notifier
 **File:** `foc_wg_pr_notifier.py`
 
-Automated daily notification system that fetches open PRs from [FilOzone GitHub Project 14 (View 32)](https://github.com/orgs/FilOzone/projects/14/views/32) and posts a formatted summary to the `#foc-wg` Slack channel.
+Automated daily notification system that fetches open PRs from [FilOzone GitHub Project 14 (View 32)](https://github.com/orgs/FilOzone/projects/14/views/32) and posts a formatted summary to the `#foc-bots` Slack channel.
 
 **Features:**
 - Queries GitHub Project 14 via GraphQL API
