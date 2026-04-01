@@ -66,6 +66,11 @@ Those two can diverge. For example, you might **submit a review** (so the UI can
 
 **What this tool does:** For each PR in the report, the **reviewer** counts use the **union** of (1) `requested_reviewers` on the card and (2) human users who have submitted at least one non-`PENDING` pull request review (same review list as above), **excluding the PR author**. That is meant to stay close to how filtering by person on the board behaves and what you see in the **Reviewers** column—not “everyone who left an issue comment.”
 
+## Output tables
+
+1. **Workload by person** — rows are GitHub users × board status; assignee and reviewer counts match the semantics above. Rows labeled **empty** (after all named users) count PRs with **no assignee** in the **assignee** column and PRs with **no reviewer** in the **reviewer** column (same reviewer union as above—only user logins; team-only review requests still show as empty here). The **assignee** cell links add `no:assignee`; the **reviewer** cell links add GitHub’s `review:none` (no submitted pull request reviews), which can differ slightly from this row’s count when a user is requested but has not submitted a review yet. The **empty** label itself links to the base filter only.
+2. **PR count by repository and status** — rows are repositories (`owner/repo`), columns are statuses present in the filtered set, plus a **Total** column (row sums) and **Total** row (column sums). Repository names link to the base filter plus `repo:owner/name`. Status column headers link to the base filter plus `status:"…"` only. Each non-zero cell links to that repo and status combined. The **Total** column header and the bottom-right grand total link to the base filter only; row totals link like the repo row; the total row’s status cells link like the status column headers.
+
 ## Links
 
-Each column links to [View 2](https://github.com/orgs/FilOzone/projects/14/views/2) with a `filterQuery` matching that cell (base filter plus user, status, assignee, or reviewers as appropriate).
+[View 2](https://github.com/orgs/FilOzone/projects/14/views/2) `filterQuery` values use the same base filter as the tool (`is:pr` excluding Done/Todo), plus qualifiers per cell as described above.

@@ -20,7 +20,11 @@ from foc_project14_client import (  # noqa: E402
     fetch_project_board_items_rest_filtered,
 )
 
-from foc_pr_report.report import BASE_FILTER, aggregate_rows, render_markdown  # noqa: E402
+from foc_pr_report.report import (  # noqa: E402
+    BASE_FILTER,
+    aggregate_rows,
+    render_full_markdown,
+)
 
 
 def main() -> None:
@@ -67,7 +71,7 @@ def main() -> None:
         items,
         verbose=not args.quiet,
     )
-    md = render_markdown(aggregate_rows(items))
+    md = render_full_markdown(items, aggregate_rows(items))
 
     if args.output:
         Path(args.output).write_text(md, encoding="utf-8")
