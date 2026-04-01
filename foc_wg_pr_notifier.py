@@ -21,9 +21,7 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import quote
 import argparse
 
-# FilOzone Project 14 ID (from the project URL)
-FILOZ_ORG = "FilOzone"
-PROJECT_NUMBER = 14
+from foc_project14_client import fetch_all_project_items, field_values_by_name
 
 # Milestones to exclude (view 32 filter)
 EXCLUDED_MILESTONES = [
@@ -42,8 +40,6 @@ PROJECT_VIEW_BASE_URL = "https://github.com/orgs/FilOzone/projects/14/views/18"
 
 class FOCWGNotifier:
     """Fetches PRs from FilOzone Project 14 and posts to Slack."""
-
-    GRAPHQL_URL = "https://api.github.com/graphql"
 
     def __init__(self, github_token: str, slack_webhook_url: Optional[str] = None,
                  user_map_path: Optional[str] = None):
@@ -75,147 +71,9 @@ class FOCWGNotifier:
             print(f"Error parsing user map file: {e} (using empty mapping)")
             return {}
 
-    def _graphql_query(self, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Execute a GraphQL query against GitHub API."""
-        payload = {'query': query}
-        if variables:
-            payload['variables'] = variables
-
-        response = self.session.post(self.GRAPHQL_URL, json=payload, timeout=30)
-        response.raise_for_status()
-
-        result = response.json()
-        if 'errors' in result:
-            raise Exception(f"GraphQL errors: {result['errors']}")
-
-        return result['data']
-
     def fetch_project_items(self) -> List[Dict[str, Any]]:
         """Fetch all items from FilOzone Project 14 with pagination."""
-        # First, get the project ID
-        project_query = """
-        query($org: String!, $number: Int!) {
-            organization(login: $org) {
-                projectV2(number: $number) {
-                    id
-                    title
-                }
-            }
-        }
-        """
-
-        project_data = self._graphql_query(project_query, {
-            'org': FILOZ_ORG,
-            'number': PROJECT_NUMBER,
-        })
-
-        project = project_data['organization']['projectV2']
-        if not project:
-            raise Exception(f"Project {PROJECT_NUMBER} not found in {FILOZ_ORG}")
-
-        project_id = project['id']
-        print(f"Found project: {project['title']} (ID: {project_id})")
-
-        # Now fetch all items with pagination
-        items_query = """
-        query($projectId: ID!, $cursor: String) {
-            node(id: $projectId) {
-                ... on ProjectV2 {
-                    items(first: 100, after: $cursor) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        nodes {
-                            id
-                            fieldValues(first: 20) {
-                                nodes {
-                                    ... on ProjectV2ItemFieldTextValue {
-                                        text
-                                        field { ... on ProjectV2Field { name } }
-                                    }
-                                    ... on ProjectV2ItemFieldSingleSelectValue {
-                                        name
-                                        field { ... on ProjectV2SingleSelectField { name } }
-                                    }
-                                    ... on ProjectV2ItemFieldIterationValue {
-                                        title
-                                        field { ... on ProjectV2IterationField { name } }
-                                    }
-                                }
-                            }
-                            content {
-                                ... on PullRequest {
-                                    __typename
-                                    number
-                                    title
-                                    url
-                                    state
-                                    isDraft
-                                    createdAt
-                                    updatedAt
-                                    author { login }
-                                    assignees(first: 10) {
-                                        nodes { login }
-                                    }
-                                    reviewRequests(first: 10) {
-                                        nodes {
-                                            requestedReviewer {
-                                                ... on User { login }
-                                                ... on Team { name }
-                                            }
-                                        }
-                                    }
-                                    latestReviews(first: 10) {
-                                        nodes {
-                                            author { login }
-                                            state
-                                        }
-                                    }
-                                    repository { nameWithOwner }
-                                    milestone { title }
-                                }
-                                ... on Issue {
-                                    __typename
-                                    number
-                                    title
-                                    url
-                                    state
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-
-        all_items = []
-        cursor = None
-        page = 1
-
-        while True:
-            print(f"Fetching page {page}...", end="", flush=True)
-
-            data = self._graphql_query(items_query, {
-                'projectId': project_id,
-                'cursor': cursor,
-            })
-
-            items_data = data['node']['items']
-            nodes = items_data['nodes']
-            all_items.extend(nodes)
-
-            print(f" got {len(nodes)} items")
-
-            if not items_data['pageInfo']['hasNextPage']:
-                break
-
-            cursor = items_data['pageInfo']['endCursor']
-            page += 1
-
-        print(f"Total items fetched: {len(all_items)}")
-        return all_items
+        return fetch_all_project_items(self.session, verbose=True)
 
     def filter_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Apply filters to the items (open PRs, non-draft, excluding certain milestones and Done status)."""
@@ -238,17 +96,7 @@ class FOCWGNotifier:
             if content.get('isDraft'):
                 continue
 
-            # Get project field values
-            field_values = {}
-            for fv in item.get('fieldValues', {}).get('nodes', []):
-                if not fv:
-                    continue
-                field = fv.get('field', {})
-                field_name = field.get('name') if field else None
-                if field_name:
-                    # Get the value (could be 'name', 'text', or 'title' depending on field type)
-                    value = fv.get('name') or fv.get('text') or fv.get('title')
-                    field_values[field_name] = value
+            field_values = field_values_by_name(item)
 
             # Filter: Exclude status "🎉 Done"
             status = field_values.get('Status')
