@@ -254,7 +254,12 @@ def render_full_markdown(
     person_rows: List[Row],
 ) -> str:
     """Person-centric table then repository × status matrix."""
-    parts = [render_markdown(person_rows).rstrip(), ""]
+    parts = [
+        "## PR count by individual",
+        "",
+        render_markdown(person_rows).rstrip(),
+        "",
+    ]
     parts.append("## PR count by repository and status")
     parts.append("")
     parts.append(render_repo_status_markdown(items).rstrip())
