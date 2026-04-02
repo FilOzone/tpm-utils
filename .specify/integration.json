@@ -1,0 +1,7 @@
+{
+  "integration": "multi-agent",
+  "version": "0.5.1.dev0",
+  "scripts": {
+    "update-context": ".specify/integrations/multi-agent/scripts/update-context.sh"
+  }
+}
