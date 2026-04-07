@@ -16,7 +16,7 @@ uv sync
 
 ## Example config
 
-Valid JSON only (double-quoted strings). Copy or adapt [github-project-export/examples/export.example.json](../../github-project-export/examples/export.example.json).
+Valid JSON only (double-quoted strings). Copy or adapt [github-project-export/examples/export.example1.json](../../github-project-export/examples/export.example1.json).
 
 Minimal pattern:
 

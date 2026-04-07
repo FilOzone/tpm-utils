@@ -84,7 +84,7 @@ See [foc-pr-report/README.md](foc-pr-report/README.md).
 Export board items from an organization Project (v2) to **TSV** using a **JSON** file (filter, columns, and stdout vs file path all live in the config—no duplicate CLI flags). Uses the REST list-items API with server-side `q`, shared with the FOC PR report client.
 
 ```bash
-cd github-project-export && uv sync && GITHUB_TOKEN=$(gh auth token) uv run github-project-export examples/export.example.json
+cd github-project-export && uv sync && GITHUB_TOKEN=$(gh auth token) uv run github-project-export examples/export.example1.json
 ```
 
 See [github-project-export/README.md](github-project-export/README.md).

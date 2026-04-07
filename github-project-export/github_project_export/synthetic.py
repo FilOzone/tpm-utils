@@ -12,8 +12,7 @@ _SYNTHETIC_KEYS: dict[str, str] = {
     "url": "url",
     "link": "url",
     "html_url": "url",
-    "type": "Type",
-    "kind": "Type",
+    "kind": "type",
     "id": "id",
     "number": "id",
     "title": "title",
@@ -22,7 +21,7 @@ _SYNTHETIC_KEYS: dict[str, str] = {
 
 def documented_synthetic_headers() -> list[str]:
     """Stable list for error messages / README (unique display-ish names)."""
-    return ["Repository", "url", "Type", "Id", "title"]
+    return ["Repository", "url", "Type", "Kind", "Id", "title"]
 
 
 def normalize_synthetic_key(header: str) -> Optional[str]:

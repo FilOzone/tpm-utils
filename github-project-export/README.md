@@ -68,7 +68,7 @@ Values come from the linked **issue or pull request** (`content`), not from cust
 |----------------------|---------|
 | `Repository`, `repo` | `repository.full_name` or parsed from `html_url` |
 | `url`, `link`, `html_url` | `html_url` |
-| `Type`, `kind` | Issue vs pull request (`issue` / `pull_request`) |
+| `Kind`, `Type` | Issue vs pull request (`issue` / `pull_request`); use **`Kind`** when the board already has a *Type* column (e.g. Epic/Task) |
 | `Id`, `number` | Issue/PR number |
 | `title`¹ | Linked issue/PR **`title`** (REST issue / pull object on the item’s `content`) |
 
@@ -89,9 +89,10 @@ Values come from the linked **issue or pull request** (`content`), not from cust
 
 You still get a **TSV header row** and **no data rows**.
 
-### Example
+### Examples
 
-See [examples/export.example.json](examples/export.example.json).
+- [examples/export.example1.json](examples/export.example1.json) — narrow filter, matches the live integration fixture.
+- [examples/export.example2.json](examples/export.example2.json) — broader columns (milestone, assignees, reviewers, etc.).
 
 ## Implementation notes
 

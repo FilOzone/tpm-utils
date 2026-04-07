@@ -63,6 +63,36 @@ def build_columns(
     return columns, rest_ids
 
 
+def _logins_csv_from_user_dicts(items: Any) -> str:
+    """GitHub often returns assignees as a list of user objects with ``login``."""
+    if not isinstance(items, list):
+        return ""
+    out: List[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        login = item.get("login")
+        if isinstance(login, str) and login:
+            out.append(login)
+    return ",".join(out)
+
+
+def _reviewers_project_field_csv(value: Dict[str, Any]) -> str:
+    """Project *Reviewers* field: dict with ``requested_reviewers`` / ``requested_teams``."""
+    parts: List[str] = []
+    for u in value.get("requested_reviewers") or []:
+        if isinstance(u, dict):
+            login = u.get("login")
+            if isinstance(login, str) and login:
+                parts.append(login)
+    for t in value.get("requested_teams") or []:
+        if isinstance(t, dict):
+            label = t.get("slug") or t.get("name")
+            if isinstance(label, str) and label:
+                parts.append(label)
+    return ",".join(parts)
+
+
 def _format_field_value(value: Any) -> str:
     if value is None:
         return ""
@@ -70,8 +100,15 @@ def _format_field_value(value: Any) -> str:
         return value
     if isinstance(value, (int, float, bool)):
         return str(value)
+    if isinstance(value, list):
+        return _logins_csv_from_user_dicts(value)
+
     if not isinstance(value, dict):
         return str(value)
+
+    # Pull-style reviewers payload embedded in a project field value
+    if "requested_reviewers" in value or "requested_teams" in value:
+        return _reviewers_project_field_csv(value)
 
     # Project "title" field (data_type: title) — see REST items `fields[].value`
     top_raw = value.get("raw")
