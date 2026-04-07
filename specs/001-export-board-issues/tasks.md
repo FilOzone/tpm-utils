@@ -22,10 +22,10 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 **Purpose**: uv package skeleton and lockfile
 
-- [ ] T001 Create `github-project-export/github_project_export/__init__.py` as package marker
-- [ ] T002 Add `github-project-export/pyproject.toml` with hatchling, `requests` dependency, and `github-project-export` console script entrypoint
-- [ ] T003 [P] Add `github-project-export/.gitignore` for `.venv/`, `__pycache__/`, and `*.pyc`
-- [ ] T004 Generate `github-project-export/uv.lock` by running `uv lock` in `github-project-export/`
+- [x] T001 Create `github-project-export/github_project_export/__init__.py` as package marker
+- [x] T002 Add `github-project-export/pyproject.toml` with hatchling, `requests` dependency, and `github-project-export` console script entrypoint
+- [x] T003 [P] Add `github-project-export/.gitignore` for `.venv/`, `__pycache__/`, and `*.pyc`
+- [x] T004 Generate `github-project-export/uv.lock` by running `uv lock` in `github-project-export/`
 
 ---
 
@@ -35,11 +35,11 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 **⚠️ CRITICAL**: No user story completion until this phase is done
 
-- [ ] T005 [P] Implement `projectUrl` → `(org, project_number)` parsing and validation in `github-project-export/github_project_export/board_url.py`
-- [ ] T006 [P] Implement documented synthetic column resolvers (e.g. repository, url, type) in `github-project-export/github_project_export/synthetic.py`
-- [ ] T007 [P] Implement tab-delimited writer (UTF-8, `csv.writer` with `delimiter='\t'`) in `github-project-export/github_project_export/tsv_write.py`
-- [ ] T008 Implement JSON load and validation per spec in `github-project-export/github_project_export/config_schema.py` (`projectUrl`, `query`/`queryParts` precedence, string-only `queryParts`, non-empty non-duplicate `fields`, `outputFile` null/omit vs non-empty string vs reject `""`, reject unknown `fields` entries after board field names are loaded—may expose a two-phase validate hook from `rest_export` or fetch fields map first)
-- [ ] T009 Implement field-name → REST field ID mapping (case-insensitive board match), `fetch_project_v2_items_rest` call with `q` and `fields` param, and per-item ordered cell values for mixed project + synthetic columns in `github-project-export/github_project_export/rest_export.py` (handle both issue and pull_request REST `content` shapes)
+- [x] T005 [P] Implement `projectUrl` → `(org, project_number)` parsing and validation in `github-project-export/github_project_export/board_url.py`
+- [x] T006 [P] Implement documented synthetic column resolvers (e.g. repository, url, type) in `github-project-export/github_project_export/synthetic.py`
+- [x] T007 [P] Implement tab-delimited writer (UTF-8, `csv.writer` with `delimiter='\t'`) in `github-project-export/github_project_export/tsv_write.py`
+- [x] T008 Implement JSON load and validation per spec in `github-project-export/github_project_export/config_schema.py` (`projectUrl`, `query`/`queryParts` precedence, string-only `queryParts`, non-empty non-duplicate `fields`, `outputFile` null/omit vs non-empty string vs reject `""`, reject unknown `fields` entries after board field names are loaded—may expose a two-phase validate hook from `rest_export` or fetch fields map first)
+- [x] T009 Implement field-name → REST field ID mapping (case-insensitive board match), `fetch_project_v2_items_rest` call with `q` and `fields` param, and per-item ordered cell values for mixed project + synthetic columns in `github-project-export/github_project_export/rest_export.py` (handle both issue and pull_request REST `content` shapes)
 
 **Checkpoint**: Given a parsed config object and `requests.Session`, `rest_export` yields rows aligned to `fields` order
 
@@ -53,7 +53,7 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `github-project-export/github_project_export/cli.py`: argparse for positional `config.json`, `--help`, optional `--token` and `--quiet`; inject repo root into `sys.path`; build session; load+validate config; run `rest_export`; write TSV to **stdout** when `outputFile` is null/omitted using `tsv_write.py`
+- [x] T010 [US1] Implement `github-project-export/github_project_export/cli.py`: argparse for positional `config.json`, `--help`, optional `--token` and `--quiet`; inject repo root into `sys.path`; build session; load+validate config; run `rest_export`; write TSV to **stdout** when `outputFile` is null/omitted using `tsv_write.py`
 
 **Checkpoint**: MVP stdout export works
 
@@ -67,7 +67,7 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Extend `github-project-export/github_project_export/cli.py` to write TSV to the `outputFile` path when provided (overwrite) and keep data on stdout only in stdout mode
+- [x] T011 [US2] Extend `github-project-export/github_project_export/cli.py` to write TSV to the `outputFile` path when provided (overwrite) and keep data on stdout only in stdout mode
 
 **Checkpoint**: File and pipe workflows both work
 
@@ -81,7 +81,7 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 ### Implementation for User Story 3
 
-- [ ] T012 [US3] Harden `github-project-export/github_project_export/cli.py` (and validation paths in `github-project-export/github_project_export/config_schema.py` / `github-project-export/github_project_export/rest_export.py` as needed) for exit codes, clear stderr messages, and header-only success on zero items
+- [x] T012 [US3] Harden `github-project-export/github_project_export/cli.py` (and validation paths in `github-project-export/github_project_export/config_schema.py` / `github-project-export/github_project_export/rest_export.py` as needed) for exit codes, clear stderr messages, and header-only success on zero items
 
 **Checkpoint**: Spec User Story 3 acceptance scenarios satisfied
 
@@ -91,9 +91,9 @@ Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `
 
 **Purpose**: FR-008 documentation and repo navigation
 
-- [ ] T013 [P] Write `github-project-export/README.md` documenting full JSON schema, synthetic keys table, project field matching rules, `read:project` / `gh auth refresh`, zero-row behavior, and prohibiting duplicate CLI settings per spec
-- [ ] T014 [P] Add a concise “GitHub project TSV export” bullet in root `README.md` linking to `github-project-export/README.md`
-- [ ] T015 [P] Reconcile `specs/001-export-board-issues/quickstart.md` with final CLI invocation and JSON keys after implementation
+- [x] T013 [P] Write `github-project-export/README.md` documenting full JSON schema, synthetic keys table, project field matching rules, `read:project` / `gh auth refresh`, zero-row behavior, and prohibiting duplicate CLI settings per spec
+- [x] T014 [P] Add a concise “GitHub project TSV export” bullet in root `README.md` linking to `github-project-export/README.md`
+- [x] T015 [P] Reconcile `specs/001-export-board-issues/quickstart.md` with final CLI invocation and JSON keys after implementation
 
 ---
 

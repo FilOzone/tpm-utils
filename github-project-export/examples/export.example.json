@@ -1,0 +1,15 @@
+{
+  "projectUrl": "https://github.com/orgs/FilOzone/projects/14",
+  "queryParts": [
+    "status:\"🎉 Done\"",
+    "411"
+  ],
+  "fields": [
+    "Repository",
+    "Id",
+    "Title",
+    "Status",
+    "url"
+  ],
+  "outputFile": null
+}

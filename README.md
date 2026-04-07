@@ -78,6 +78,17 @@ cd foc-pr-report && uv sync && GITHUB_TOKEN=your_token uv run foc-pr-report -o r
 
 See [foc-pr-report/README.md](foc-pr-report/README.md).
 
+### 📤 GitHub project TSV export
+**Directory:** [github-project-export/](github-project-export/)
+
+Export board items from an organization Project (v2) to **TSV** using a **JSON** file (filter, columns, and stdout vs file path all live in the config—no duplicate CLI flags). Uses the REST list-items API with server-side `q`, shared with the FOC PR report client.
+
+```bash
+cd github-project-export && uv sync && GITHUB_TOKEN=$(gh auth token) uv run github-project-export examples/export.example.json
+```
+
+See [github-project-export/README.md](github-project-export/README.md).
+
 ### 🎯 GitHub Milestone Manager
 **Directory:** [github-milestone-creator/](github-milestone-creator/)
 
