@@ -10,17 +10,11 @@ from pathlib import Path
 
 import requests
 
-# Repo layout: tpm-utils/foc-pr-report/foc_pr_report/cli.py → parents[2] == tpm-utils
-_TPM_UTILS_ROOT = Path(__file__).resolve().parents[2]
-if str(_TPM_UTILS_ROOT) not in sys.path:
-    sys.path.insert(0, str(_TPM_UTILS_ROOT))
-
-from foc_project14_client import (  # noqa: E402
+from foc_pr_report.foc_project14_client import (
     enrich_pull_items_with_submitted_reviewers,
     fetch_project_board_items_rest_filtered,
 )
-
-from foc_pr_report.report import (  # noqa: E402
+from foc_pr_report.report import (
     BASE_FILTER,
     aggregate_rows,
     render_full_markdown,

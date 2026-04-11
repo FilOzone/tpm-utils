@@ -21,7 +21,12 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import quote
 import argparse
 
-from foc_project14_client import fetch_all_project_items, field_values_by_name
+_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+_FOC_PR_REPORT_DIR = os.path.join(_REPO_ROOT, "foc-pr-report")
+if _FOC_PR_REPORT_DIR not in sys.path:
+    sys.path.insert(0, _FOC_PR_REPORT_DIR)
+
+from foc_pr_report.foc_project14_client import fetch_all_project_items, field_values_by_name
 
 # Milestones to exclude (view 32 filter)
 EXCLUDED_MILESTONES = [

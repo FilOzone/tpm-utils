@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 from urllib.parse import quote
 
-from foc_project14_client import field_values_by_name
+from foc_pr_report.foc_project14_client import field_values_by_name
 
 # Base board filter (View 2) — keep in sync with ManuallyApplied FOC table links
 BASE_FILTER = 'is:pr -status:"🎉 Done" -status:"🐱 Todo"'
@@ -190,10 +190,10 @@ def render_repo_status_markdown(
 
     lines: List[str] = []
 
-    status_headers = [
-        f"[{status}]({view2_url(_filter_body(BASE_FILTER, f'status:\"{status}\"'))})"
-        for status in statuses
-    ]
+    status_headers = []
+    for status in statuses:
+        sf = f'status:"{status}"'
+        status_headers.append(f"[{status}]({view2_url(_filter_body(BASE_FILTER, sf))})")
     total_col_header = f"[Total]({view2_url(BASE_FILTER)})"
     lines.append("| Repository | " + " | ".join(status_headers) + f" | {total_col_header} |")
 
@@ -219,6 +219,9 @@ def render_repo_status_markdown(
             row_sum += n
             if n == 0:
                 row_out.append("0")
+            elif repo == "unknown":
+                cell_q = _filter_body(BASE_FILTER, f'status:"{status}"')
+                row_out.append(f"[{n}]({view2_url(cell_q)})")
             else:
                 cell_q = _filter_body(BASE_FILTER, f"repo:{repo}", f'status:"{status}"')
                 row_out.append(f"[{n}]({view2_url(cell_q)})")
