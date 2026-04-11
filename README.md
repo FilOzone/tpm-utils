@@ -65,6 +65,19 @@ Automated daily notification system that fetches open PRs from [FilOzone GitHub 
 ***Periodic Runs:***
 This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
 
+GraphQL fetch logic for Project 14 lives in [`foc_project14_client.py`](foc_project14_client.py) (shared with the FOC PR report).
+
+### 📋 FOC PR report (Markdown)
+**Directory:** [foc-pr-report/](foc-pr-report/)
+
+Generates a Markdown table of PR workload on [Project 14 / View 2](https://github.com/orgs/FilOzone/projects/14/views/2): counts per GitHub user and board status (excludes Done and Todo), with deep links for each cell. Run with **`uv`**:
+
+```bash
+cd foc-pr-report && uv sync && GITHUB_TOKEN=your_token uv run foc-pr-report -o report.md
+```
+
+See [foc-pr-report/README.md](foc-pr-report/README.md).
+
 ### 🎯 GitHub Milestone Manager
 **Directory:** [github-milestone-creator/](github-milestone-creator/)
 
