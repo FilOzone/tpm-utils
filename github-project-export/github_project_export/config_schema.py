@@ -107,7 +107,10 @@ def load_export_config(path: Path) -> ExportConfig:
     if not isinstance(url, str) or not url.strip():
         raise ConfigError("'projectUrl' must be a non-empty string")
 
-    org, project_number = parse_org_project_url(url.strip())
+    try:
+        org, project_number = parse_org_project_url(url.strip())
+    except ValueError as e:
+        raise ConfigError(str(e)) from e
     query = _require_non_empty_query(data)
     fields = _parse_fields(data)
     output_path = _parse_output_file(data)

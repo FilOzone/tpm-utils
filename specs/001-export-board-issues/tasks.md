@@ -150,4 +150,4 @@ T007 → github-project-export/github_project_export/tsv_write.py
 | Polish | T013–T015 | 3 |
 | **Total** | **T001–T015** | **15** |
 
-**Format validation**: Every line uses `- [ ] Tnnn`, includes an explicit file path, and story phases include `[US1]`–`[US3]` as required.
+**Format validation**: Every task uses `- [x] Tnnn` (all completed), includes an explicit file path, and story phases include `[US1]`–`[US3]` as required.

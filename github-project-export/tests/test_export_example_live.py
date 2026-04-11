@@ -52,6 +52,8 @@ def _normalize_tsv(tsv: str) -> str:
         return line
 
     sorted_rows = sorted(rows, key=row_key)
+    if not sorted_rows:
+        return header + "\n"
     return header + "\n" + "\n".join(sorted_rows) + "\n"
 
 

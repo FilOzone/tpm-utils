@@ -10,13 +10,14 @@ from pathlib import Path
 
 import requests
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# foc_project14_client lives in foc-pr-report/foc_pr_report/ (moved there in PR #24)
+_FOC_PR_REPORT = Path(__file__).resolve().parents[2] / "foc-pr-report"
+if str(_FOC_PR_REPORT) not in sys.path:
+    sys.path.insert(0, str(_FOC_PR_REPORT))
 
-from github_project_export.config_schema import ConfigError, load_export_config  # noqa: E402
-from github_project_export.rest_export import FieldResolutionError, export_rows  # noqa: E402
-from github_project_export.tsv_write import write_tsv  # noqa: E402
+from github_project_export.config_schema import ConfigError, load_export_config
+from github_project_export.rest_export import FieldResolutionError, export_rows
+from github_project_export.tsv_write import write_tsv
 
 
 def main() -> None:

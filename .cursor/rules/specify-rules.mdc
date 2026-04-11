@@ -17,13 +17,17 @@ Auto-generated from all feature plans. Last updated: 2026-04-06
 ## Project Structure
 
 ```text
-src/
-tests/
+foc-pr-report/
+github-project-export/
 ```
 
 ## Commands
 
-cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] pytest [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] ruff check .
+```bash
+# Run tests (from tool directory, e.g. github-project-export/)
+uv sync --group dev
+GITHUB_TOKEN=$(gh auth token) uv run pytest
+```
 
 ## Code Style
 

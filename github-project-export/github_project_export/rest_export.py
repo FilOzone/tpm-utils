@@ -7,6 +7,11 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 import requests
 
+from foc_pr_report.foc_project14_client import (
+    fetch_project_v2_items_rest,
+    list_project_v2_field_ids_by_name,
+)
+
 from github_project_export import synthetic
 
 
@@ -175,12 +180,6 @@ def export_rows(
         FieldResolutionError: unknown field name.
         requests.HTTPError: API failure.
     """
-    # Import here so test discovery without tpm-utils root still errors clearly in cli
-    from foc_project14_client import (  # type: ignore[import-not-found]
-        fetch_project_v2_items_rest,
-        list_project_v2_field_ids_by_name,
-    )
-
     board_map = list_project_v2_field_ids_by_name(
         session,
         org=org,

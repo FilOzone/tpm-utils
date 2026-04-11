@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Export project board items to CSV
+# Specification Quality Checklist: Export project board items to TSV
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-04-06  
@@ -31,7 +31,7 @@
 
 ## Validation Record
 
-**Iteration 1 (2026-04-06)**: Reviewed spec against all items above. No failing items. Spec uses “utility” and “CSV” as user-requested delivery shape; avoids stack-specific APIs. FR-009 and Assumptions document zero-match and missing-field behavior to keep requirements testable.
+**Iteration 1 (2026-04-06)**: Reviewed spec against all items above. No failing items. Spec uses “utility” and “TSV” as the user-requested delivery shape and avoids stack-specific APIs. Requirements and assumptions document zero-match and missing-field behavior to keep the specification testable.
 
 ## Notes
 

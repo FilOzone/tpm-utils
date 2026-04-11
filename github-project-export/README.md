@@ -1,6 +1,6 @@
 # GitHub project export (TSV)
 
-Export items from a **GitHub Organization Project (classic v2 board)** to **TSV** using a **JSON configuration file**. Filtering uses the same **project search** syntax as the board, applied **server-side** via the REST API (see [`foc_project14_client.py`](../foc_project14_client.py) and the [list project items](https://docs.github.com/en/rest/projects/items#list-items-for-an-organization-owned-project) endpoint).
+Export items from a **GitHub Organization Project (Projects v2)** to **TSV** using a **JSON configuration file**. Filtering uses the same **project search** syntax as the board, applied **server-side** via the REST API (see the [list project items](https://docs.github.com/en/rest/projects/items#list-items-for-an-organization-owned-project) endpoint).
 
 ## Requirements
 
@@ -96,5 +96,4 @@ You still get a **TSV header row** and **no data rows**.
 
 ## Implementation notes
 
-- Reuses **`foc_project14_client`**: `list_project_v2_field_ids_by_name`, `fetch_project_v2_items_rest`.
-- The process adds the repo root to `sys.path` so that import works when run from this directory (same pattern as `foc-pr-report`).
+- Reuses **`foc_project14_client`** (`list_project_v2_field_ids_by_name`, `fetch_project_v2_items_rest`) from `foc-pr-report/foc_pr_report/`.
