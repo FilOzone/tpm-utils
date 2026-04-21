@@ -379,6 +379,9 @@ def rest_board_item_to_graphql_node(item: Dict[str, Any]) -> Dict[str, Any]:
     for r in content.get("requested_reviewers") or []:
         if isinstance(r, dict) and r.get("login"):
             review_nodes.append({"requestedReviewer": {"login": r["login"]}})
+    for team in content.get("requested_teams") or []:
+        if isinstance(team, dict) and team.get("name"):
+            review_nodes.append({"requestedReviewer": {"name": team["name"]}})
 
     repo_full: Optional[str] = None
     if "/repos/" in api_url:

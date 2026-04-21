@@ -26,13 +26,22 @@ _FOC_PR_REPORT_DIR = os.path.join(_REPO_ROOT, "foc-pr-report")
 if _FOC_PR_REPORT_DIR not in sys.path:
     sys.path.insert(0, _FOC_PR_REPORT_DIR)
 
-from foc_pr_report.foc_project14_client import fetch_all_project_items, field_values_by_name
+from foc_pr_report.foc_project14_client import (
+    fetch_project_board_items_rest_filtered,
+    field_values_by_name,
+)
 
 # Milestones to exclude (view 32 filter)
 EXCLUDED_MILESTONES = [
     "MX: Priority and sequencing TBD",
     "M4.5: GA Fast Follows",
 ]
+NOTIFIER_FILTER = (
+    'is:pr '
+    '-status:"🎉 Done" '
+    '-milestone:"MX: Priority and sequencing TBD" '
+    '-milestone:"M4.5: GA Fast Follows"'
+)
 
 # Status constants for categorization
 AWAITING_REVIEW_STATUS = "🔎 Awaiting review"
@@ -77,8 +86,12 @@ class FOCWGNotifier:
             return {}
 
     def fetch_project_items(self) -> List[Dict[str, Any]]:
-        """Fetch all items from FilOzone Project 14 with pagination."""
-        return fetch_all_project_items(self.session, verbose=True)
+        """Fetch notifier-relevant project items via REST board filtering."""
+        return fetch_project_board_items_rest_filtered(
+            self.session,
+            filter_query=NOTIFIER_FILTER,
+            verbose=True,
+        )
 
     def filter_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Apply filters to the items (open PRs, non-draft, excluding certain milestones and Done status)."""
