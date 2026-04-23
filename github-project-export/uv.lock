@@ -138,10 +138,22 @@ wheels = [
 ]
 
 [[package]]
+name = "foc-pr-report"
+version = "0.1.0"
+source = { editable = "../foc-pr-report" }
+dependencies = [
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "requests", specifier = ">=2.31" }]
+
+[[package]]
 name = "github-project-export"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "foc-pr-report" },
     { name = "requests" },
 ]
 
@@ -151,7 +163,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "requests", specifier = ">=2.31" }]
+requires-dist = [
+    { name = "foc-pr-report", editable = "../foc-pr-report" },
+    { name = "requests", specifier = ">=2.31" },
+]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]

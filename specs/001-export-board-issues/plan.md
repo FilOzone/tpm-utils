@@ -14,7 +14,7 @@ Deliver a **uv-packaged CLI** in `github-project-export/` that reads a **JSON ex
 **Storage**: N/A (read-only export)  
 **Testing**: pytest optional; manual validation with JSON fixture per [quickstart.md](./quickstart.md)  
 **Target Platform**: macOS/Linux CLI  
-**Project Type**: uv CLI package + repo-root `foc_project14_client` import via `sys.path`  
+**Project Type**: uv CLI package + shared client reuse from `foc-pr-report/foc_pr_report/foc_project14_client.py` (imported as `foc_pr_report.foc_project14_client`)  
 **Performance Goals**: Server-side filter minimizes rows transferred; pagination as in existing client  
 **Constraints**: Spec FR-007/FR-008; valid JSON schema validation before API; no secrets required in JSON  
 **Scale/Scope**: Typical org board slices per spec SC-003
@@ -63,7 +63,9 @@ github-project-export/
     ├── synthetic.py        # documented synthetic key → value from content dict
     └── tsv_write.py        # tab-separated rows to stream
 
-foc_project14_client.py    # existing: list_project_v2_field_ids_by_name, fetch_project_v2_items_rest
+foc-pr-report/
+└── foc_pr_report/
+    └── foc_project14_client.py    # existing: list_project_v2_field_ids_by_name, fetch_project_v2_items_rest
 ```
 
 **Structure Decision**: Single package `github-project-export/` mirroring `foc-pr-report/` layout.

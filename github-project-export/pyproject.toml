@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Export GitHub Organization Project v2 board items to TSV via JSON config"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["requests>=2.31"]
+dependencies = [
+    "requests>=2.31",
+    "foc-pr-report",
+]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
@@ -15,6 +18,9 @@ github-project-export = "github_project_export.cli:main"
 [build-system]
 requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+foc-pr-report = { path = "../foc-pr-report", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["github_project_export"]

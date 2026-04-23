@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/001-export-board-issues/`  
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [data-model.md](./data-model.md), [contracts/cli.md](./contracts/cli.md), [research.md](./research.md), [quickstart.md](./quickstart.md)
 
-**Tests**: Not required by spec; verify via manual runs and [quickstart.md](./quickstart.md).
+**Tests**: Required by spec (see "User Scenarios & Testing" in [spec.md](./spec.md)); verified via pytest integration test and manual runs in [quickstart.md](./quickstart.md).
 
 **Organization**: Phases follow user story priorities P1 → P3 in [spec.md](./spec.md).
 
@@ -14,7 +14,7 @@
 
 ## Path conventions
 
-Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `foc_project14_client.py` at repo root.
+Package root: `github-project-export/` (parallel to `foc-pr-report/`). Shared: `foc-pr-report/foc_pr_report/foc_project14_client.py` (imported as `foc_pr_report.foc_project14_client`).
 
 ---
 

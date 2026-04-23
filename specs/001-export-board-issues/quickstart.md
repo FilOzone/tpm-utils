@@ -51,4 +51,4 @@ Optional: `--token`, `-q` / `--quiet`, `--help`. There are **no** `--project-url
 ## Related
 
 - [github-project-export/README.md](../../github-project-export/README.md)
-- Shared client: `foc_project14_client.py`
+- Shared client: `foc-pr-report/foc_pr_report/foc_project14_client.py`

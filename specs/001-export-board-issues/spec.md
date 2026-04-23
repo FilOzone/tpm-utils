@@ -9,7 +9,7 @@
 
 ### Session 2026-04-07
 
-- Q: Should query input be `queryParts` only, `query` only, or both? → A: Support both `query` and `queryParts`; if both are present, `query` takes precedence.
+- Q: Should query input be `queryParts` only, `query` only, or both? → A: Support both `query` and `queryParts`; if both are present, a non-empty `query` takes precedence; if `query` is omitted, `null`, or empty/whitespace, fall back to `queryParts`.
 - Q: JSON file vs CLI for primary inputs? → A: JSON configuration file only—no equivalent CLI flags for project, filter, or field list (invocation supplies the config path only, aside from documented credential handling).
 - Q: May `queryParts` contain non-strings (e.g. numbers)? → A: No—every `queryParts` element MUST be a string; otherwise the config is invalid and the tool MUST fail with a clear error.
 - Q: How should JSON choose stdout vs file output? → A: Optional `outputFile`: when the key is omitted or the value is JSON `null`, write TSV to **stdout**; when the value is a non-empty string, write to that file path (overwrite).
