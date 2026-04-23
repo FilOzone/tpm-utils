@@ -1,0 +1,42 @@
+---
+description: Project Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# tpm-utils Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-04-06
+
+## Active Technologies
+- Python 3.10+ (match `foc-pr-report`) + `requests` (uv); stdlib `json`, `csv` (tab delimiter), `argparse`, `pathlib`, `urllib.parse` (001-export-board-issues)
+- N/A (read-only export) (001-export-board-issues)
+
+- Python 3.10+ (match `foc-pr-report`) + `requests` (via uv); stdlib `csv`, `argparse`, `urllib.parse` (001-export-board-issues)
+
+## Project Structure
+
+```text
+foc-pr-report/
+github-project-export/
+```
+
+## Commands
+
+```bash
+# Run tests (from tool directory, e.g. github-project-export/)
+uv sync --group dev
+GITHUB_TOKEN=$(gh auth token) uv run pytest
+```
+
+## Code Style
+
+Python 3.10+ (match `foc-pr-report`): Follow standard conventions
+
+## Recent Changes
+- 001-export-board-issues: Added Python 3.10+ (match `foc-pr-report`) + `requests` (uv); stdlib `json`, `csv` (tab delimiter), `argparse`, `pathlib`, `urllib.parse`
+
+- 001-export-board-issues: Added Python 3.10+ (match `foc-pr-report`) + `requests` (via uv); stdlib `csv`, `argparse`, `urllib.parse`
+
+<!-- MANUAL ADDITIONS START -->
+<!-- MANUAL ADDITIONS END -->

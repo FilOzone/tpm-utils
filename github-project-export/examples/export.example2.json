@@ -1,0 +1,22 @@
+{
+  "projectUrl": "https://github.com/orgs/FilOzone/projects/14",
+  "queryParts": [
+    "-status:\"🎉 Done\"", 
+    "milestone:\"M4.1: mainnet ready\",\"M4.2: mainnet GA\"",
+    "450"
+  ],
+  "fields": [
+    "Repository",
+    "Id",
+    "url",
+    "Title",
+    "Status",
+    "Kind",
+    "Milestone",
+    "Assignees",
+    "Reviewers",
+    "Cycle Theme",
+    "Dev Days Estimate"
+  ],
+  "outputFile": null
+}
