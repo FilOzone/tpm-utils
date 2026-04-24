@@ -65,7 +65,7 @@ Automated daily notification system that fetches open PRs from [FilOzone GitHub 
 ***Periodic Runs:***
 This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
 
-GraphQL fetch logic for Project 14 lives in [`foc_project14_client.py`](foc_project14_client.py) (shared with the FOC PR report).
+Project board API logic lives in [`ghprojects-client/`](ghprojects-client/) (shared with the FOC PR report and FilOzzy MCP).
 
 ### 📋 FOC PR report (Markdown)
 **Directory:** [foc-pr-report/](foc-pr-report/)
@@ -104,6 +104,37 @@ Tool for creating and updating GitHub milestones across multiple repositories fr
 - Detailed output showing previous → new values
 
 See the [README](github-milestone-creator/README.md) for full documentation and usage instructions.
+
+### 🤖 FilOzzy MCP Server
+**Directory:** [filozzy-mcp/](filozzy-mcp/)
+
+MCP server for managing GitHub Projects v2 boards via LLMs. Configurable via environment variables to work with any org/project. Fills the gap that GitHub's official MCP and `gh` CLI don't cover: reading and setting project-level field values (Status, Cycle Theme, Dev Days Estimate, etc.).
+
+**Key Features:**
+- Context-efficient responses (~200-300 bytes per item vs ~8KB from GitHub's MCP)
+- Field name resolution (`"Status"` → `"Done"`, no raw IDs needed)
+- Comprehensive filter syntax reference in tool descriptions
+- Audit logging with old/new values
+- Configurable for any GitHub Projects v2 board
+
+See [filozzy-mcp/README.md](filozzy-mcp/README.md).
+
+### 📦 GitHub Projects v2 Client Library
+**Directory:** [ghprojects-client/](ghprojects-client/)
+
+Reusable Python client for GitHub Projects v2 boards. Context-efficient (~200-300 bytes per item vs ~8KB from GitHub's API). Used by `filozzy-mcp`, `foc-pr-report`, and `github-project-export`.
+
+See [ghprojects-client/README.md](ghprojects-client/README.md).
+
+## Running Tests
+
+Run all package tests from the repo root:
+
+```bash
+./scripts/test-all.sh
+```
+
+This runs integration tests across `ghprojects-client`, `filozzy-mcp`, and `foc-pr-report`, reporting a unified pass/fail summary. Requires `GITHUB_TOKEN` (auto-detected from `gh auth token`).
 
 ## Getting Started
 

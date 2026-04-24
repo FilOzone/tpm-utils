@@ -12,9 +12,15 @@ dependencies = [
 [project.scripts]
 foc-pr-report = "foc_pr_report.cli:main"
 
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
 [build-system]
 requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+markers = ["integration: hits live GitHub API (requires GITHUB_TOKEN)"]
 
 [tool.uv.sources]
 ghprojects-client = { path = "../ghprojects-client", editable = true }

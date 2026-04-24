@@ -97,8 +97,8 @@
 - [x] T026 [US1] Update `set_board_item_field` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.set_field_value`, call `log_action` in server.py after mutation (not in shared client), include org/project_number in log entry
 - [x] T027 [US1] Verify `filozzy-mcp/filozzy_mcp/read_tools.py` and `filozzy-mcp/filozzy_mcp/mutation_tools.py` no longer exist (they were `git mv`'d in Phase 2) — if any stubs remain, delete them
 - [x] T028 [US1] Update `filozzy-mcp/tests/test_integration.py` — fix imports, ensure all existing tests pass against the FOC board with env-based config
-- [ ] T029 [US1] Update `filozzy-mcp/README.md` — document new env vars (`GITHUB_ORG`, `GITHUB_PROJECT_NUMBER`, `BOARD_NAMES`), update `.mcp.json` example, update setup instructions
-- [ ] T030 [US1] Validate: start MCP server with env config pointing at FOC board, run each tool manually and verify output matches current behavior
+- [x] T029 [US1] Update `filozzy-mcp/README.md` — document new env vars (`GITHUB_ORG`, `GITHUB_PROJECT_NUMBER`, `BOARD_NAMES`), update `.mcp.json` example, update setup instructions
+- [x] T030 [US1] Validate: start MCP server with env config pointing at FOC board, run each tool manually and verify output matches current behavior
 
 **Checkpoint**: MCP server works with any board via env config. All existing tools produce identical output when pointed at the FOC board. `read_tools.py` and `mutation_tools.py` are deleted.
 
@@ -114,7 +114,7 @@
 
 - [x] T031 [US2] Create `scripts/test-all.sh` — iterates over `ghprojects-client`, `filozzy-mcp`, `foc-pr-report`; runs `GITHUB_TOKEN=$(gh auth token) uv run pytest -v` in each; collects exit codes; reports unified pass/fail summary
 - [x] T032 [US2] Make `scripts/test-all.sh` executable and test it from repo root
-- [ ] T033 [US2] Update root `README.md` — add "Running tests" section documenting the single-command test runner
+- [x] T033 [US2] Update root `README.md` — add "Running tests" section documenting the single-command test runner
 
 **Checkpoint**: `./scripts/test-all.sh` runs all package tests and reports unified results.
 
@@ -134,8 +134,8 @@
 - [x] T037 [US3] Update `foc-pr-report/foc_pr_report/cli.py` — change imports from `foc_project14_client` to `pr_enrichment`
 - [x] T038 [US3] Update `foc-pr-report/foc_pr_report/report.py` — change any imports from `foc_project14_client` if present
 - [x] T039 [US3] Delete or gut `foc-pr-report/foc_pr_report/foc_project14_client.py` — the re-export shim is no longer needed; all consumers now import from `ghprojects_client` or `pr_enrichment`
-- [ ] T040 [US3] Create `foc-pr-report/tests/test_integration.py` — regression test that runs the PR report against the FOC board and verifies output structure (column headers, row format, non-empty data)
-- [ ] T041 [US3] Validate: run `foc-pr-report` CLI against the FOC board and compare output to current behavior
+- [x] T040 [US3] Create `foc-pr-report/tests/test_integration.py` — regression test that runs the PR report against the FOC board and verifies output structure (column headers, row format, non-empty data)
+- [x] T041 [US3] Validate: run `foc-pr-report` CLI against the FOC board and compare output to current behavior
 
 **Checkpoint**: `foc_project14_client.py` is deleted. `foc-pr-report` works identically using `ghprojects_client` + `pr_enrichment.py`.
 
@@ -145,11 +145,11 @@
 
 **Purpose**: Cleanup, documentation, and final validation.
 
-- [ ] T042 [P] Create `ghprojects-client/README.md` — package purpose, public API overview, usage example, link to contracts
-- [ ] T043 [P] Update `filozzy-mcp/README.md` — update "Next steps" section (mark generalization as done), update any references to old module structure
-- [ ] T044 Clean up any remaining references to `FILOZ_ORG`, `PROJECT_NUMBER` hardcoded constants across the repo (grep and fix)
-- [ ] T045 Run `./scripts/test-all.sh` and verify all packages pass
-- [ ] T046 Validate quickstart.md — follow the setup instructions for a different board configuration and verify it works
+- [x] T042 [P] Create `ghprojects-client/README.md` — package purpose, public API overview, usage example, link to contracts
+- [x] T043 [P] Update `filozzy-mcp/README.md` — update "Next steps" section (mark generalization as done), update any references to old module structure
+- [x] T044 Clean up any remaining references to `FILOZ_ORG`, `PROJECT_NUMBER` hardcoded constants across the repo (grep and fix)
+- [x] T045 Run `./scripts/test-all.sh` and verify all packages pass
+- [x] T046 Validate quickstart.md — follow the setup instructions for a different board configuration and verify it works
 
 ---
 
