@@ -6,7 +6,9 @@ Used by foc_wg_pr_notifier.py and foc-pr-report.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -186,6 +188,166 @@ def list_project_v2_field_ids_by_name(
     return by_name
 
 
+PROJECT_VIEW_QUERY = """
+query($org: String!, $number: Int!) {
+  organization(login: $org) {
+    projectV2(number: $number) {
+      views(first: 100) {
+        nodes {
+          number
+          name
+          filter
+          fields(first: 50) {
+            nodes {
+              ... on ProjectV2FieldCommon {
+                name
+                dataType
+              }
+              ... on ProjectV2SingleSelectField {
+                name
+                dataType
+              }
+              ... on ProjectV2IterationField {
+                name
+                dataType
+              }
+            }
+          }
+          groupByFields(first: 10) {
+            nodes {
+              ... on ProjectV2FieldCommon {
+                name
+                dataType
+              }
+              ... on ProjectV2SingleSelectField {
+                name
+                dataType
+              }
+              ... on ProjectV2IterationField {
+                name
+                dataType
+              }
+            }
+          }
+          verticalGroupByFields(first: 10) {
+            nodes {
+              ... on ProjectV2FieldCommon {
+                name
+                dataType
+              }
+              ... on ProjectV2SingleSelectField {
+                name
+                dataType
+              }
+              ... on ProjectV2IterationField {
+                name
+                dataType
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def resolve_view_url_filter(
+    session: requests.Session,
+    *,
+    view_url: str,
+) -> Dict[str, Any]:
+    """
+    Resolve effective list query from a project board view URL.
+
+    - Uses `filterQuery` URL parameter when present (override).
+    - Otherwise uses the saved view filter from GitHub GraphQL.
+    - `sliceBy[...]` URL params are currently ignored.
+    - If `visibleFields` is present, that order is used exactly.
+    - Otherwise returns the view's default field order from GraphQL metadata.
+    """
+    parsed = urlparse(view_url.strip())
+    path_parts = [p for p in parsed.path.split("/") if p]
+    if len(path_parts) < 6:
+        raise ValueError(f"Unrecognized project view URL path: {parsed.path}")
+    if path_parts[0] != "orgs" or path_parts[2] != "projects" or path_parts[4] != "views":
+        raise ValueError(f"Unsupported project view URL format: {view_url}")
+
+    org = path_parts[1]
+    project_number = int(path_parts[3])
+    view_number = int(path_parts[5])
+
+    query_params = parse_qs(parsed.query)
+    override_filter = (query_params.get("filterQuery") or [None])[0]
+    slice_value = (query_params.get("sliceBy[value]") or [None])[0]
+    visible_fields_raw = (query_params.get("visibleFields") or [None])[0]
+
+    data = graphql_query(
+        session,
+        PROJECT_VIEW_QUERY,
+        {"org": org, "number": project_number},
+    )
+    views = (data.get("organization") or {}).get("projectV2", {}).get("views", {}).get("nodes") or []
+
+    view = None
+    for candidate in views:
+        if candidate and candidate.get("number") == view_number:
+            view = candidate
+            break
+    if not view:
+        raise ValueError(f"View #{view_number} not found in {org} project #{project_number}")
+
+    base_filter = (override_filter if override_filter is not None else (view.get("filter") or "")).strip()
+    view_field_nodes = (view.get("fields") or {}).get("nodes") or []
+    view_fields = [node.get("name") for node in view_field_nodes if node and node.get("name")]
+    visible_fields: Optional[List[str]] = None
+    if visible_fields_raw:
+        try:
+            parsed_visible = json.loads(visible_fields_raw)
+            if isinstance(parsed_visible, list):
+                id_to_name = {
+                    fid: name
+                    for name, fid in list_project_v2_field_ids_by_name(
+                        session,
+                        org=org,
+                        project_number=project_number,
+                        verbose=False,
+                    ).items()
+                }
+                resolved_visible: List[str] = []
+                for value in parsed_visible:
+                    if isinstance(value, str) and value.strip():
+                        resolved_visible.append(value.strip())
+                    elif isinstance(value, int):
+                        mapped = id_to_name.get(value)
+                        if mapped:
+                            resolved_visible.append(mapped)
+                visible_fields = list(dict.fromkeys(resolved_visible))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            visible_fields = None
+    group_nodes = (view.get("groupByFields") or {}).get("nodes") or []
+    primary_group_name = group_nodes[0].get("name") if group_nodes and group_nodes[0] else None
+    effective_filter = base_filter
+
+    return {
+        "org": org,
+        "project_number": project_number,
+        "view_number": view_number,
+        "view_name": view.get("name"),
+        "base_filter": base_filter,
+        "effective_filter": effective_filter,
+        "view_fields": visible_fields if visible_fields else view_fields,
+        "view_default_fields": view_fields,
+        "visible_fields_override": visible_fields,
+        "override_filter": override_filter,
+        "slice_value": slice_value,
+        "group_field": primary_group_name,
+        "slice_group_field": None,
+        "slice_filter": None,
+    }
+
+
 def fetch_pull_request_review_logins(
     session: requests.Session,
     owner: str,
@@ -285,30 +447,52 @@ def fetch_project_v2_items_rest(
     query: str,
     field_ids: Optional[List[int]] = None,
     per_page: int = 100,
+    max_pages: Optional[int] = None,
+    cursor: Optional[str] = None,
     verbose: bool = True,
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     List organization Project v2 items via REST with server-side q filter.
 
     ``query`` uses the same project filter syntax as the board (e.g. is:pr, -status:...).
     See https://docs.github.com/en/rest/projects/items#list-items-for-an-organization-owned-project
+
+    Args:
+        max_pages: Maximum number of REST API pages to fetch. None means fetch all pages.
+                   Each page returns up to ``per_page`` items.
+        cursor: Opaque cursor URL from a previous call's ``next_cursor`` to resume pagination.
+                When provided, ``query``, ``field_ids``, and ``per_page`` are ignored
+                (they're encoded in the cursor URL).
+
+    Returns a dict with:
+        "items": list of raw REST item dicts
+        "next_cursor": opaque cursor URL for the next page, or None if no more pages
+        "pages_fetched": number of REST API pages fetched in this call
+        "has_more": whether more pages are available
     """
-    url: Optional[str] = (
-        f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
-    )
-    params: Optional[Dict[str, Any]] = {
-        "per_page": per_page,
-        "q": query,
-    }
-    if field_ids:
-        params["fields"] = ",".join(str(i) for i in field_ids)
+    if cursor:
+        # Resume from a previous cursor — the URL already has query/fields baked in
+        url: Optional[str] = cursor
+        params: Optional[Dict[str, Any]] = None
+    else:
+        url = (
+            f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
+        )
+        params = {
+            "per_page": per_page,
+            "q": query,
+        }
+        if field_ids:
+            params["fields"] = ",".join(str(i) for i in field_ids)
 
     all_rows: List[Dict[str, Any]] = []
-    page = 1
+    pages_fetched = 0
+    next_cursor: Optional[str] = None
 
     while url:
+        pages_fetched += 1
         if verbose:
-            print(f"REST items page {page}...", end="", flush=True)
+            print(f"REST items page {pages_fetched}...", end="", flush=True)
 
         resp = session.get(
             url,
@@ -327,13 +511,26 @@ def fetch_project_v2_items_rest(
             print(f" got {len(batch)} (total {len(all_rows)})", flush=True)
 
         next_url = resp.links.get("next", {}).get("url")
+
+        # Stop if we've hit the page limit
+        if max_pages and pages_fetched >= max_pages:
+            next_cursor = next_url  # Preserve cursor for caller to resume
+            if verbose and next_cursor:
+                print(f"Stopped at max_pages={max_pages}, more available", flush=True)
+            break
+
         url = next_url
         params = None
-        page += 1
 
     if verbose:
-        print(f"Total REST items matching q: {len(all_rows)}", flush=True)
-    return all_rows
+        print(f"Total REST items fetched: {len(all_rows)}", flush=True)
+
+    return {
+        "items": all_rows,
+        "next_cursor": next_cursor,
+        "pages_fetched": pages_fetched,
+        "has_more": next_cursor is not None,
+    }
 
 
 def rest_board_item_to_graphql_node(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -445,7 +642,7 @@ def fetch_project_board_items_rest_filtered(
             f'No field named "Status" on org {org!r} project {project_number}',
         )
 
-    raw = fetch_project_v2_items_rest(
+    result = fetch_project_v2_items_rest(
         session,
         org=org,
         project_number=project_number,
@@ -453,7 +650,7 @@ def fetch_project_board_items_rest_filtered(
         field_ids=[status_id],
         verbose=verbose,
     )
-    return [rest_board_item_to_graphql_node(row) for row in raw]
+    return [rest_board_item_to_graphql_node(row) for row in result["items"]]
 
 
 def field_values_by_name(item: Dict[str, Any]) -> Dict[str, str]:
