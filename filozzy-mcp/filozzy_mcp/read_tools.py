@@ -8,11 +8,11 @@ import requests
 
 from foc_pr_report.foc_project14_client import (
     FILOZ_ORG,
-    GRAPHQL_URL,
     PROJECT_NUMBER,
     fetch_project_v2_items_rest,
     graphql_query,
     list_project_v2_field_ids_by_name,
+    resolve_view_url_filter,
 )
 
 
@@ -461,3 +461,4 @@ def get_item_details(
         cursor = result["next_cursor"]
 
     return None
+

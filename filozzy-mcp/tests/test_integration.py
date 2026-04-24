@@ -16,8 +16,10 @@ These tests are read-only — no mutations are performed.
 from __future__ import annotations
 
 import os
+import json
 import re
 import subprocess
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
@@ -33,6 +35,7 @@ from filozzy_mcp.read_tools import (
     list_field_options,
     list_fields,
     list_project_items,
+    resolve_view_url_filter,
 )
 from filozzy_mcp.server import list_board_items
 
@@ -238,6 +241,67 @@ class TestListProjectItems:
         assert len(result["items"]) >= 1
         titles = [it["Title"] for it in result["items"]]
         assert any("FWSS" in t or "Mainnet Upgrade" in t for t in titles)
+
+
+class TestResolveViewUrlFilter:
+    """Tests for resolving effective filters from project view URLs."""
+
+    def test_uses_saved_view_filter_when_no_override(self, session: requests.Session):
+        resolved = resolve_view_url_filter(
+            session,
+            view_url="https://github.com/orgs/FilOzone/projects/14/views/20",
+        )
+        assert resolved["view_number"] == 20
+        assert resolved["base_filter"].startswith("cycle:202604-2")
+        assert resolved["effective_filter"].startswith("cycle:202604-2")
+        assert len(resolved["view_fields"]) > 0
+        assert resolved["view_fields"][0] == "Title"
+
+    def test_uses_filter_query_override_and_slice(self, session: requests.Session):
+        resolved = resolve_view_url_filter(
+            session,
+            view_url=(
+                "https://github.com/orgs/FilOzone/projects/14/views/20"
+                "?sliceBy%5Bvalue%5D=Dealbot"
+                "&filterQuery=cycle%3A202604-2+-status%3A%22%F0%9F%8E%89+Done%22+milestone%3A"
+            ),
+        )
+        assert resolved["override_filter"] is not None
+        assert resolved["base_filter"] == 'cycle:202604-2 -status:"🎉 Done" milestone:'
+        # sliceBy params are intentionally ignored by the parser.
+        assert resolved["slice_group_field"] is None
+        assert resolved["slice_filter"] is None
+        assert resolved["effective_filter"] == 'cycle:202604-2 -status:"🎉 Done" milestone:'
+
+    def test_visible_fields_query_param_overrides_view_field_order(self, session: requests.Session):
+        view_url = (
+            "https://github.com/orgs/FilOzone/projects/14/views/20"
+            "?visibleFields=%5B%22Repository%22%2C%22Title%22%2C%22Assignees%22%2C%22Reviewers%22%2C%22Linked+pull+requests%22%2C194437039%2C245538973%2C%22Milestone%22%2C%22Status%22%2C%22Parent+issue%22%2C204711739%2C242588518%2C244708427%2C%22Sub-issues+progress%22%2C%22Labels%22%5D"
+        )
+        resolved = resolve_view_url_filter(session, view_url=view_url)
+        assert resolved["visible_fields_override"] is not None
+        params = parse_qs(urlparse(view_url).query)
+        raw_visible = (params.get("visibleFields") or [None])[0]
+        assert raw_visible is not None
+        payload = json.loads(raw_visible)
+        id_to_name = {
+            fid: name
+            for name, fid in list_project_v2_field_ids_by_name(
+                session,
+                org=FILOZ_ORG,
+                project_number=PROJECT_NUMBER,
+            ).items()
+        }
+        expected = []
+        for value in payload:
+            if isinstance(value, str):
+                expected.append(value)
+            elif isinstance(value, int):
+                mapped = id_to_name.get(value)
+                if mapped:
+                    expected.append(mapped)
+        expected = list(dict.fromkeys(expected))
+        assert resolved["view_fields"] == expected
 
 
 class TestListBoardItemsDocstringExamples:

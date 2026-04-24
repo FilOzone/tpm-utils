@@ -16,6 +16,7 @@ from filozzy_mcp.read_tools import (
     list_field_options,
     list_fields,
     list_project_items,
+    resolve_view_url_filter,
 )
 
 mcp = FastMCP(
@@ -225,6 +226,104 @@ def list_board_items(
 
     if verbose:
         output += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
+
+    return output
+
+
+@mcp.tool()
+def list_board_view_items(
+    view_url: str,
+    fields: Optional[str] = None,
+    per_page: int = 50,
+    cursor: Optional[str] = None,
+    verbose: bool = False,
+) -> str:
+    """List project items for a GitHub project view URL.
+
+    This resolves the effective filter from the view URL and then delegates to
+    list_board_items/list_project_items.
+
+    Behavior:
+    - Uses the saved view filter from GitHub (project view metadata).
+    - If URL has `filterQuery=...`, that overrides the saved view filter.
+    - `sliceBy[...]` URL parameters are ignored.
+    - If URL has `visibleFields=[...]`, that exact order is used.
+    - Else if `fields` is omitted, uses the view's configured default fields.
+      Note: default field order may differ from what the live UI currently renders.
+
+    Args:
+        view_url: Full GitHub project view URL.
+        fields: Comma-separated list of fields to include (same as list_board_items).
+        per_page: Number of items per page (default: 50, max: 100).
+        cursor: Opaque cursor from a previous response to fetch the next page.
+        verbose: If true, include resolved view/filter debug details.
+    """
+    session = _build_session()
+    resolved = resolve_view_url_filter(session, view_url=view_url)
+
+    field_list = None
+    if fields:
+        field_list = [f.strip() for f in fields.split(",")]
+    elif resolved.get("view_fields"):
+        field_list = resolved["view_fields"]
+    order_warning = None
+    if fields is None and resolved.get("visible_fields_override") is None:
+        order_warning = (
+            "Warning: URL has no visibleFields override; using saved view default "
+            "field order, which may differ from the live UI column order."
+        )
+
+    result = list_project_items(
+        session,
+        query=resolved["effective_filter"],
+        fields=field_list,
+        per_page=per_page,
+        cursor=cursor,
+        org=resolved["org"],
+        project_number=resolved["project_number"],
+        verbose=verbose,
+    )
+
+    items = result["items"]
+    debug = result["debug"]
+    next_cursor = result["next_cursor"]
+    has_more = result["has_more"]
+
+    if not items:
+        msg = f"No items found for view URL: {view_url}"
+        if order_warning:
+            msg = order_warning + "\n\n" + msg
+        if verbose:
+            msg += (
+                "\n\n--- Resolved view ---\n"
+                + json.dumps(resolved, indent=2, ensure_ascii=False)
+                + "\n\n--- Query debug ---\n"
+                + json.dumps(debug, indent=2)
+            )
+        return msg
+
+    lines = []
+    for item in items:
+        display = {k: v for k, v in item.items() if not k.startswith("_") and v}
+        lines.append(json.dumps(display, ensure_ascii=False))
+
+    header = f"Found {len(items)} items for view #{resolved['view_number']} ({resolved['view_name']})"
+    if has_more:
+        header += " (more available)"
+    output = header + ":\n" + "\n".join(lines)
+    if order_warning:
+        output = order_warning + "\n\n" + output
+
+    if has_more:
+        output += f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+
+    if verbose:
+        output += (
+            "\n\n--- Resolved view ---\n"
+            + json.dumps(resolved, indent=2, ensure_ascii=False)
+            + "\n\n--- Query debug ---\n"
+            + json.dumps(debug, indent=2)
+        )
 
     return output
 

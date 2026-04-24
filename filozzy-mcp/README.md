@@ -77,9 +77,15 @@ After configuring, restart Claude Code (or start a new session). The FilOzzy too
 ### Read tools
 
 - **`list_board_items`** — List project items with optional filter (same `q` syntax as the board UI)
+- **`list_board_view_items`** — List items for a project view URL (resolves saved view filter, URL `filterQuery` override, and optional `visibleFields` field ordering)
 - **`get_board_item`** — Get full details of a specific item (e.g., `dealbot#111`)
 - **`list_board_fields`** — List all project fields
 - **`list_board_field_options`** — List valid options for a field (e.g., Status values)
+
+For `list_board_view_items`:
+- `visibleFields` in the URL is authoritative and preserved exactly in that order.
+- If `visibleFields` is not present, FilOzzy uses the view default field order from GraphQL metadata, which may differ from the live UI column order.
+- `sliceBy[...]` URL parameters are currently ignored.
 
 `get_board_item` is intentionally kept as a first-class primitive, even though
 you could emulate it with `list_board_items`. It gives MCP clients one stable
