@@ -133,3 +133,18 @@ Tests cover:
 - "What are the valid Status values?"
 - "Set the status of dealbot#88 to Done"
 - "What has FilOzzy done recently?"
+
+## Next steps
+
+1. Clarify positioning: FilOzzy is filling a gap where GitHub's MCP tooling does
+   not currently expose the project board APIs/operations we need. Research
+   whether a generic GitHub Projects MCP already exists before expanding scope.
+2. Evaluate generalizing both `filozzy-mcp` and
+   `foc-pr-report/foc_pr_report/foc_project14_client.py` so they work for any
+   GitHub Projects v2 board, not just `https://github.com/orgs/FilOzone/projects/14`.
+3. If generalized, factor the shared project-board client logic out of
+   `foc-pr-report` into a reusable module/package, since the API surface is now
+   broader than FOC-specific reporting.
+4. If no existing generic GitHub Projects MCP is suitable, review FilOzzy MCP
+   docstrings/tool descriptions against GitHub MCP tool descriptions and improve
+   wording, guidance, and examples accordingly.
