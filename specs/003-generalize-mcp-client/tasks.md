@@ -17,9 +17,9 @@
 
 **Purpose**: Create the new shared client package and establish the dependency structure.
 
-- [ ] T001 Create `ghprojects-client/pyproject.toml` with `hatchling` build, `requests>=2.31` dependency, `requires-python = ">=3.10"`
-- [ ] T002 Create `ghprojects-client/ghprojects_client/__init__.py` with public API re-exports (empty initially, populated as modules are created)
-- [ ] T003 Create `ghprojects-client/tests/__init__.py`
+- [x] T001 Create `ghprojects-client/pyproject.toml` with `hatchling` build, `requests>=2.31` dependency, `requires-python = ">=3.10"`
+- [x] T002 Create `ghprojects-client/ghprojects_client/__init__.py` with public API re-exports (empty initially, populated as modules are created)
+- [x] T003 Create `ghprojects-client/tests/__init__.py`
 
 **Checkpoint**: Package skeleton exists, `uv sync` succeeds in `ghprojects-client/`.
 
