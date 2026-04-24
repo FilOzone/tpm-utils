@@ -112,11 +112,8 @@ def _extract_synthetic(content: Optional[Dict[str, Any]], key: str) -> str:
 def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]:
     """Format a REST project item into a dict of field_name -> display_value."""
     content = item.get("content")
-    if isinstance(content, dict):
-        content_type = "pull_request" if "/pulls/" in (content.get("url") or "") else "issue"
-    else:
+    if not isinstance(content, dict):
         content = None
-        content_type = "unknown"
 
     # Build field value map from REST fields
     field_values: Dict[str, str] = {}

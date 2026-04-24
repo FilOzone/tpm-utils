@@ -37,7 +37,9 @@ def _build_session() -> requests.Session:
     if not token:
         raise RuntimeError(
             "GITHUB_TOKEN environment variable is required. "
-            "Set it to a GitHub PAT with 'project' and 'repo' scopes."
+            "Set it to a GitHub PAT with 'read:project' (reads) and "
+            "'project' (mutations) scopes, plus 'repo' and 'read:org'. "
+            "See the README for setup instructions."
         )
     session = requests.Session()
     session.headers.update({
@@ -213,7 +215,7 @@ def list_board_items(
     # Format as readable text (exclude internal _node_id)
     lines = []
     for item in items:
-        display = {k: v for k, v in item.items() if not k.startswith("_") and v}
+        display = {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
         lines.append(json.dumps(display, ensure_ascii=False))
 
     header = f"Found {len(items)} items"
@@ -304,7 +306,7 @@ def list_board_view_items(
 
     lines = []
     for item in items:
-        display = {k: v for k, v in item.items() if not k.startswith("_") and v}
+        display = {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
         lines.append(json.dumps(display, ensure_ascii=False))
 
     header = f"Found {len(items)} items for view #{resolved['view_number']} ({resolved['view_name']})"
@@ -347,7 +349,7 @@ def get_board_item(item_ref: str) -> str:
     if details is None:
         return f"Item not found: {item_ref}"
 
-    display = {k: v for k, v in details.items() if not k.startswith("_") and v}
+    display = {k: v for k, v in details.items() if not k.startswith("_") and v not in (None, "")}
     return json.dumps(display, ensure_ascii=False, indent=2)
 
 

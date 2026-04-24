@@ -188,7 +188,7 @@ def export_rows(
     )
     columns, field_ids = build_columns(fields, board_map)
 
-    items = fetch_project_v2_items_rest(
+    result = fetch_project_v2_items_rest(
         session,
         org=org,
         project_number=project_number,
@@ -197,4 +197,4 @@ def export_rows(
         verbose=verbose,
     )
 
-    return [_item_to_row(it, columns) for it in items]
+    return [_item_to_row(it, columns) for it in result["items"]]

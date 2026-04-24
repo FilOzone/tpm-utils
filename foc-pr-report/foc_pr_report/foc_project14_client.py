@@ -461,7 +461,8 @@ def fetch_project_v2_items_rest(
         max_pages: Maximum number of REST API pages to fetch. None means fetch all pages.
                    Each page returns up to ``per_page`` items.
         cursor: Opaque cursor URL from a previous call's ``next_cursor`` to resume pagination.
-                When provided, ``query`` and ``field_ids`` are ignored (they're encoded in the URL).
+                When provided, ``query``, ``field_ids``, and ``per_page`` are ignored
+                (they're encoded in the cursor URL).
 
     Returns a dict with:
         "items": list of raw REST item dicts

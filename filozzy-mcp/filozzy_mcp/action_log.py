@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 
-LOG_PATH = Path(__file__).resolve().parent.parent / "action_log.jsonl"
+# Default: next to the package root (dev use).
+# Override with FILOZZY_ACTION_LOG for installed/read-only environments.
+_default_log = Path(__file__).resolve().parent.parent / "action_log.jsonl"
+LOG_PATH = Path(os.environ.get("FILOZZY_ACTION_LOG", str(_default_log)))
 
 
 def log_action(

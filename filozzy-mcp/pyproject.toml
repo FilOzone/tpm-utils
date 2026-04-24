@@ -23,6 +23,11 @@ foc-pr-report = { path = "../foc-pr-report", editable = true }
 [tool.hatch.build.targets.wheel]
 packages = ["filozzy_mcp"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: calls the live GitHub REST/GraphQL API (requires GITHUB_TOKEN)",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

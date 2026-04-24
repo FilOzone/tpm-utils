@@ -13,7 +13,7 @@ from foc_pr_report.foc_project14_client import (
 )
 
 from filozzy_mcp.action_log import log_action
-from filozzy_mcp.read_tools import list_field_options, list_project_items
+from filozzy_mcp.read_tools import list_field_options
 
 
 UPDATE_FIELD_MUTATION = """

@@ -24,6 +24,10 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import requests
 
+# Mark all tests in this module as integration tests (live GitHub API).
+# Run with: uv run pytest -m integration
+pytestmark = pytest.mark.integration
+
 from foc_pr_report.foc_project14_client import (
     FILOZ_ORG,
     PROJECT_NUMBER,
@@ -234,13 +238,11 @@ class TestListProjectItems:
         """Verify combining custom field + time-based filter."""
         result = list_project_items(
             session,
-            query='"cycle-theme":"Contract Upgrade" -last-updated:1days',
+            query='"cycle-theme":"Contract Upgrade" -last-updated:7days',
             per_page=50,
         )
-        # Should match the known item from the board
+        # Should return items (the specific items will vary as the board evolves)
         assert len(result["items"]) >= 1
-        titles = [it["Title"] for it in result["items"]]
-        assert any("FWSS" in t or "Mainnet Upgrade" in t for t in titles)
 
 
 class TestResolveViewUrlFilter:
@@ -252,10 +254,13 @@ class TestResolveViewUrlFilter:
             view_url="https://github.com/orgs/FilOzone/projects/14/views/20",
         )
         assert resolved["view_number"] == 20
-        assert resolved["base_filter"].startswith("cycle:202604-2")
-        assert resolved["effective_filter"].startswith("cycle:202604-2")
+        # View filter content changes each cycle — only assert structure, not exact values
+        assert isinstance(resolved["base_filter"], str)
+        assert "cycle" in resolved["base_filter"]
+        assert isinstance(resolved["effective_filter"], str)
+        assert "cycle" in resolved["effective_filter"]
         assert len(resolved["view_fields"]) > 0
-        assert resolved["view_fields"][0] == "Title"
+        assert "Title" in resolved["view_fields"]
 
     def test_uses_filter_query_override_and_slice(self, session: requests.Session):
         resolved = resolve_view_url_filter(
@@ -263,15 +268,15 @@ class TestResolveViewUrlFilter:
             view_url=(
                 "https://github.com/orgs/FilOzone/projects/14/views/20"
                 "?sliceBy%5Bvalue%5D=Dealbot"
-                "&filterQuery=cycle%3A202604-2+-status%3A%22%F0%9F%8E%89+Done%22+milestone%3A"
+                "&filterQuery=-status%3A%22%F0%9F%8E%89+Done%22"
             ),
         )
         assert resolved["override_filter"] is not None
-        assert resolved["base_filter"] == 'cycle:202604-2 -status:"🎉 Done" milestone:'
+        assert '-status:"🎉 Done"' in resolved["base_filter"]
         # sliceBy params are intentionally ignored by the parser.
         assert resolved["slice_group_field"] is None
         assert resolved["slice_filter"] is None
-        assert resolved["effective_filter"] == 'cycle:202604-2 -status:"🎉 Done" milestone:'
+        assert resolved["effective_filter"] == resolved["base_filter"]
 
     def test_visible_fields_query_param_overrides_view_field_order(self, session: requests.Session):
         view_url = (
