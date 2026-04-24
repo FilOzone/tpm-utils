@@ -22,3 +22,8 @@ foc-pr-report = { path = "../foc-pr-report", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["filozzy_mcp"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

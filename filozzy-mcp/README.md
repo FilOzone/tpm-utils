@@ -91,6 +91,29 @@ After configuring, restart Claude Code (or start a new session). The FilOzzy too
 
 Every mutation is logged to `action_log.jsonl`.
 
+## Testing
+
+Integration tests run against the live GitHub API (read-only, no mutations).
+
+### Prerequisites
+
+- A GitHub token with `project` and `repo` scopes (same as the server itself)
+- Network access to `api.github.com`
+
+### Run tests
+
+```bash
+cd filozzy-mcp
+GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v
+```
+
+Tests cover:
+- REST API fetcher (pagination, cursors, capping, invalid filters)
+- Item listing (default/custom fields, time-based filters, combined filters)
+- Field discovery and field option enumeration
+- Item lookup by short ref, full ref, and URL
+- Cursor-based pagination with no overlap between pages
+
 ## Example usage (in Claude Code)
 
 - "Show me all non-Done items missing a milestone"

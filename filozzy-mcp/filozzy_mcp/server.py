@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from mcp.server import FastMCP
-
-from foc_pr_report.foc_project14_client import FILOZ_ORG, PROJECT_NUMBER
 
 from filozzy_mcp.action_log import read_recent_actions
 from filozzy_mcp.mutation_tools import set_item_field
@@ -52,23 +50,139 @@ def _build_session() -> requests.Session:
 def list_board_items(
     query: str = '-status:"🎉 Done"',
     fields: Optional[str] = None,
+    per_page: int = 50,
+    cursor: Optional[str] = None,
+    verbose: bool = False,
 ) -> str:
     """List FOC project board items with optional filter.
 
+    The query uses GitHub Projects v2 filter syntax — the same syntax as the
+    board UI search bar. Multiple filters are ANDed together.
+
+    Results are paginated using cursor-based pagination. Each call fetches one
+    page of items from the GitHub REST API. If more items are available, the
+    response includes a next_cursor value — pass it back as `cursor` to fetch
+    the next page.
+
+    Reference: https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects
+
     Args:
-        query: Project search filter (same syntax as the board UI).
-               Default: exclude Done items. Examples:
-               - '-status:"🎉 Done"' (all non-done)
-               - 'milestone:"M4.2: mainnet GA"'
-               - 'is:pr'
-               - 'assignee:rjan90'
+        query: Project search filter. Default: '-status:"🎉 Done"'.
         fields: Comma-separated list of fields to include.
                 Default: Repository, Id, url, Title, Status, Kind,
                 Milestone, Assignees, Cycle Theme, Dev Days Estimate.
                 Use list_board_fields to see available fields.
+        per_page: Number of items per page (default: 50, max: 100).
+        cursor: Opaque cursor from a previous response to fetch the next page.
+                When provided, the same query and fields from the original
+                request are used automatically.
+        verbose: If true, include debug info showing the raw REST query,
+                 endpoint, requested field IDs, and item counts.
+
+    Query syntax reference (passed as the REST API `q` parameter):
+
+      The query uses the same syntax as the GitHub Projects board UI
+      search bar. It is passed directly to the REST API endpoint
+      GET /orgs/{org}/projectsV2/{project_number}/items?q=...
+
+      Docs: https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects
+
+      CUSTOM PROJECT FIELDS (use kebab-case of the field display name):
+        status:"⌨️ In Progress"          — match a Status value
+        cycle-theme:"Contract Upgrade"   — match a Cycle Theme value
+        milestone:"M4.2: mainnet GA"     — match a Milestone value
+        dev-days-estimate:>1             — numeric comparison
+        cycle:"202604-2"                 — match iteration by title
+        Use list_board_fields to discover field names.
+        Use list_board_field_options to see valid values for a field.
+
+      ITEM TYPE & STATE:
+        is:issue        — issues only
+        is:pr           — pull requests only
+        is:draft        — draft issues or PRs
+        is:open         — open items
+        is:closed       — closed items
+        is:merged       — merged PRs
+
+      PEOPLE:
+        assignee:rjan90              — assigned to user
+        assignee:rjan90,biglep       — assigned to either (OR)
+        reviewers:USERNAME           — PR reviewer
+        assignee:@me                 — current authenticated user
+
+      PRESENCE / ABSENCE:
+        has:assignee     — items with at least one assignee
+        no:milestone     — items with no milestone set
+        no:assignee      — items with no assignee
+        -no:milestone    — only items WITH a milestone (double-negation)
+
+      REPOSITORY:
+        repo:FilOzone/dealbot                — items from a specific repo
+        repo:FilOzone/dealbot,FilOzone/curio — items from either repo
+
+      LABELS:
+        label:bug              — items with label "bug"
+        label:"help wanted"    — labels with spaces need quotes
+
+      TIME-BASED (built-in filters, not project board fields):
+        IMPORTANT: `last-updated` has counterintuitive semantics:
+          last-updated:1days   — items NOT updated within 1 day (stale items)
+          -last-updated:1days  — items updated within the last day (recent items)
+          last-updated:7days   — items NOT updated within 7 days
+          -last-updated:7days  — items updated within the last 7 days
+
+        Alternative syntax using `updated:` (equivalent results):
+          updated:@today       — items updated today
+          updated:>@today-1d   — items updated within the last day
+          updated:>@today-7d   — items updated within the last 7 days
+
+        To find RECENTLY updated items, use one of:
+          -last-updated:Ndays    (board UI style)
+          updated:>@today-Nd     (docs style with comparison operator)
+
+        To find STALE items (not updated recently), use one of:
+          last-updated:Ndays     (board UI style, no negation)
+          -updated:>@today-Nd    (docs style, negated)
+
+      RELATIONSHIPS:
+        blocking:FilOzone/dealbot#470    — items blocking a specific issue
+        blocked-by:FilOzone/dealbot#470  — items blocked by a specific issue
+        parent-issue:FilOzone/repo#123   — sub-issues of a parent
+
+      CLOSE REASON:
+        reason:completed       — closed as completed
+        reason:"not planned"   — closed as not planned
+
+      TEXT SEARCH:
+        "search text"          — free text search across fields
+        title:"API refactor"   — title contains text
+        Wildcards: title:API*  — prefix matching
+
+      NEGATION (prefix any filter with -):
+        -status:"🎉 Done"               — exclude Done items
+        -assignee:rjan90                 — not assigned to rjan90
+        -is:draft                        — exclude drafts
+        -no:milestone                    — only items WITH a milestone
+
+      OR (comma-separated values within one filter):
+        assignee:rjan90,biglep
+        label:bug,enhancement
+        status:"⌨️ In Progress","🔍 Review"
+
+      COMBINING FILTERS (space-separated = implicit AND):
+        is:pr assignee:rjan90 -status:"🎉 Done"
+        cycle-theme:"Contract Upgrade" -last-updated:1days
+        is:issue no:milestone has:assignee
+
+      QUOTING: Use double quotes around values with spaces or special chars:
+        status:"⌨️ In Progress"
+        milestone:"M4.2: mainnet GA"
+
+      NOTE: Invalid filters return 0 results (they are not silently ignored).
 
     Returns:
         Formatted list of matching project items with their field values.
+        When verbose=true, includes debug info about the REST query.
     """
     session = _build_session()
 
@@ -76,10 +190,24 @@ def list_board_items(
     if fields:
         field_list = [f.strip() for f in fields.split(",")]
 
-    items = list_project_items(session, query=query, fields=field_list)
+    result = list_project_items(
+        session,
+        query=query,
+        fields=field_list,
+        per_page=per_page,
+        cursor=cursor,
+        verbose=verbose,
+    )
+    items = result["items"]
+    debug = result["debug"]
+    next_cursor = result["next_cursor"]
+    has_more = result["has_more"]
 
     if not items:
-        return f"No items found matching query: {query}"
+        msg = f"No items found matching query: {query}"
+        if verbose:
+            msg += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
+        return msg
 
     # Format as readable text (exclude internal _node_id)
     lines = []
@@ -87,7 +215,18 @@ def list_board_items(
         display = {k: v for k, v in item.items() if not k.startswith("_") and v}
         lines.append(json.dumps(display, ensure_ascii=False))
 
-    return f"Found {len(items)} items:\n" + "\n".join(lines)
+    header = f"Found {len(items)} items"
+    if has_more:
+        header += " (more available)"
+    output = header + ":\n" + "\n".join(lines)
+
+    if has_more:
+        output += f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+
+    if verbose:
+        output += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
+
+    return output
 
 
 @mcp.tool()

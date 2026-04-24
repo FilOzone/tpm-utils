@@ -156,10 +156,27 @@ def list_project_items(
     *,
     query: str = '-status:"🎉 Done"',
     fields: Optional[List[str]] = None,
+    per_page: int = 50,
+    cursor: Optional[str] = None,
     org: str = FILOZ_ORG,
     project_number: int = PROJECT_NUMBER,
-) -> List[Dict[str, str]]:
-    """List project items with optional filter query. Returns formatted dicts."""
+    verbose: bool = False,
+) -> Dict[str, Any]:
+    """List project items with optional filter query.
+
+    Uses cursor-based pagination: each call fetches one page from the REST API.
+    Pass the returned ``next_cursor`` back to get the next page.
+
+    Args:
+        per_page: Number of items per page (default: 50, max: 100).
+        cursor: Opaque cursor from a previous call to resume pagination.
+
+    Returns a dict with:
+        "items": list of formatted dicts
+        "next_cursor": cursor string to fetch the next page, or None
+        "has_more": whether more pages are available
+        "debug": dict with query details
+    """
     # Get field IDs so we can request them
     field_map = list_project_v2_field_ids_by_name(
         session, org=org, project_number=project_number, verbose=False,
@@ -175,23 +192,46 @@ def list_project_items(
     # Determine which REST field IDs to request
     synthetics = {"repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees"}
     field_ids = []
+    resolved_fields: List[str] = []
     for name in fields:
         if name.lower() not in synthetics:
             for board_name, fid in field_map.items():
                 if board_name.lower() == name.lower():
                     field_ids.append(fid)
+                    resolved_fields.append(f"{board_name} (id: {fid})")
                     break
 
-    raw_items = fetch_project_v2_items_rest(
+    fetch_result = fetch_project_v2_items_rest(
         session,
         org=org,
         project_number=project_number,
         query=query,
         field_ids=field_ids if field_ids else None,
+        per_page=per_page,
+        max_pages=1,
+        cursor=cursor,
         verbose=False,
     )
+    raw_items = fetch_result["items"]
 
-    return [_format_item(item, fields) for item in raw_items]
+    items = [_format_item(item, fields) for item in raw_items]
+
+    debug = {
+        "rest_query": query,
+        "rest_endpoint": f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items",
+        "rest_field_ids": field_ids,
+        "resolved_fields": resolved_fields,
+        "per_page": per_page,
+        "items_returned": len(items),
+        "has_more": fetch_result["has_more"],
+    }
+
+    return {
+        "items": items,
+        "next_cursor": fetch_result["next_cursor"],
+        "has_more": fetch_result["has_more"],
+        "debug": debug,
+    }
 
 
 def list_fields(
@@ -386,7 +426,7 @@ def get_item_details(
 
     # Query by repo (full owner/name) if available, otherwise broad search
     query = f"repo:{repo_filter}" if repo_filter else f"#{number}"
-    items = fetch_project_v2_items_rest(
+    fetch_result = fetch_project_v2_items_rest(
         session,
         org=org,
         project_number=project_number,
@@ -403,7 +443,7 @@ def get_item_details(
         if name not in all_fields:
             all_fields.append(name)
 
-    for item in items:
+    for item in fetch_result["items"]:
         formatted = _format_item(item, all_fields)
         # Match by number
         item_number = formatted.get("Id", "")

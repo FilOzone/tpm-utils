@@ -285,30 +285,51 @@ def fetch_project_v2_items_rest(
     query: str,
     field_ids: Optional[List[int]] = None,
     per_page: int = 100,
+    max_pages: Optional[int] = None,
+    cursor: Optional[str] = None,
     verbose: bool = True,
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     List organization Project v2 items via REST with server-side q filter.
 
     ``query`` uses the same project filter syntax as the board (e.g. is:pr, -status:...).
     See https://docs.github.com/en/rest/projects/items#list-items-for-an-organization-owned-project
+
+    Args:
+        max_pages: Maximum number of REST API pages to fetch. None means fetch all pages.
+                   Each page returns up to ``per_page`` items.
+        cursor: Opaque cursor URL from a previous call's ``next_cursor`` to resume pagination.
+                When provided, ``query`` and ``field_ids`` are ignored (they're encoded in the URL).
+
+    Returns a dict with:
+        "items": list of raw REST item dicts
+        "next_cursor": opaque cursor URL for the next page, or None if no more pages
+        "pages_fetched": number of REST API pages fetched in this call
+        "has_more": whether more pages are available
     """
-    url: Optional[str] = (
-        f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
-    )
-    params: Optional[Dict[str, Any]] = {
-        "per_page": per_page,
-        "q": query,
-    }
-    if field_ids:
-        params["fields"] = ",".join(str(i) for i in field_ids)
+    if cursor:
+        # Resume from a previous cursor — the URL already has query/fields baked in
+        url: Optional[str] = cursor
+        params: Optional[Dict[str, Any]] = None
+    else:
+        url = (
+            f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
+        )
+        params = {
+            "per_page": per_page,
+            "q": query,
+        }
+        if field_ids:
+            params["fields"] = ",".join(str(i) for i in field_ids)
 
     all_rows: List[Dict[str, Any]] = []
-    page = 1
+    pages_fetched = 0
+    next_cursor: Optional[str] = None
 
     while url:
+        pages_fetched += 1
         if verbose:
-            print(f"REST items page {page}...", end="", flush=True)
+            print(f"REST items page {pages_fetched}...", end="", flush=True)
 
         resp = session.get(
             url,
@@ -327,13 +348,26 @@ def fetch_project_v2_items_rest(
             print(f" got {len(batch)} (total {len(all_rows)})", flush=True)
 
         next_url = resp.links.get("next", {}).get("url")
+
+        # Stop if we've hit the page limit
+        if max_pages and pages_fetched >= max_pages:
+            next_cursor = next_url  # Preserve cursor for caller to resume
+            if verbose and next_cursor:
+                print(f"Stopped at max_pages={max_pages}, more available", flush=True)
+            break
+
         url = next_url
         params = None
-        page += 1
 
     if verbose:
-        print(f"Total REST items matching q: {len(all_rows)}", flush=True)
-    return all_rows
+        print(f"Total REST items fetched: {len(all_rows)}", flush=True)
+
+    return {
+        "items": all_rows,
+        "next_cursor": next_cursor,
+        "pages_fetched": pages_fetched,
+        "has_more": next_cursor is not None,
+    }
 
 
 def rest_board_item_to_graphql_node(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -445,7 +479,7 @@ def fetch_project_board_items_rest_filtered(
             f'No field named "Status" on org {org!r} project {project_number}',
         )
 
-    raw = fetch_project_v2_items_rest(
+    result = fetch_project_v2_items_rest(
         session,
         org=org,
         project_number=project_number,
@@ -453,7 +487,7 @@ def fetch_project_board_items_rest_filtered(
         field_ids=[status_id],
         verbose=verbose,
     )
-    return [rest_board_item_to_graphql_node(row) for row in raw]
+    return [rest_board_item_to_graphql_node(row) for row in result["items"]]
 
 
 def field_values_by_name(item: Dict[str, Any]) -> Dict[str, str]:
