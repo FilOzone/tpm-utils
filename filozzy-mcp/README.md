@@ -134,11 +134,42 @@ Tests cover:
 - "Set the status of dealbot#88 to Done"
 - "What has FilOzzy done recently?"
 
+## FAQ
+
+### Why not just use GitHub's official MCP server?
+
+GitHub's [official MCP server](https://github.com/github/github-mcp-server) has a Projects v2 toolset (`projects_list`, `projects_get`, `projects_write`) available at the `/x/projects` endpoint. It supports query filtering, pagination, field discovery (including single-select options), and mutations. So why does filozzy-mcp exist?
+
+**The non-negotiable blocker: context window bloat.** Each project item response from GitHub's MCP is ~8KB because it includes the full issue/PR body, complete repository object (~2KB of URL templates), and full user objects for every author/assignee/milestone-creator. The `fields` parameter controls which *project fields* are returned but there is no way to suppress the content blob.
+
+| Query size | GitHub MCP payload | Token cost | Impact |
+|---|---|---|---|
+| 10 items | ~80KB | ~20K tokens | Noticeable |
+| 50 items (max per_page) | ~400KB | ~100K tokens | Half the context window |
+| 100 items (2 pages) | ~800KB | ~200K+ tokens | Entire context window consumed |
+
+filozzy-mcp returns ~200-300 bytes per item (just the project field values you asked for) — a **~40x reduction**. The LLM cannot filter the response before it enters context, so those tokens are consumed regardless of whether the LLM "ignores" the content.
+
+| | github-projects MCP | filozzy-mcp |
+|---|---|---|
+| Per-item response size | ~8KB | ~200-300 bytes |
+| 50-item query | ~400KB / ~100K tokens | ~10-15KB / ~3-4K tokens |
+| Field name resolution | Raw IDs required | By name (`"Status"` → `"Done"`) |
+| Filter syntax docs | None in tool description | Comprehensive reference in docstring |
+| Mutation UX | 3 tool calls with raw IDs | 1 call: `set_board_item_field("dealbot#111", "Status", "Done")` |
+| Audit logging | None | JSONL with old/new values |
+
+This is a [known problem across the GitHub MCP server](https://github.com/github/github-mcp-server/issues/142) (20+ comments, open since April 2025). The maintainers have been fixing it tool-by-tool using "minimal types", but the projects tools haven't been optimized yet. We filed [github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383) requesting compact output for project items.
+
+**If #2383 gets addressed**, we should revisit this decision — GitHub's official tooling plus CLAUDE.md prompt engineering could replace filozzy-mcp. Until then, filozzy-mcp stays as the thin, context-efficient wrapper it was designed to be.
+
+For the full evaluation, see [FilOzone/tpm-utils#25 (comment)](https://github.com/FilOzone/tpm-utils/issues/25#issuecomment-4314857318).
+
 ## Next steps
 
-1. Clarify positioning: FilOzzy is filling a gap where GitHub's MCP tooling does
-   not currently expose the project board APIs/operations we need. Research
-   whether a generic GitHub Projects MCP already exists before expanding scope.
+1. ~~Clarify positioning~~ — Done. See FAQ above. filozzy-mcp exists because
+   GitHub's official MCP returns ~8KB per item with no way to suppress the
+   content blob. Tracking upstream fix at [github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383).
 2. Evaluate generalizing both `filozzy-mcp` and
    `foc-pr-report/foc_pr_report/foc_project14_client.py` so they work for any
    GitHub Projects v2 board, not just `https://github.com/orgs/FilOzone/projects/14`.
