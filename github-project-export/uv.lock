@@ -138,9 +138,9 @@ wheels = [
 ]
 
 [[package]]
-name = "foc-pr-report"
+name = "ghprojects-client"
 version = "0.1.0"
-source = { editable = "../foc-pr-report" }
+source = { editable = "../ghprojects-client" }
 dependencies = [
     { name = "requests" },
 ]
@@ -148,12 +148,15 @@ dependencies = [
 [package.metadata]
 requires-dist = [{ name = "requests", specifier = ">=2.31" }]
 
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.3" }]
+
 [[package]]
 name = "github-project-export"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "foc-pr-report" },
+    { name = "ghprojects-client" },
     { name = "requests" },
 ]
 
@@ -164,7 +167,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "foc-pr-report", editable = "../foc-pr-report" },
+    { name = "ghprojects-client", editable = "../ghprojects-client" },
     { name = "requests", specifier = ">=2.31" },
 ]
 

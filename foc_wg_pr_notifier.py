@@ -26,7 +26,7 @@ _FOC_PR_REPORT_DIR = os.path.join(_REPO_ROOT, "foc-pr-report")
 if _FOC_PR_REPORT_DIR not in sys.path:
     sys.path.insert(0, _FOC_PR_REPORT_DIR)
 
-from foc_pr_report.foc_project14_client import (
+from foc_pr_report.pr_enrichment import (
     fetch_project_board_items_rest_filtered,
     field_values_by_name,
 )

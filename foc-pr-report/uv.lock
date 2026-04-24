@@ -121,11 +121,29 @@ name = "foc-pr-report"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ghprojects-client" },
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ghprojects-client", editable = "../ghprojects-client" },
+    { name = "requests", specifier = ">=2.31" },
+]
+
+[[package]]
+name = "ghprojects-client"
+version = "0.1.0"
+source = { editable = "../ghprojects-client" }
+dependencies = [
     { name = "requests" },
 ]
 
 [package.metadata]
 requires-dist = [{ name = "requests", specifier = ">=2.31" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.3" }]
 
 [[package]]
 name = "idna"

@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 from urllib.parse import quote
 
-from foc_pr_report.foc_project14_client import field_values_by_name
+from foc_pr_report.pr_enrichment import field_values_by_name
 
 # Base board filter (View 2) — keep in sync with ManuallyApplied FOC table links
 BASE_FILTER = 'is:pr -status:"🎉 Done" -status:"🐱 Todo"'

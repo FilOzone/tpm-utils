@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "mcp>=1.0",
     "requests>=2.31",
-    "foc-pr-report",
+    "ghprojects-client",
 ]
 
 [project.scripts]
@@ -18,7 +18,7 @@ requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
-foc-pr-report = { path = "../foc-pr-report", editable = true }
+ghprojects-client = { path = "../ghprojects-client", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["filozzy_mcp"]

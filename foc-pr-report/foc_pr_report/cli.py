@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 
-from foc_pr_report.foc_project14_client import (
+from foc_pr_report.pr_enrichment import (
     enrich_pull_items_with_submitted_reviewers,
     fetch_project_board_items_rest_filtered,
 )
