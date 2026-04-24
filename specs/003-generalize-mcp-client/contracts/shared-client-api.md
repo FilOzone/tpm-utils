@@ -1,4 +1,4 @@
-# Contract: Shared Client Library (`ghprojects_client`)
+# Contract: Shared Client Library (`github_projects_client`)
 
 **Date**: 2026-04-24  
 **Feature**: `003-generalize-mcp-client`

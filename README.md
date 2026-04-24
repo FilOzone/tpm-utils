@@ -65,7 +65,7 @@ Automated daily notification system that fetches open PRs from [FilOzone GitHub 
 ***Periodic Runs:***
 This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
 
-Project board API logic lives in [`ghprojects-client/`](ghprojects-client/) (shared with the FOC PR report and FilOzzy MCP).
+Project board API logic lives in [`github-projects-client/`](github-projects-client/) (shared with the FOC PR report and FilOzzy MCP).
 
 ### 📋 FOC PR report (Markdown)
 **Directory:** [foc-pr-report/](foc-pr-report/)
@@ -120,11 +120,11 @@ MCP server for managing GitHub Projects v2 boards via LLMs. Configurable via env
 See [filozzy-mcp/README.md](filozzy-mcp/README.md).
 
 ### 📦 GitHub Projects v2 Client Library
-**Directory:** [ghprojects-client/](ghprojects-client/)
+**Directory:** [github-projects-client/](github-projects-client/)
 
 Reusable Python client for GitHub Projects v2 boards. Context-efficient (~200-300 bytes per item vs ~8KB from GitHub's API). Used by `filozzy-mcp`, `foc-pr-report`, and `github-project-export`.
 
-See [ghprojects-client/README.md](ghprojects-client/README.md).
+See [github-projects-client/README.md](github-projects-client/README.md).
 
 ## Running Tests
 
@@ -134,7 +134,7 @@ Run all package tests from the repo root:
 ./scripts/test-all.sh
 ```
 
-This runs integration tests across `ghprojects-client`, `filozzy-mcp`, and `foc-pr-report`, reporting a unified pass/fail summary. Requires `GITHUB_TOKEN` (auto-detected from `gh auth token`).
+This runs integration tests across `github-projects-client`, `filozzy-mcp`, and `foc-pr-report`, reporting a unified pass/fail summary. Requires `GITHUB_TOKEN` (auto-detected from `gh auth token`).
 
 ## Getting Started
 

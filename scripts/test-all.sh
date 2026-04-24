@@ -24,7 +24,7 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
 fi
 
 PACKAGES=(
-    ghprojects-client
+    github-projects-client
     filozzy-mcp
     foc-pr-report
 )

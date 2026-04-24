@@ -1,4 +1,4 @@
-# ghprojects-client
+# github-projects-client
 
 Context-efficient Python client library for GitHub Projects v2 boards.
 
@@ -26,7 +26,7 @@ no hardcoded defaults or environment variables.
 
 ```python
 import requests
-from ghprojects_client import list_items, get_item, list_field_options
+from github_projects_client import list_items, get_item, list_field_options
 
 session = requests.Session()
 session.headers["Authorization"] = f"Bearer {token}"
@@ -47,7 +47,7 @@ options = list_field_options(session, org="MyOrg", project_number=1, field_name=
 ## Testing
 
 ```bash
-cd ghprojects-client
+cd github-projects-client
 GITHUB_TOKEN=$(gh auth token) uv run pytest tests/ -v
 ```
 

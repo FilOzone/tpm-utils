@@ -10,7 +10,7 @@ import requests
 from mcp.server import FastMCP
 
 from filozzy_mcp.action_log import log_action, read_recent_actions
-from ghprojects_client import (
+from github_projects_client import (
     get_item,
     list_field_options as client_list_field_options,
     list_fields as client_list_fields,

@@ -121,7 +121,7 @@ Every mutation is logged to `action_log.jsonl`.
 
 ## Testing
 
-Tests are split across packages. Shared client tests live in `ghprojects-client/`;
+Tests are split across packages. Shared client tests live in `github-projects-client/`;
 MCP-layer-specific tests (docstring validation) live here.
 
 ### Run tests
@@ -181,7 +181,7 @@ For the full evaluation, see [FilOzone/tpm-utils#25 (comment)](https://github.co
 ## Architecture
 
 FilOzzy MCP is a thin adapter layer on top of
-[`ghprojects-client`](../ghprojects-client/), a reusable Python library for
+[`github-projects-client`](../github-projects-client/), a reusable Python library for
 GitHub Projects v2. The shared client handles all API communication; the MCP
 server adds:
 
@@ -196,8 +196,8 @@ server adds:
    GitHub's official MCP returns ~8KB per item with no way to suppress the
    content blob. Tracking upstream fix at [github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383).
 2. ~~Generalize for any board~~ — Done. The MCP server now reads org/project
-   from environment variables. Shared client logic extracted to `ghprojects-client`.
-3. ~~Factor shared client~~ — Done. `ghprojects-client/` is a standalone package
+   from environment variables. Shared client logic extracted to `github-projects-client`.
+3. ~~Factor shared client~~ — Done. `github-projects-client/` is a standalone package
    used by `filozzy-mcp`, `foc-pr-report`, and `github-project-export`.
 4. Review FilOzzy MCP docstrings/tool descriptions against GitHub MCP tool
    descriptions and improve wording, guidance, and examples accordingly.

@@ -2,7 +2,7 @@
 Integration tests for the filozzy-mcp MCP layer against the live GitHub API.
 
 These tests cover MCP-specific behavior (docstring validation, tool formatting).
-Shared client tests live in ghprojects-client/tests/test_integration.py.
+Shared client tests live in github-projects-client/tests/test_integration.py.
 
 Requirements:
     - GITHUB_TOKEN env var (or `gh auth token` available)
@@ -25,7 +25,7 @@ import requests
 
 pytestmark = pytest.mark.integration
 
-from ghprojects_client import list_items
+from github_projects_client import list_items
 from filozzy_mcp.server import list_board_items, GITHUB_ORG, GITHUB_PROJECT_NUMBER
 
 

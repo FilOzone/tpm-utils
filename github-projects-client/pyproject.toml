@@ -1,5 +1,5 @@
 [project]
-name = "ghprojects-client"
+name = "github-projects-client"
 version = "0.1.0"
 description = "Context-efficient client library for GitHub Projects v2 boards"
 readme = "README.md"
@@ -13,7 +13,7 @@ requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["ghprojects_client"]
+packages = ["github_projects_client"]
 
 [tool.pytest.ini_options]
 markers = [

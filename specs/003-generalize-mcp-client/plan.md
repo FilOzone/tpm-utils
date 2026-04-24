@@ -5,7 +5,7 @@
 
 ## Summary
 
-Extract the GitHub Projects v2 client logic currently split between `foc_project14_client.py` and `filozzy-mcp/read_tools.py` into a standalone shared library (`ghprojects-client`). Generalize all hardcoded FilOzone/project-14 references to accept any org and project number as configuration. Update both consumers (`filozzy-mcp` and `foc-pr-report`) to import from the shared library. Add cross-package test infrastructure.
+Extract the GitHub Projects v2 client logic currently split between `foc_project14_client.py` and `filozzy-mcp/read_tools.py` into a standalone shared library (`github-projects-client`). Generalize all hardcoded FilOzone/project-14 references to accept any org and project number as configuration. Update both consumers (`filozzy-mcp` and `foc-pr-report`) to import from the shared library. Add cross-package test infrastructure.
 
 ## Technical Context
 
@@ -47,9 +47,9 @@ specs/003-generalize-mcp-client/
 ### Source Code (repository root)
 
 ```text
-ghprojects-client/                  # NEW: shared client library
+github-projects-client/                  # NEW: shared client library
 ├── pyproject.toml
-├── ghprojects_client/
+├── github_projects_client/
 │   ├── __init__.py                 # Public API re-exports
 │   ├── api.py                      # GraphQL + REST communication, auth, pagination
 │   ├── fields.py                   # Field discovery, option enumeration
@@ -61,7 +61,7 @@ ghprojects-client/                  # NEW: shared client library
     └── test_integration.py         # Tests against live GitHub API
 
 filozzy-mcp/                        # MODIFIED: thinner adapter
-├── pyproject.toml                  # Depends on ghprojects-client (not foc-pr-report)
+├── pyproject.toml                  # Depends on github-projects-client (not foc-pr-report)
 ├── filozzy_mcp/
 │   ├── server.py                   # MCP tools, env config, board aliases, formatting
 │   └── action_log.py              # Audit logging (unchanged)
@@ -69,7 +69,7 @@ filozzy-mcp/                        # MODIFIED: thinner adapter
     └── test_integration.py         # Existing tests, updated imports
 
 foc-pr-report/                      # MODIFIED: uses shared client
-├── pyproject.toml                  # Depends on ghprojects-client
+├── pyproject.toml                  # Depends on github-projects-client
 ├── foc_pr_report/
 │   ├── cli.py                      # Unchanged
 │   ├── report.py                   # Unchanged
@@ -82,7 +82,7 @@ scripts/
 └── test-all.sh                     # NEW: runs all package tests from repo root
 ```
 
-**Structure Decision**: Follows the existing multi-package pattern (`uv` + `hatchling` per package, path dependencies via `[tool.uv.sources]`). The new `ghprojects-client` package is a peer of the existing packages. Both consumers use `{ path = "../ghprojects-client", editable = true }`.
+**Structure Decision**: Follows the existing multi-package pattern (`uv` + `hatchling` per package, path dependencies via `[tool.uv.sources]`). The new `github-projects-client` package is a peer of the existing packages. Both consumers use `{ path = "../github-projects-client", editable = true }`.
 
 ## Complexity Tracking
 

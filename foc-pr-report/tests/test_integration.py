@@ -2,7 +2,7 @@
 Integration tests for foc-pr-report against the live GitHub API.
 
 Verifies that the PR report pipeline (fetch → enrich → render) works
-end-to-end after the migration to ghprojects_client + pr_enrichment.
+end-to-end after the migration to github_projects_client + pr_enrichment.
 
 Requirements:
     - GITHUB_TOKEN env var (or `gh auth token` available)

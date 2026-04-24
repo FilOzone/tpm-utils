@@ -1,5 +1,5 @@
 """
-Integration tests for ghprojects-client against the live GitHub API.
+Integration tests for github-projects-client against the live GitHub API.
 
 Requirements:
     - GITHUB_TOKEN env var (or `gh auth token` available)
@@ -7,7 +7,7 @@ Requirements:
     - Read access to FilOzone org project #14
 
 Run:
-    cd ghprojects-client
+    cd github-projects-client
     GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v
 
 These tests are read-only — no mutations are performed.
@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import requests
 
-from ghprojects_client import (
+from github_projects_client import (
     fetch_items_rest,
     get_item,
     list_field_ids_by_name,

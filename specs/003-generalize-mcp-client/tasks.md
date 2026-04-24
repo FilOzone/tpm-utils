@@ -17,17 +17,17 @@
 
 **Purpose**: Create the new shared client package and establish the dependency structure.
 
-- [x] T001 Create `ghprojects-client/pyproject.toml` with `hatchling` build, `requests>=2.31` dependency, `requires-python = ">=3.10"`
-- [x] T002 Create `ghprojects-client/ghprojects_client/__init__.py` with public API re-exports (empty initially, populated as modules are created)
-- [x] T003 Create `ghprojects-client/tests/__init__.py`
+- [x] T001 Create `github-projects-client/pyproject.toml` with `hatchling` build, `requests>=2.31` dependency, `requires-python = ">=3.10"`
+- [x] T002 Create `github-projects-client/github_projects_client/__init__.py` with public API re-exports (empty initially, populated as modules are created)
+- [x] T003 Create `github-projects-client/tests/__init__.py`
 
-**Checkpoint**: Package skeleton exists, `uv sync` succeeds in `ghprojects-client/`.
+**Checkpoint**: Package skeleton exists, `uv sync` succeeds in `github-projects-client/`.
 
 ---
 
 ## Phase 2: Foundational (Extract Shared Client)
 
-**Purpose**: Move core project board logic from current locations into `ghprojects-client`. This is the blocking prerequisite — all user stories depend on the shared client existing.
+**Purpose**: Move core project board logic from current locations into `github-projects-client`. This is the blocking prerequisite — all user stories depend on the shared client existing.
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
@@ -35,47 +35,47 @@
 
 ### API layer
 
-- [x] T004 Extract `graphql_query`, `_projects_v2_rest_headers`, REST constants from `foc-pr-report/foc_pr_report/foc_project14_client.py` into `ghprojects-client/ghprojects_client/api.py` — remove hardcoded `FILOZ_ORG`/`PROJECT_NUMBER` constants, all functions take `org`/`project_number` as arguments
-- [x] T005 Extract `fetch_project_v2_items_rest` from `foc_project14_client.py` into `ghprojects-client/ghprojects_client/api.py` — parameterize org/project_number, remove `verbose` print statements (return debug info in result dict instead)
-- [x] T006 Extract `list_project_v2_field_ids_by_name` from `foc_project14_client.py` into `ghprojects-client/ghprojects_client/api.py` — same parameterization
+- [x] T004 Extract `graphql_query`, `_projects_v2_rest_headers`, REST constants from `foc-pr-report/foc_pr_report/foc_project14_client.py` into `github-projects-client/github_projects_client/api.py` — remove hardcoded `FILOZ_ORG`/`PROJECT_NUMBER` constants, all functions take `org`/`project_number` as arguments
+- [x] T005 Extract `fetch_project_v2_items_rest` from `foc_project14_client.py` into `github-projects-client/github_projects_client/api.py` — parameterize org/project_number, remove `verbose` print statements (return debug info in result dict instead)
+- [x] T006 Extract `list_project_v2_field_ids_by_name` from `foc_project14_client.py` into `github-projects-client/github_projects_client/api.py` — same parameterization
 
 ### Fields layer
 
-- [x] T007 Move `FIELD_OPTIONS_QUERY` and `list_field_options` from `filozzy-mcp/filozzy_mcp/read_tools.py` into `ghprojects-client/ghprojects_client/fields.py` — parameterize org/project_number
+- [x] T007 Move `FIELD_OPTIONS_QUERY` and `list_field_options` from `filozzy-mcp/filozzy_mcp/read_tools.py` into `github-projects-client/github_projects_client/fields.py` — parameterize org/project_number
 
 ### Items layer
 
-- [x] T008 `git mv filozzy-mcp/filozzy_mcp/read_tools.py ghprojects-client/ghprojects_client/items.py` — this file's bulk is item formatting/listing logic. After the move, extract `FIELD_OPTIONS_QUERY`/`list_field_options` out to `fields.py` (done in T007) and remove them from this file. Update imports to use `.api` within the package.
-- [x] T009 Edit `ghprojects-client/ghprojects_client/items.py` (moved in T008) — remove hardcoded `FILOZ_ORG`/`PROJECT_NUMBER` defaults, parameterize `org`/`project_number` as required arguments on `list_project_items`
-- [x] T010 Edit `ghprojects-client/ghprojects_client/items.py` — parameterize `get_item_details` org (no hardcoded default), update item reference parsing to use the passed org
+- [x] T008 `git mv filozzy-mcp/filozzy_mcp/read_tools.py github-projects-client/github_projects_client/items.py` — this file's bulk is item formatting/listing logic. After the move, extract `FIELD_OPTIONS_QUERY`/`list_field_options` out to `fields.py` (done in T007) and remove them from this file. Update imports to use `.api` within the package.
+- [x] T009 Edit `github-projects-client/github_projects_client/items.py` (moved in T008) — remove hardcoded `FILOZ_ORG`/`PROJECT_NUMBER` defaults, parameterize `org`/`project_number` as required arguments on `list_project_items`
+- [x] T010 Edit `github-projects-client/github_projects_client/items.py` — parameterize `get_item_details` org (no hardcoded default), update item reference parsing to use the passed org
 
 ### Views layer
 
-- [x] T011 Move `resolve_view_url_filter` and `PROJECT_VIEW_QUERY` from `foc_project14_client.py` into `ghprojects-client/ghprojects_client/views.py`
+- [x] T011 Move `resolve_view_url_filter` and `PROJECT_VIEW_QUERY` from `foc_project14_client.py` into `github-projects-client/github_projects_client/views.py`
 
 ### Mutations layer
 
-- [x] T012 `git mv filozzy-mcp/filozzy_mcp/mutation_tools.py ghprojects-client/ghprojects_client/mutations.py` — then edit in place: remove `log_action` import and calls (logging is MCP layer concern), remove hardcoded org/project defaults, return `MutationResult` dict, update imports to use `.fields` and `.items` within the package
+- [x] T012 `git mv filozzy-mcp/filozzy_mcp/mutation_tools.py github-projects-client/github_projects_client/mutations.py` — then edit in place: remove `log_action` import and calls (logging is MCP layer concern), remove hardcoded org/project defaults, return `MutationResult` dict, update imports to use `.fields` and `.items` within the package
 
 ### Public API
 
-- [x] T013 Update `ghprojects-client/ghprojects_client/__init__.py` to re-export the public API: `list_items`, `get_item`, `list_fields`, `list_field_options`, `resolve_view_url`, `set_field_value` (rename functions to match the contract in `contracts/shared-client-api.md`)
+- [x] T013 Update `github-projects-client/github_projects_client/__init__.py` to re-export the public API: `list_items`, `get_item`, `list_fields`, `list_field_options`, `resolve_view_url`, `set_field_value` (rename functions to match the contract in `contracts/shared-client-api.md`)
 
 ### Backward compatibility shim
 
-- [x] T014 Replace the body of `foc-pr-report/foc_pr_report/foc_project14_client.py` with thin re-exports from `ghprojects_client` — keep all existing function names/signatures so nothing breaks yet
+- [x] T014 Replace the body of `foc-pr-report/foc_pr_report/foc_project14_client.py` with thin re-exports from `github_projects_client` — keep all existing function names/signatures so nothing breaks yet
 
 ### Integration tests for shared client
 
-- [x] T015 Create `ghprojects-client/tests/test_integration.py` — port relevant tests from `filozzy-mcp/tests/test_integration.py` that exercise the shared client functions (list items, list fields, list field options, get item, resolve view URL) against the live FOC board
+- [x] T015 Create `github-projects-client/tests/test_integration.py` — port relevant tests from `filozzy-mcp/tests/test_integration.py` that exercise the shared client functions (list items, list fields, list field options, get item, resolve view URL) against the live FOC board
 
 ### Dependency wiring
 
-- [x] T016 Update `ghprojects-client/pyproject.toml` — ensure `uv sync` resolves cleanly
-- [x] T017 Update `filozzy-mcp/pyproject.toml` — depend on `ghprojects-client` (path dep) instead of `foc-pr-report`, add `[tool.uv.sources]` entry
-- [x] T018 Update `foc-pr-report/pyproject.toml` — add `ghprojects-client` as path dependency in `[tool.uv.sources]`
+- [x] T016 Update `github-projects-client/pyproject.toml` — ensure `uv sync` resolves cleanly
+- [x] T017 Update `filozzy-mcp/pyproject.toml` — depend on `github-projects-client` (path dep) instead of `foc-pr-report`, add `[tool.uv.sources]` entry
+- [x] T018 Update `foc-pr-report/pyproject.toml` — add `github-projects-client` as path dependency in `[tool.uv.sources]`
 
-**Checkpoint**: `ghprojects-client` is a working package. `uv sync` and `uv run pytest` succeed in `ghprojects-client/`. The re-export shim in `foc_project14_client.py` means `foc-pr-report` still works unchanged.
+**Checkpoint**: `github-projects-client` is a working package. `uv sync` and `uv run pytest` succeed in `github-projects-client/`. The re-export shim in `foc_project14_client.py` means `foc-pr-report` still works unchanged.
 
 ---
 
@@ -88,13 +88,13 @@
 ### Implementation
 
 - [x] T019 [US1] Update `filozzy-mcp/filozzy_mcp/server.py` — read `GITHUB_ORG`, `GITHUB_PROJECT_NUMBER`, `BOARD_NAMES` from environment at startup; generate dynamic MCP `instructions` string incorporating board aliases
-- [x] T020 [US1] Update `filozzy-mcp/filozzy_mcp/server.py` — replace all imports from `filozzy_mcp.read_tools` and `filozzy_mcp.mutation_tools` with imports from `ghprojects_client`; pass `org`/`project_number` from env config to every shared client call
-- [x] T021 [US1] Update `list_board_items` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.list_items`, keep presentation formatting (JSON lines, header, pagination message) in server.py
-- [x] T022 [US1] Update `list_board_view_items` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.resolve_view_url` + `ghprojects_client.list_items`
-- [x] T023 [P] [US1] Update `get_board_item` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.get_item`
-- [x] T024 [P] [US1] Update `list_board_fields` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.list_fields`
-- [x] T025 [P] [US1] Update `list_board_field_options` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.list_field_options`, keep single-select vs. iteration formatting in server.py
-- [x] T026 [US1] Update `set_board_item_field` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `ghprojects_client.set_field_value`, call `log_action` in server.py after mutation (not in shared client), include org/project_number in log entry
+- [x] T020 [US1] Update `filozzy-mcp/filozzy_mcp/server.py` — replace all imports from `filozzy_mcp.read_tools` and `filozzy_mcp.mutation_tools` with imports from `github_projects_client`; pass `org`/`project_number` from env config to every shared client call
+- [x] T021 [US1] Update `list_board_items` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.list_items`, keep presentation formatting (JSON lines, header, pagination message) in server.py
+- [x] T022 [US1] Update `list_board_view_items` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.resolve_view_url` + `github_projects_client.list_items`
+- [x] T023 [P] [US1] Update `get_board_item` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.get_item`
+- [x] T024 [P] [US1] Update `list_board_fields` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.list_fields`
+- [x] T025 [P] [US1] Update `list_board_field_options` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.list_field_options`, keep single-select vs. iteration formatting in server.py
+- [x] T026 [US1] Update `set_board_item_field` tool in `filozzy-mcp/filozzy_mcp/server.py` — delegate to `github_projects_client.set_field_value`, call `log_action` in server.py after mutation (not in shared client), include org/project_number in log entry
 - [x] T027 [US1] Verify `filozzy-mcp/filozzy_mcp/read_tools.py` and `filozzy-mcp/filozzy_mcp/mutation_tools.py` no longer exist (they were `git mv`'d in Phase 2) — if any stubs remain, delete them
 - [x] T028 [US1] Update `filozzy-mcp/tests/test_integration.py` — fix imports, ensure all existing tests pass against the FOC board with env-based config
 - [x] T029 [US1] Update `filozzy-mcp/README.md` — document new env vars (`GITHUB_ORG`, `GITHUB_PROJECT_NUMBER`, `BOARD_NAMES`), update `.mcp.json` example, update setup instructions
@@ -106,13 +106,13 @@
 
 ## Phase 4: User Story 2 — Cross-package test infrastructure (Priority: P2)
 
-**Goal**: A single command from the repo root runs all tests across `ghprojects-client`, `filozzy-mcp`, and `foc-pr-report`, reporting a unified pass/fail result.
+**Goal**: A single command from the repo root runs all tests across `github-projects-client`, `filozzy-mcp`, and `foc-pr-report`, reporting a unified pass/fail result.
 
 **Independent Test**: Run the test command from repo root. Verify all packages' tests execute and a deliberate failure in one package is reported.
 
 ### Implementation
 
-- [x] T031 [US2] Create `scripts/test-all.sh` — iterates over `ghprojects-client`, `filozzy-mcp`, `foc-pr-report`; runs `GITHUB_TOKEN=$(gh auth token) uv run pytest -v` in each; collects exit codes; reports unified pass/fail summary
+- [x] T031 [US2] Create `scripts/test-all.sh` — iterates over `github-projects-client`, `filozzy-mcp`, `foc-pr-report`; runs `GITHUB_TOKEN=$(gh auth token) uv run pytest -v` in each; collects exit codes; reports unified pass/fail summary
 - [x] T032 [US2] Make `scripts/test-all.sh` executable and test it from repo root
 - [x] T033 [US2] Update root `README.md` — add "Running tests" section documenting the single-command test runner
 
@@ -122,22 +122,22 @@
 
 ## Phase 5: User Story 3 — PR report tool uses shared client (Priority: P3)
 
-**Goal**: `foc-pr-report` imports from `ghprojects_client` instead of its own `foc_project14_client.py`. PR-specific logic stays in `foc-pr-report`. No behavior change in report output.
+**Goal**: `foc-pr-report` imports from `github_projects_client` instead of its own `foc_project14_client.py`. PR-specific logic stays in `foc-pr-report`. No behavior change in report output.
 
 **Independent Test**: Run `foc-pr-report` against the FOC board and verify the output is identical to the current behavior.
 
 ### Implementation
 
 - [x] T034 [US3] `git mv foc-pr-report/foc_pr_report/foc_project14_client.py foc-pr-report/foc_pr_report/pr_enrichment.py` — by this point (after Phase 2 shim in T014), the file contains re-exports plus PR-specific functions. After the move, remove the re-export shims and keep only PR-specific code.
-- [x] T035 [US3] Edit `foc-pr-report/foc_pr_report/pr_enrichment.py` — update imports: replace internal references with `ghprojects_client` imports (e.g., `graphql_query`, `fetch_project_v2_items_rest`). Keep `rest_board_item_to_graphql_node`, `fetch_project_board_items_rest_filtered` as PR-report wrappers around shared client calls.
-- [x] T036 [US3] Edit `foc-pr-report/foc_pr_report/pr_enrichment.py` — keep `field_values_by_name` and `fetch_all_project_items` (GraphQL version), update their imports to use `ghprojects_client.api.graphql_query`
+- [x] T035 [US3] Edit `foc-pr-report/foc_pr_report/pr_enrichment.py` — update imports: replace internal references with `github_projects_client` imports (e.g., `graphql_query`, `fetch_project_v2_items_rest`). Keep `rest_board_item_to_graphql_node`, `fetch_project_board_items_rest_filtered` as PR-report wrappers around shared client calls.
+- [x] T036 [US3] Edit `foc-pr-report/foc_pr_report/pr_enrichment.py` — keep `field_values_by_name` and `fetch_all_project_items` (GraphQL version), update their imports to use `github_projects_client.api.graphql_query`
 - [x] T037 [US3] Update `foc-pr-report/foc_pr_report/cli.py` — change imports from `foc_project14_client` to `pr_enrichment`
 - [x] T038 [US3] Update `foc-pr-report/foc_pr_report/report.py` — change any imports from `foc_project14_client` if present
-- [x] T039 [US3] Delete or gut `foc-pr-report/foc_pr_report/foc_project14_client.py` — the re-export shim is no longer needed; all consumers now import from `ghprojects_client` or `pr_enrichment`
+- [x] T039 [US3] Delete or gut `foc-pr-report/foc_pr_report/foc_project14_client.py` — the re-export shim is no longer needed; all consumers now import from `github_projects_client` or `pr_enrichment`
 - [x] T040 [US3] Create `foc-pr-report/tests/test_integration.py` — regression test that runs the PR report against the FOC board and verifies output structure (column headers, row format, non-empty data)
 - [x] T041 [US3] Validate: run `foc-pr-report` CLI against the FOC board and compare output to current behavior
 
-**Checkpoint**: `foc_project14_client.py` is deleted. `foc-pr-report` works identically using `ghprojects_client` + `pr_enrichment.py`.
+**Checkpoint**: `foc_project14_client.py` is deleted. `foc-pr-report` works identically using `github_projects_client` + `pr_enrichment.py`.
 
 ---
 
@@ -145,7 +145,7 @@
 
 **Purpose**: Cleanup, documentation, and final validation.
 
-- [x] T042 [P] Create `ghprojects-client/README.md` — package purpose, public API overview, usage example, link to contracts
+- [x] T042 [P] Create `github-projects-client/README.md` — package purpose, public API overview, usage example, link to contracts
 - [x] T043 [P] Update `filozzy-mcp/README.md` — update "Next steps" section (mark generalization as done), update any references to old module structure
 - [x] T044 Clean up any remaining references to `FILOZ_ORG`, `PROJECT_NUMBER` hardcoded constants across the repo (grep and fix)
 - [x] T045 Run `./scripts/test-all.sh` and verify all packages pass
@@ -195,9 +195,9 @@ T016, T017, T018 (dependency wiring — depends on T013)
 ## Parallel Example: Phase 2 (after api.py is done)
 
 ```
-Task: T007 — Extract field options into ghprojects_client/fields.py
-Task: T008 — Extract item formatting into ghprojects_client/items.py
-Task: T011 — Extract view resolution into ghprojects_client/views.py
+Task: T007 — Extract field options into github_projects_client/fields.py
+Task: T008 — Extract item formatting into github_projects_client/items.py
+Task: T011 — Extract view resolution into github_projects_client/views.py
 ```
 
 ## Parallel Example: After Phase 2

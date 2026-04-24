@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31",
-    "ghprojects-client",
+    "github-projects-client",
 ]
 
 [project.scripts]
@@ -23,4 +23,4 @@ build-backend = "hatchling.build"
 markers = ["integration: hits live GitHub API (requires GITHUB_TOKEN)"]
 
 [tool.uv.sources]
-ghprojects-client = { path = "../ghprojects-client", editable = true }
+github-projects-client = { path = "../github-projects-client", editable = true }

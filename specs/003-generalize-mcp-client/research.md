@@ -5,18 +5,18 @@
 
 ## R1: Package structure for the shared client library
 
-**Decision**: Create a new package `ghprojects-client/` at the repo root, alongside `filozzy-mcp/` and `foc-pr-report/`.
+**Decision**: Create a new package `github-projects-client/` at the repo root, alongside `filozzy-mcp/` and `foc-pr-report/`.
 
 **Rationale**: The repo already uses a multi-package layout with `uv` workspaces and `hatchling` builds. Each package has its own `pyproject.toml` and `uv.lock`. Adding a third package follows the established pattern. The shared client has no MCP dependency, so it must live outside `filozzy-mcp/`. It also shouldn't stay inside `foc-pr-report/` since that's a consumer, not the source of truth.
 
 **Alternatives considered**:
 - **Keep it in `foc-pr-report/`**: This is where the code lives today, but the name and scope are wrong — `foc_project14_client` is not about PR reports, and it shouldn't be tied to "project 14".
 - **Put it in a `lib/` directory**: Adds a new convention to the repo for a single library. The existing package-per-directory pattern works fine.
-- **Publish to PyPI**: Overkill for now. `uv` path dependencies (`{ path = "../ghprojects-client", editable = true }`) handle monorepo development well.
+- **Publish to PyPI**: Overkill for now. `uv` path dependencies (`{ path = "../github-projects-client", editable = true }`) handle monorepo development well.
 
 ## R2: Package naming
 
-**Decision**: Package directory `ghprojects-client/`, importable as `ghprojects_client`.
+**Decision**: Package directory `github-projects-client/`, importable as `github_projects_client`.
 
 **Rationale**: Describes what it does (GitHub Projects v2 client) without tying it to FilOzone, FOC, or project 14. Short enough to type in imports. The `gh` prefix signals "GitHub" to anyone familiar with the ecosystem.
 
@@ -27,7 +27,7 @@
 
 ## R3: What to move into the shared client vs. leave in consumers
 
-**Decision**: Move these from their current locations into `ghprojects_client`:
+**Decision**: Move these from their current locations into `github_projects_client`:
 
 | Module | Source | Contents |
 |---|---|---|
@@ -74,9 +74,9 @@
 
 **Decision**: The migration will be done in stages to avoid a big-bang rewrite:
 
-1. First: Create `ghprojects-client` with the extracted code, keeping the old `foc_project14_client.py` intact as a thin re-export shim.
-2. Then: Update `filozzy-mcp` to import from `ghprojects_client` instead of `foc_pr_report.foc_project14_client`.
-3. Then: Update `foc-pr-report` to import from `ghprojects_client`, moving PR-specific code into `foc-pr-report` itself.
+1. First: Create `github-projects-client` with the extracted code, keeping the old `foc_project14_client.py` intact as a thin re-export shim.
+2. Then: Update `filozzy-mcp` to import from `github_projects_client` instead of `foc_pr_report.foc_project14_client`.
+3. Then: Update `foc-pr-report` to import from `github_projects_client`, moving PR-specific code into `foc-pr-report` itself.
 4. Finally: Remove the re-export shim from `foc_project14_client.py` (or keep it minimal for any external users).
 
 **Rationale**: Staged migration means each step can be tested independently. The re-export shim ensures nothing breaks while imports are being moved.

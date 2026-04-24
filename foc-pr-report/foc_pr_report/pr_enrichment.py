@@ -1,7 +1,7 @@
 """PR-specific enrichment functions for foc-pr-report.
 
 These functions operate on GraphQL-shaped project items and are specific to
-PR report generation. Generic project board logic lives in ``ghprojects_client``.
+PR report generation. Generic project board logic lives in ``github_projects_client``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from ghprojects_client.api import graphql_query
+from github_projects_client.api import graphql_query
 
 # Constants for default org/project (kept here for backward compat with
 # foc_wg_pr_notifier.py and other scripts that reference them).
@@ -307,10 +307,10 @@ def fetch_project_board_items_rest_filtered(
     """
     List project items via REST, expand Status, normalize to GraphQL nodes.
 
-    Delegates to ``ghprojects_client`` for the REST fetch, then maps each
+    Delegates to ``github_projects_client`` for the REST fetch, then maps each
     item to the GraphQL node shape used by the PR report pipeline.
     """
-    from ghprojects_client.api import list_field_ids_by_name, fetch_items_rest
+    from github_projects_client.api import list_field_ids_by_name, fetch_items_rest
 
     fields_map = list_field_ids_by_name(
         session, org=org, project_number=project_number,

@@ -1,19 +1,19 @@
 """Backward-compatibility shim — all logic has moved.
 
-Core project board functions → ``ghprojects_client``
+Core project board functions → ``github_projects_client``
 PR-specific functions → ``foc_pr_report.pr_enrichment``
 
 This module re-exports under the old names so that any external code
 importing ``foc_pr_report.foc_project14_client`` keeps working.
 """
 
-# Re-exports from ghprojects_client (generic board functions)
-from ghprojects_client.api import graphql_query  # noqa: F401
-from ghprojects_client.api import (  # noqa: F401
+# Re-exports from github_projects_client (generic board functions)
+from github_projects_client.api import graphql_query  # noqa: F401
+from github_projects_client.api import (  # noqa: F401
     list_field_ids_by_name as list_project_v2_field_ids_by_name,
     fetch_items_rest as fetch_project_v2_items_rest,
 )
-from ghprojects_client.views import resolve_view_url as resolve_view_url_filter  # noqa: F401
+from github_projects_client.views import resolve_view_url as resolve_view_url_filter  # noqa: F401
 
 # Re-exports from pr_enrichment (PR-specific functions)
 from foc_pr_report.pr_enrichment import (  # noqa: F401

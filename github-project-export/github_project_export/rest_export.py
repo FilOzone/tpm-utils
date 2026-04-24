@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 import requests
 
-from ghprojects_client import (
+from github_projects_client import (
     fetch_items_rest as fetch_project_v2_items_rest,
     list_field_ids_by_name as list_project_v2_field_ids_by_name,
 )
