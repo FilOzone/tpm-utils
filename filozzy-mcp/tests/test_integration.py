@@ -16,6 +16,7 @@ These tests are read-only — no mutations are performed.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 import pytest
@@ -33,6 +34,7 @@ from filozzy_mcp.read_tools import (
     list_fields,
     list_project_items,
 )
+from filozzy_mcp.server import list_board_items
 
 
 @pytest.fixture(scope="session")
@@ -236,6 +238,95 @@ class TestListProjectItems:
         assert len(result["items"]) >= 1
         titles = [it["Title"] for it in result["items"]]
         assert any("FWSS" in t or "Mainnet Upgrade" in t for t in titles)
+
+
+class TestListBoardItemsDocstringExamples:
+    """Validate list_board_items docstring query examples against live API."""
+
+    @staticmethod
+    def _parse_docstring_query_examples() -> tuple[list[str], list[str]]:
+        doc = list_board_items.__doc__
+        assert doc is not None
+
+        # Example lines are formatted as:
+        #   query-example    — explanation text
+        # Keep concrete examples in one list and intentionally-skipped examples
+        # in another list for syntax-only validation.
+        runnable_queries: list[str] = []
+        skipped_queries: list[str] = []
+        for line in doc.splitlines():
+            # Match only list-style example rows, not prose.
+            match = re.match(r'^\s{2,}(.+?)\s+—\s+.+$', line)
+            if not match:
+                continue
+            query = match.group(1).strip()
+            if not query:
+                continue
+
+            should_skip = False
+            # Keep illustrative free-text search in syntax-only validation.
+            if query.startswith("\"search text\""):
+                should_skip = True
+            # These examples are valid syntax but may legitimately return zero
+            # results as board data evolves.
+            if query == "blocking:FilOzone/dealbot#470":
+                should_skip = True
+            if re.match(r'^[a-zA-Z0-9_:"@#.,><\-/\s]+$', query):
+                if should_skip:
+                    skipped_queries.append(query)
+                else:
+                    runnable_queries.append(query)
+
+        # Preserve order, dedupe
+        seen = set()
+        runnable_ordered: list[str] = []
+        for q in runnable_queries:
+            if q in seen:
+                continue
+            seen.add(q)
+            runnable_ordered.append(q)
+
+        seen.clear()
+        skipped_ordered: list[str] = []
+        for q in skipped_queries:
+            if q in seen:
+                continue
+            seen.add(q)
+            skipped_ordered.append(q)
+
+        return runnable_ordered, skipped_ordered
+
+    def test_docstring_examples_return_non_empty(self, session: requests.Session):
+        examples, _skipped = self._parse_docstring_query_examples()
+        assert len(examples) > 0, "No query examples parsed from list_board_items docstring"
+        print(f"Extracted {len(examples)} docstring query examples:")
+        for idx, query in enumerate(examples, start=1):
+            print(f"  {idx:02d}. {query}")
+
+        empty_results: list[str] = []
+        for query in examples:
+            result = list_project_items(session, query=query, per_page=1)
+            if len(result["items"]) == 0:
+                empty_results.append(query)
+
+        assert not empty_results, (
+            "These docstring query examples returned no items:\n"
+            + "\n".join(f"- {q}" for q in empty_results)
+        )
+
+    def test_docstring_skipped_examples_are_syntactically_accepted(self, session: requests.Session):
+        _examples, skipped = self._parse_docstring_query_examples()
+        assert len(skipped) > 0, "No skipped query examples parsed from list_board_items docstring"
+        print(f"Skipped {len(skipped)} docstring query examples (syntax-only validation):")
+        for idx, query in enumerate(skipped, start=1):
+            print(f"  {idx:02d}. {query}")
+
+        # We only validate that these execute without API errors.
+        # Results may legitimately be empty for illustrative examples.
+        for query in skipped:
+            result = list_project_items(session, query=query, per_page=1)
+            assert "items" in result
+            assert "has_more" in result
 
 
 # ---------------------------------------------------------------------------

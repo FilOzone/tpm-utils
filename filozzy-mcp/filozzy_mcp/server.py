@@ -107,7 +107,7 @@ def list_board_items(
       PEOPLE:
         assignee:rjan90              — assigned to user
         assignee:rjan90,biglep       — assigned to either (OR)
-        reviewers:USERNAME           — PR reviewer
+        reviewers:biglep             — PR reviewer
         assignee:@me                 — current authenticated user
 
       PRESENCE / ABSENCE:
@@ -146,8 +146,8 @@ def list_board_items(
 
       RELATIONSHIPS:
         blocking:FilOzone/dealbot#470    — items blocking a specific issue
-        blocked-by:FilOzone/dealbot#470  — items blocked by a specific issue
-        parent-issue:FilOzone/repo#123   — sub-issues of a parent
+        blocked-by:FilOzone/filecoin-pay-explorer#77  — items blocked by a specific issue
+        parent-issue:FilOzone/synapse-sdk#3           — sub-issues of a parent
 
       CLOSE REASON:
         reason:completed       — closed as completed
@@ -155,7 +155,7 @@ def list_board_items(
 
       TEXT SEARCH:
         "search text"          — free text search across fields
-        title:"API refactor"   — title contains text
+        title:"*API*"          — title contains text
         Wildcards: title:API*  — prefix matching
 
       NEGATION (prefix any filter with -):
