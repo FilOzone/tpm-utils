@@ -418,39 +418,46 @@ def get_item_details(
     if number is None:
         return None
 
-    # Fetch all fields so we get a complete picture
-    field_map = list_project_v2_field_ids_by_name(
-        session, org=org, project_number=project_number, verbose=False,
-    )
-    all_field_ids = list(field_map.values())
-
-    # Query by repo (full owner/name) if available, otherwise broad search
-    query = f"repo:{repo_filter}" if repo_filter else f"#{number}"
-    fetch_result = fetch_project_v2_items_rest(
-        session,
-        org=org,
-        project_number=project_number,
-        query=query,
-        field_ids=all_field_ids,
-        verbose=False,
-    )
+    # Make get_item_details a thin layer over list_project_items:
+    # ask the server for "repo:<owner/repo> <number>" and scan paginated results.
+    if repo_filter:
+        query = f"repo:{repo_filter} {number}"
+    else:
+        query = str(number)
 
     all_fields = ["Repository", "Id", "url", "Title", "Status", "Kind",
                   "Milestone", "Assignees", "Reviewers", "Cycle Theme",
                   "Dev Days Estimate", "Cycle"]
-    # Add any board fields not already covered
+    field_map = list_project_v2_field_ids_by_name(
+        session, org=org, project_number=project_number, verbose=False,
+    )
     for name in field_map:
         if name not in all_fields:
             all_fields.append(name)
 
-    for item in fetch_result["items"]:
-        formatted = _format_item(item, all_fields)
-        # Match by number
-        item_number = formatted.get("Id", "")
-        item_repo = formatted.get("Repository", "")
-        if item_number == str(number):
-            if repo_filter and repo_filter.lower() not in item_repo.lower():
-                continue
-            return formatted
+    cursor: Optional[str] = None
+    while True:
+        result = list_project_items(
+            session,
+            query=query,
+            fields=all_fields,
+            per_page=50,
+            cursor=cursor,
+            org=org,
+            project_number=project_number,
+            verbose=False,
+        )
+
+        for item in result["items"]:
+            item_number = item.get("Id", "")
+            item_repo = item.get("Repository", "")
+            if item_number == str(number):
+                if repo_filter and repo_filter.lower() not in item_repo.lower():
+                    continue
+                return item
+
+        if not result["has_more"]:
+            break
+        cursor = result["next_cursor"]
 
     return None

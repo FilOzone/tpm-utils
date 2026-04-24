@@ -81,6 +81,13 @@ After configuring, restart Claude Code (or start a new session). The FilOzzy too
 - **`list_board_fields`** — List all project fields
 - **`list_board_field_options`** — List valid options for a field (e.g., Status values)
 
+`get_board_item` is intentionally kept as a first-class primitive, even though
+you could emulate it with `list_board_items`. It gives MCP clients one stable
+"resolve this reference" operation that accepts `repo#number`, `owner/repo#number`,
+or a GitHub URL, then returns a single hydrated board item. This keeps lookup
+logic (reference parsing, query construction, pagination, exact-match selection)
+inside the server instead of duplicating it across agents and clients.
+
 ### Mutation tools
 
 - **`set_board_item_field`** — Set a project field value (e.g., set Status to "In Progress")
