@@ -133,6 +133,17 @@ class TestFetchItemsRest:
         assert result["items"] == []
         assert result["has_more"] is False
 
+    def test_no_max_pages_fetches_all(self, session: requests.Session):
+        """Without max_pages, should exhaust all pages (use a narrow query)."""
+        result = fetch_items_rest(
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query='"cycle-theme":"Contract Upgrade" -last-updated:1days',
+        )
+        assert result["has_more"] is False
+        assert result["next_cursor"] is None
+
 
 # ---------------------------------------------------------------------------
 # list_items
@@ -203,6 +214,23 @@ class TestListItems:
         assert "rest_field_ids" in debug
         assert isinstance(debug["items_returned"], int)
 
+    def test_time_based_filter(self, session: requests.Session):
+        """Verify last-updated filter works through the full stack."""
+        result = list_items(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            query="-last-updated:1days", per_page=50,
+        )
+        assert len(result["items"]) > 0
+
+    def test_combined_filters(self, session: requests.Session):
+        """Verify combining custom field + time-based filter."""
+        result = list_items(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            query='"cycle-theme":"Contract Upgrade" -last-updated:7days',
+            per_page=50,
+        )
+        assert len(result["items"]) >= 1
+
 
 # ---------------------------------------------------------------------------
 # resolve_view_url
@@ -223,16 +251,50 @@ class TestResolveViewUrl:
         assert len(resolved["view_fields"]) > 0
         assert "Title" in resolved["view_fields"]
 
-    def test_uses_filter_query_override(self, session: requests.Session):
+    def test_uses_filter_query_override_and_slice(self, session: requests.Session):
         resolved = resolve_view_url(
             session,
             view_url=(
                 "https://github.com/orgs/FilOzone/projects/14/views/20"
-                "?filterQuery=-status%3A%22%F0%9F%8E%89+Done%22"
+                "?sliceBy%5Bvalue%5D=Dealbot"
+                "&filterQuery=-status%3A%22%F0%9F%8E%89+Done%22"
             ),
         )
         assert resolved["override_filter"] is not None
         assert '-status:"🎉 Done"' in resolved["base_filter"]
+        assert resolved["slice_group_field"] is None
+        assert resolved["slice_filter"] is None
+        assert resolved["effective_filter"] == resolved["base_filter"]
+
+    def test_visible_fields_query_param_overrides_view_field_order(self, session: requests.Session):
+        view_url = (
+            "https://github.com/orgs/FilOzone/projects/14/views/20"
+            "?visibleFields=%5B%22Repository%22%2C%22Title%22%2C%22Assignees%22%2C%22Reviewers%22%2C%22Linked+pull+requests%22%2C194437039%2C245538973%2C%22Milestone%22%2C%22Status%22%2C%22Parent+issue%22%2C204711739%2C242588518%2C244708427%2C%22Sub-issues+progress%22%2C%22Labels%22%5D"
+        )
+        resolved = resolve_view_url(session, view_url=view_url)
+        assert resolved["visible_fields_override"] is not None
+        params = parse_qs(urlparse(view_url).query)
+        raw_visible = (params.get("visibleFields") or [None])[0]
+        assert raw_visible is not None
+        payload = json.loads(raw_visible)
+        id_to_name = {
+            fid: name
+            for name, fid in list_field_ids_by_name(
+                session,
+                org=FILOZ_ORG,
+                project_number=PROJECT_NUMBER,
+            ).items()
+        }
+        expected = []
+        for value in payload:
+            if isinstance(value, str):
+                expected.append(value)
+            elif isinstance(value, int):
+                mapped = id_to_name.get(value)
+                if mapped:
+                    expected.append(mapped)
+        expected = list(dict.fromkeys(expected))
+        assert resolved["view_fields"] == expected
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +361,12 @@ class TestListFieldOptions:
         )
         assert result["fields"] == {}
 
+    def test_all_fields_when_no_name(self, session: requests.Session):
+        result = list_field_options(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+        )
+        assert len(result["fields"]) > 3
+
 
 # ---------------------------------------------------------------------------
 # list_field_ids_by_name
@@ -355,6 +423,19 @@ class TestGetItem:
         )
         assert details is not None
         assert details["Id"] == number
+
+    def test_lookup_by_url(self, session: requests.Session):
+        known = self._find_known_item(session)
+        url = known.get("url", "")
+        if not url:
+            pytest.skip("No URL on known item")
+
+        details = get_item(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            item_ref=url,
+        )
+        assert details is not None
+        assert details["Id"] == known["Id"]
 
     def test_nonexistent_item(self, session: requests.Session):
         details = get_item(
