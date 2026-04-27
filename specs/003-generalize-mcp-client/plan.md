@@ -75,7 +75,7 @@ foc-pr-report/                      # MODIFIED: uses shared client
 │   ├── report.py                   # Unchanged
 │   ├── foc_project14_client.py     # Gutted to re-export shim, then removed
 │   └── pr_enrichment.py            # NEW: PR-specific logic moved from old client
-└���─ tests/
+└── tests/
     └── test_integration.py         # NEW: regression tests for PR report
 
 scripts/

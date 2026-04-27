@@ -11,7 +11,9 @@ The shared client library exposes a pure-function API. All functions take an aut
 
 ### Items
 
-#### `list_items(session, *, org, project_number, query, fields, per_page, cursor, verbose) → dict`
+#### `list_items(session, *, org, project_number, query, fields, per_page, cursor) → dict`
+
+> **Note**: `verbose` debug output is handled at the MCP server layer, not in the shared client.
 
 List project board items with server-side filtering.
 

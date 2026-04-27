@@ -24,7 +24,21 @@ from github_projects_client import (
 # ---------------------------------------------------------------------------
 
 GITHUB_ORG = os.environ.get("GITHUB_ORG", "FilOzone")
-GITHUB_PROJECT_NUMBER = int(os.environ.get("GITHUB_PROJECT_NUMBER", "14"))
+
+
+def _get_github_project_number() -> int:
+    """Read and validate the GitHub project number from environment."""
+    raw_value = os.environ.get("GITHUB_PROJECT_NUMBER", "14")
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "GITHUB_PROJECT_NUMBER environment variable must be set to an "
+            f"integer project number; got {raw_value!r}."
+        ) from exc
+
+
+GITHUB_PROJECT_NUMBER = _get_github_project_number()
 BOARD_NAMES = [
     n.strip()
     for n in os.environ.get("BOARD_NAMES", "FOC Board,FOC Project Board").split(",")

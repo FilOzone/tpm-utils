@@ -17,9 +17,9 @@ The MCP server is a thin adapter that exposes the shared client as MCP tools. It
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `GITHUB_TOKEN` | yes | — | GitHub PAT with `project`, `repo`, `read:org` scopes |
-| `GITHUB_ORG` | yes | — | Organization login (e.g., "FilOzone") |
-| `GITHUB_PROJECT_NUMBER` | yes | — | Project number (e.g., "14") |
-| `BOARD_NAMES` | no | — | Comma-separated aliases (e.g., "FOC Board,FOC Project Board,the project board") |
+| `GITHUB_ORG` | no | `FilOzone` | Organization login (e.g., "FilOzone") |
+| `GITHUB_PROJECT_NUMBER` | no | `14` | Project number (must be an integer) |
+| `BOARD_NAMES` | no | `FOC Board,FOC Project Board` | Comma-separated aliases for the board |
 
 ## MCP Instructions (dynamic)
 
@@ -71,11 +71,15 @@ Each mutation is appended to `action_log.jsonl`:
 {
   "timestamp": "2026-04-24T12:00:00Z",
   "tool": "set_board_item_field",
-  "params": {"item_ref": "dealbot#111", "field": "Status", "value": "Done"},
+  "params": {
+    "org": "FilOzone",
+    "project_number": 14,
+    "item_ref": "dealbot#111",
+    "field_name": "Status",
+    "value": "Done"
+  },
   "result": "success",
   "old_value": "In Progress",
-  "new_value": "Done",
-  "org": "FilOzone",
-  "project_number": 14
+  "new_value": "Done"
 }
 ```

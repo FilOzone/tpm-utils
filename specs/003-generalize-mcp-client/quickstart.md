@@ -25,7 +25,7 @@ tpm-utils/
 │   │   ├── fields.py            # Field discovery + options
 │   │   ├── items.py             # Item listing, formatting, reference parsing
 │   │   ├── views.py             # View URL resolution
-│   ��   └── mutations.py         # Set field value (no logging)
+│   │   └── mutations.py         # Set field value (no logging)
 │   └── tests/
 │       └── test_integration.py
 ├── filozzy-mcp/                 # MODIFIED: thinner, imports from github_projects_client
