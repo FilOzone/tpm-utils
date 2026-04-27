@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import requests
 
@@ -21,42 +21,24 @@ mutation($input: UpdateProjectV2ItemFieldValueInput!) {
 }
 """
 
+# ---------------------------------------------------------------------------
+# Batch size for aliased GraphQL mutations
+# ---------------------------------------------------------------------------
+_BATCH_SIZE = 25
 
-def set_field_value(
+
+def _resolve_field_and_value(
     session: requests.Session,
     *,
     org: str,
     project_number: int,
-    item_ref: str,
     field_name: str,
     value: str,
 ) -> Dict[str, Any]:
+    """Resolve field info and map the value once for use across a batch.
+
+    Returns a dict with project_id, field_id, mutation_value, or an error.
     """
-    Set a project field value on an item.
-
-    Args:
-        org: GitHub organization
-        project_number: Project number
-        item_ref: Item reference (e.g., "dealbot#111", "Owner/repo#111", or URL)
-        field_name: Display name of the project field (e.g., "Status", "Cycle Theme")
-        value: Display name of the option (e.g., "🐱 Todo") or raw value for text/number fields
-
-    Returns:
-        Dict with result info (success, old_value, new_value, etc.)
-        No audit logging ��� that's the caller's responsibility.
-    """
-    # Resolve item
-    details = get_item(
-        session, org=org, project_number=project_number, item_ref=item_ref,
-    )
-    if not details:
-        return {"success": False, "error": f"Could not find item: {item_ref}"}
-
-    item_node_id = details.get("_node_id")
-    if not item_node_id:
-        return {"success": False, "error": f"No node ID for item: {item_ref}"}
-
-    # Get field info and options
     field_data = list_field_options(
         session, org=org, project_number=project_number, field_name=field_name,
     )
@@ -70,7 +52,6 @@ def set_field_value(
     field_id = field_info["id"]
     field_type = field_info.get("type", "unknown")
 
-    # Build the value input based on field type
     mutation_value: Dict[str, Any] = {}
 
     if field_type == "single_select":
@@ -116,23 +97,171 @@ def set_field_value(
     else:
         return {"success": False, "error": f"Unsupported field type: {field_type} for field '{field_name}'"}
 
-    # Get current value for caller to use (e.g., audit logging)
-    old_value = details.get(field_name, "")
-
-    # Execute the mutation
-    mutation_input = {
-        "projectId": project_id,
-        "itemId": item_node_id,
-        "fieldId": field_id,
-        "value": mutation_value,
-    }
-
-    graphql_query(session, UPDATE_FIELD_MUTATION, {"input": mutation_input})
-
     return {
         "success": True,
-        "item": item_ref,
-        "field": field_name,
-        "old_value": old_value,
-        "new_value": value,
+        "project_id": project_id,
+        "field_id": field_id,
+        "mutation_value": mutation_value,
     }
+
+
+def set_field_value_bulk(
+    session: requests.Session,
+    *,
+    org: str,
+    project_number: int,
+    item_refs: List[str],
+    field_name: str,
+    value: str,
+) -> Dict[str, Any]:
+    """Set a project field value on one or more items.
+
+    Resolves field info once, then batches GraphQL mutations using aliases.
+
+    Args:
+        org: GitHub organization
+        project_number: Project number
+        item_refs: List of item references
+        field_name: Display name of the project field
+        value: Value to set on all items
+
+    Returns:
+        Dict with success_count, failure_count, and per-item results list.
+        No audit logging — that's the caller's responsibility.
+    """
+    results: List[Dict[str, Any]] = []
+
+    # Resolve field + value mapping once
+    field_info = _resolve_field_and_value(
+        session, org=org, project_number=project_number,
+        field_name=field_name, value=value,
+    )
+    if not field_info.get("success"):
+        # Field-level failure — everything fails
+        for ref in item_refs:
+            results.append({"item": ref, "success": False, "error": field_info["error"]})
+        return {"success_count": 0, "failure_count": len(item_refs), "results": results}
+
+    project_id = field_info["project_id"]
+    field_id = field_info["field_id"]
+    mutation_value = field_info["mutation_value"]
+
+    # Resolve each item — collect node IDs and old values
+    resolved_items: List[Dict[str, Any]] = []
+    for ref in item_refs:
+        details = get_item(session, org=org, project_number=project_number, item_ref=ref)
+        if not details:
+            results.append({"item": ref, "success": False, "error": f"Could not find item: {ref}"})
+            continue
+        node_id = details.get("_node_id")
+        if not node_id:
+            results.append({"item": ref, "success": False, "error": f"No node ID for item: {ref}"})
+            continue
+        old_value = details.get(field_name, "")
+        resolved_items.append({"ref": ref, "node_id": node_id, "old_value": old_value})
+
+    # Execute mutations in batches using GraphQL aliases
+    for batch_start in range(0, len(resolved_items), _BATCH_SIZE):
+        batch = resolved_items[batch_start:batch_start + _BATCH_SIZE]
+
+        # Build aliased mutation query
+        var_defs = ", ".join(
+            f"$input{i}: UpdateProjectV2ItemFieldValueInput!" for i in range(len(batch))
+        )
+        mutation_bodies = "\n    ".join(
+            f"m{i}: updateProjectV2ItemFieldValue(input: $input{i}) {{ projectV2Item {{ id }} }}"
+            for i in range(len(batch))
+        )
+        query = f"mutation({var_defs}) {{\n    {mutation_bodies}\n}}"
+
+        variables = {}
+        for i, item in enumerate(batch):
+            variables[f"input{i}"] = {
+                "projectId": project_id,
+                "itemId": item["node_id"],
+                "fieldId": field_id,
+                "value": mutation_value,
+            }
+
+        try:
+            graphql_query(session, query, variables)
+            # All items in this batch succeeded
+            for item in batch:
+                results.append({
+                    "item": item["ref"],
+                    "success": True,
+                    "old_value": item["old_value"],
+                    "new_value": value,
+                    "field": field_name,
+                })
+        except Exception:
+            # Batch failed — fall back to individual mutations
+            for item in batch:
+                try:
+                    single_input = {
+                        "projectId": project_id,
+                        "itemId": item["node_id"],
+                        "fieldId": field_id,
+                        "value": mutation_value,
+                    }
+                    graphql_query(session, UPDATE_FIELD_MUTATION, {"input": single_input})
+                    results.append({
+                        "item": item["ref"],
+                        "success": True,
+                        "old_value": item["old_value"],
+                        "new_value": value,
+                        "field": field_name,
+                    })
+                except Exception as item_exc:
+                    results.append({
+                        "item": item["ref"],
+                        "success": False,
+                        "error": str(item_exc),
+                    })
+
+    success_count = sum(1 for r in results if r.get("success"))
+    failure_count = sum(1 for r in results if not r.get("success"))
+
+    return {
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "results": results,
+    }
+
+
+def set_field_value(
+    session: requests.Session,
+    *,
+    org: str,
+    project_number: int,
+    item_ref: str,
+    field_name: str,
+    value: str,
+) -> Dict[str, Any]:
+    """Set a project field value on a single item.
+
+    Thin wrapper around set_field_value_bulk for single-item convenience.
+
+    Args:
+        org: GitHub organization
+        project_number: Project number
+        item_ref: Item reference (e.g., "dealbot#111", "Owner/repo#111", or URL)
+        field_name: Display name of the project field (e.g., "Status", "Cycle Theme")
+        value: Display name of the option (e.g., "🐱 Todo") or raw value for text/number fields
+
+    Returns:
+        Dict with result info (success, old_value, new_value, etc.)
+        No audit logging — that's the caller's responsibility.
+    """
+    bulk_result = set_field_value_bulk(
+        session,
+        org=org,
+        project_number=project_number,
+        item_refs=[item_ref],
+        field_name=field_name,
+        value=value,
+    )
+    # Return the single item's result directly
+    if bulk_result["results"]:
+        return bulk_result["results"][0]
+    return {"success": False, "error": "No results returned"}
