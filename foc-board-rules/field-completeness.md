@@ -27,12 +27,12 @@ Rules for ensuring board items have the right fields populated based on their st
 **Action:** Flag for human review. Suggest a Cycle Theme based on the item's repository and title if possible.
 **Why:** Cycle Theme is how the team groups related work for planning. Items without one fall through the cracks in cycle reviews.
 
-## R-FC-003: Todo and above should have a Milestone (if the repo uses milestones)
+## R-FC-003: All open issues should have a Milestone
 
-**When:** An **issue** has status "🐱 Todo" or later, its repository has milestones, but the item has no milestone set.
-**Action:** Flag for human review. Do not auto-assign milestones. Make a best guess based on the item's repository and description. There are likely other rules that will apply.
+**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (these are meta/tracking items, not real work).
+**Action:** First, check if the issue has a parent issue (via `get_board_item` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
-**Why:** Milestones connect items to delivery targets. Missing milestones mean the item isn't tracked against any deadline.
+**Why:** Every real issue should be tied to a delivery milestone so it's tracked against a timeline. Issues without milestones fall through the cracks during planning. Even Triage items benefit from early milestone assignment — it helps prioritize what to triage first.
 
 ## R-FC-004: Cycle Theme defaults by repository
 
