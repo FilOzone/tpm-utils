@@ -1,0 +1,37 @@
+# Status Lifecycle Rules
+
+Rules governing how items should transition through board statuses.
+
+## Board statuses (in order)
+
+1. **📌 Triage** — New items that need to be categorized and prioritized
+2. **🐱 Todo** — Accepted work, not yet started
+3. **⌨️ In Progress** — Actively being worked on
+4. **🔎 Awaiting review** — Work complete, waiting for reviewer feedback
+5. **✔️ Approved by reviewer** — Review passed, waiting for merge or follow-up
+6. **⌚️ Issue awaiting PR merge** — Issue is done pending its linked PR(s) merging
+7. **🎉 Done** — Complete
+
+## R-SL-001: PRs with approved reviews should be "Approved by reviewer"
+
+**When:** A PR has at least one approving review and no outstanding "changes requested" reviews, but its status is "🔎 Awaiting review".
+**Action:** Set Status to `✔️ Approved by reviewer`.
+**Why:** Keeps the Awaiting Review column clean — only items that actually need reviewer attention should be there.
+
+## R-SL-002: Items should not skip backwards without reason
+
+**When:** An item moves from a later status to an earlier one (e.g., "Approved by reviewer" back to "In Progress").
+**Action:** This is allowed but should have a reason. If done by an LLM, log why.
+**Why:** Backward transitions usually indicate rework or a process problem. Tracking them helps identify systemic issues.
+
+## R-SL-003: Issues with all linked PRs merged should usually be marked as Done
+
+**When:** An issue has status "⌚️ Issue awaiting PR merge" and all of its linked PRs are merged.
+**Action:** Ask if its Status should be set to `🎉 Done`. It likely should be, but it's possible there are additional things in the issue that need to be completed out of PR.
+**Why:** Usually the issue's work is complete once its PRs land.
+
+## R-SL-004: New items from Triage should get a status within one cycle
+
+**When:** An item has been in "📌 Triage" for more than 2 weeks.
+**Action:** Flag for human review. Do not auto-transition.
+**Why:** Stale triage items indicate either forgotten work or items that should be removed from the board. A human should decide.
