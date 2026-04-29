@@ -89,7 +89,12 @@ def list_board_items(
     cursor: Optional[str] = None,
     verbose: bool = False,
 ) -> str:
-    """List project board items with optional filter.
+    """List project board items, filtered via the `query` parameter.
+
+    IMPORTANT: The filter is passed via the `query` parameter (not `filter`).
+    Unknown parameters are silently ignored — if you pass a parameter name
+    that doesn't exist (e.g., `filter`), it will be dropped and the default
+    query will be used instead.
 
     The query uses GitHub Projects v2 filter syntax — the same syntax as the
     board UI search bar. Multiple filters are ANDed together.
@@ -102,7 +107,9 @@ def list_board_items(
     Reference: https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects
 
     Args:
-        query: Project search filter. Default: '-status:"🎉 Done"'.
+        query: Project search filter (this is the parameter to use for
+               filtering — do NOT pass a `filter` parameter, it doesn't exist).
+               Default: '-status:"🎉 Done"'.
         fields: Comma-separated list of fields to include.
                 Default: Repository, Id, url, Title, Status, Kind,
                 Milestone, Assignees, Cycle Theme, Dev Days Estimate.
