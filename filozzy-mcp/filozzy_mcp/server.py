@@ -497,6 +497,7 @@ def set_board_item_field(
         value: The value to set. For single-select fields, use the option name
                (e.g., "🐱 Todo", "⌨️ In Progress"). For iteration fields, use the
                iteration title. For number fields, use a numeric string.
+               Pass an empty string ("") to clear the field.
 
     Returns:
         Result of the mutation (success/failure, old and new values).
@@ -527,14 +528,20 @@ def set_board_item_field(
             },
             result="success",
             old_value=old,
-            new_value=new,
+            new_value=new if new else "(cleared)",
         )
 
-        return (
-            f"Updated {item_ref}: {field_name} "
-            f"{'from \"' + old + '\" ' if old else ''}"
-            f'to "{new}"'
-        )
+        if new:
+            return (
+                f"Updated {item_ref}: {field_name} "
+                f"{'from \"' + old + '\" ' if old else ''}"
+                f'to "{new}"'
+            )
+        else:
+            return (
+                f"Cleared {item_ref}: {field_name} "
+                f"{'(was \"' + old + '\")' if old else '(was already empty)'}"
+            )
     else:
         return f"Failed: {result.get('error', 'unknown error')}"
 
@@ -559,6 +566,7 @@ def bulk_set_board_item_field(
         value: The value to set on ALL items. For single-select fields, use the
                option name (e.g., "🐱 Todo"). For iteration fields, use the
                iteration title. For number fields, use a numeric string.
+               Pass an empty string ("") to clear the field on all items.
 
     Returns:
         Summary of changes with per-item old → new values and any failures.
@@ -606,11 +614,17 @@ def bulk_set_board_item_field(
         if r.get("success"):
             old = r.get("old_value", "")
             new = r.get("new_value", "")
-            lines.append(
-                f"  ✓ {r['item']}: {field_name} "
-                f"{'from \"' + old + '\" ' if old else ''}"
-                f'to "{new}"'
-            )
+            if new:
+                lines.append(
+                    f"  ✓ {r['item']}: {field_name} "
+                    f"{'from \"' + old + '\" ' if old else ''}"
+                    f'to "{new}"'
+                )
+            else:
+                lines.append(
+                    f"  ✓ {r['item']}: {field_name} "
+                    f"{'cleared (was \"' + old + '\")' if old else 'already empty'}"
+                )
         else:
             lines.append(f"  ✗ {r['item']}: {r.get('error', 'unknown error')}")
 
