@@ -74,22 +74,24 @@ If no reasonable inference can be made, flag for human review — do not invent 
 **Action:** Apply R-FC-004 to infer a Cycle Theme. If no inference can be made, flag for human review.
 **Why:** PRs represent concrete work. Every PR should be attributable to a theme so it shows up in cycle reviews and workload tracking. Unlike issues (which may be speculative), PRs are always real work in progress.
 
-## R-FC-006: Open PRs without a cycle should be in the current cycle
+## R-FC-006: In-flight PRs without a cycle should be in the current cycle
 
-**When:** A PR on the board (any status except "🎉 Done") has no Cycle set.
+**When:** A PR on the board has no Cycle set and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", or "✔️ Approved by reviewer".
 **Action:** Set the Cycle to the current active cycle. Use `list_board_field_options("Cycle")` to find the current iteration.
-**Why:** Every open PR represents active work that should be visible in cycle planning. Putting them in the current cycle ensures they don't fall through the cracks during cycle reviews.
+**Scope:** Does **not** apply to PRs in "🐱 Todo" or "📌 Triage". Todo PRs — especially those with future milestones (MX, M4.5) — are backlog items. Forcing them into the current cycle overstates what's actually being worked on this cycle. They'll get a cycle when they move to In Progress.
+**Why:** PRs actively being worked on or reviewed should be visible in cycle planning. But the cycle field should reflect *when work is happening*, not just that the PR exists.
 
-## R-FC-009: Items in active milestones should have a cycle
+## R-FC-009: In-flight items in active milestones should have a cycle
 
-**When:** An item (PR or issue, any status except "🎉 Done") has a milestone that is currently active but has no Cycle set.
+**When:** An item (PR or issue) has a milestone that is currently active, has no Cycle set, and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge".
 **Action:** Set the Cycle to the current active cycle. Use `list_board_field_options("Cycle")` to find the current iteration.
+**Scope:** Does **not** apply to items in "📌 Triage" or "🐱 Todo" — those are backlog items planned for the milestone but not yet started. Adding them to the current cycle would overstate the cycle's scope. They'll get a cycle when work begins.
 
 **Active milestones** (update this list as milestones are retired/created):
-- `M4.1: mainnet soft launch`
+- `M4.1: mainnet ready`
 - `M4.2: mainnet GA`
 
-**Why:** Items tied to active milestones represent committed delivery work. They should appear in cycle planning views so nothing slips. Items in future or retired milestones (e.g., `M4.5`, `MX`) don't need a cycle yet — they'll get one when their milestone becomes active.
+**Why:** Items actively being worked on should appear in cycle planning views so nothing slips. But a milestone like M4.2 may contain dozens of Todo items that span multiple future cycles — pulling them all into the current cycle creates noise. Items in future or retired milestones (e.g., `M4.5`, `MX`) don't need a cycle yet — they'll get one when their milestone becomes active.
 
 ## R-FC-007: Items in Triage need minimal fields (except PRs)
 

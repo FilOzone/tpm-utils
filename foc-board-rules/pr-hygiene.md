@@ -27,11 +27,11 @@ Rules for keeping pull request items on the FOC board well-formed.
 **Action:** Set Status to `🐱 Todo`.
 **Why:** Release PRs are a known, mechanical step that the engineering team needs to execute. They don't need triage — they just need to get done.
 
-## R-PR-005: Draft PRs in Triage should be In Progress
+## R-PR-005: Draft PRs should be In Progress
 
-**When:** A PR in "📌 Triage" is a draft PR.
+**When:** A PR is a draft and its status is "📌 Triage", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge".
 **Action:** Set Status to `⌨️ In Progress`.
-**Why:** A draft PR means someone is actively working on it. It shouldn't sit in Triage — it's already in flight.
+**Why:** A draft PR is not ready for review or approval. If it's in Triage, it should move to In Progress since someone is actively working on it. If it's in Awaiting Review or later, the author likely converted it back to draft after feedback — the board should reflect that it's back in active development. Draft PRs in Todo or In Progress are fine as-is.
 
 ## R-PR-006: Non-draft PRs in Triage should be Awaiting Review
 
@@ -39,11 +39,13 @@ Rules for keeping pull request items on the FOC board well-formed.
 **Action:** Set Status to `🔎 Awaiting review`.
 **Why:** A non-draft, non-bot PR that's been opened is ready for review. The default assumption is that the author considers it review-ready unless they marked it as draft.
 
-## R-PR-007: Awaiting Review PRs must have a human reviewer requested
+## R-PR-007: Awaiting Review PRs must have human reviewer engagement
 
-**When:** A PR has status "🔎 Awaiting review" but has no reviewer requested, or the only reviewer is `@copilot` (not a human).
+**When:** A PR has status "🔎 Awaiting review" (including PRs just routed there by R-PR-006) but has no human reviewer — neither a pending request nor a submitted review from a human.
 **Action:** Flag for human review. Suggest the PR author request a reviewer. Do not auto-assign reviewers — the author or team lead should decide who reviews.
-**Why:** A PR sitting in Awaiting Review with no human reviewer assigned will never actually get reviewed. It's a silent bottleneck.
+**How to check:** Look at both `reviewRequests` (pending requests) and `reviews` (already submitted). A PR has human reviewer engagement if *either* list contains a non-bot entry. Filter out bot reviewers (`copilot-pull-request-reviewer`, any `app/*` author). Use `gh pr list -R <repo> --state open --json number,reviewRequests,reviews` to batch-check per repo.
+**Check this every sweep:** This rule must be checked for *all* PRs in Awaiting Review status, not just newly routed ones.
+**Why:** A PR sitting in Awaiting Review with no human reviewer engaged will never actually get reviewed. It's a silent bottleneck.
 
 ## R-PR-008: Merged PRs should be marked Done
 

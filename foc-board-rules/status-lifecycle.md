@@ -14,9 +14,10 @@ Rules governing how items should transition through board statuses.
 
 ## R-SL-001: PRs with approved reviews should be "Approved by reviewer"
 
-**When:** A PR has at least one approving review and no outstanding "changes requested" reviews, but its status is "🔎 Awaiting review".
+**When:** A PR has at least one approving review from a user **with write access to the repo** and no outstanding "changes requested" reviews, but its status is "🔎 Awaiting review".
 **Action:** Set Status to `✔️ Approved by reviewer`.
-**Why:** Keeps the Awaiting Review column clean — only items that actually need reviewer attention should be there.
+**Verification:** Before moving, confirm the approving reviewer has write (or admin) access to the repository. An approval from someone without merge permissions doesn't unblock the PR — it still needs a maintainer review. Use `gh api repos/{owner}/{repo}/collaborators/{username}/permission --jq '.permission'` to check (look for `write` or `admin`).
+**Why:** Keeps the Awaiting Review column clean — only items that actually need reviewer attention should be there. But only maintainer-level approvals actually unblock a PR for merge.
 
 ## R-SL-002: Items should not skip backwards without reason
 
@@ -30,7 +31,13 @@ Rules governing how items should transition through board statuses.
 **Action:** Ask if its Status should be set to `🎉 Done`. It likely should be, but it's possible there are additional things in the issue that need to be completed out of PR.
 **Why:** Usually the issue's work is complete once its PRs land.
 
-## R-SL-004: New items from Triage should get a status within one cycle
+## R-SL-004: Triage issues with Cycle Theme and Milestone can move to Todo
+
+**When:** An issue has status "📌 Triage" (or no status, which is treated as equivalent to Triage) and has both a Cycle Theme and a Milestone set.
+**Action:** Set Status to `🐱 Todo`.
+**Why:** An issue with both a Cycle Theme and a Milestone has been sufficiently categorized and scoped — it's no longer "unsorted" and belongs in the Todo backlog. This reduces triage column noise and makes it easier to see what truly needs initial review.
+
+## R-SL-005: New items from Triage should get a status within one cycle
 
 **When:** An item has been in "📌 Triage" for more than 2 weeks.
 **Action:** Flag for human review. Do not auto-transition.
