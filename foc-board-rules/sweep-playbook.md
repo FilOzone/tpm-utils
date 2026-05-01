@@ -70,25 +70,43 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - Automated: Cycle Theme from repo defaults (R-FC-004)
 - Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set
 
-## Stage 4: In-flight items — assignee check
+## Stage 4: Active items — health check
 
-**Goal:** Ensure every item that has progressed beyond Triage/Todo has an accountable owner.
+**Goal:** Ensure every active item (see status-lifecycle.md Terminology) has an accountable owner, is actually being worked on, has correct status relative to linked PRs, and has a cycle set when appropriate.
 
-**Query:** `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee`
+**Queries:**
+- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee` (unassigned active items)
+- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" updated:<YYYY-MM-DD` (stale active items, where date is 2 weeks ago; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale)
+- `is:issue -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge"` with "Linked pull requests" field (active issues that should be in "Issue awaiting PR merge")
+- `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle)
 
 **Rules applied:**
-- R-FC-001: In-flight items must have an assignee
+- R-FC-001: Active items must have an assignee
 - R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
+- R-SL-008: Active issues with linked PRs should be in "Issue awaiting PR merge"
+- R-SL-009: Stale items in In Progress / Awaiting Review / Approved (no update in 2+ weeks on both board and GitHub) should move back to Todo
+- R-FC-009: Issues in "Issue awaiting PR merge" with active milestones should have a cycle
 
-**How to investigate issues (per R-FC-001):**
+**How to investigate unassigned issues (per R-FC-001):**
 1. Batch-fetch issue metadata using GraphQL (general behavior rule 12): author, comments, closedByPullRequestsReferences, and timelineItems(CROSS_REFERENCED_EVENT) for linked PRs
 2. If a linked PR exists, use the PR's assignee
 3. Otherwise, infer from the comment stream (who is actively working on it)
 4. If uncertain, propose with justification and flag for human confirmation
 
+**How to check for linked PRs (per R-SL-008):**
+1. Include "Linked pull requests" in the `list_board_items` fields
+2. Any active issue with a non-empty linked PR list should move to "Issue awaiting PR merge"
+3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008)
+
+**How to report stale items (per R-SL-009):**
+1. Exclude zOrganizing Items and "Issue awaiting PR merge" items
+2. For each candidate, fetch GitHub `updatedAt` and recent comments — if GitHub shows recent activity, the item is not stale (board fields just haven't been touched)
+3. Present a table of confirmed-stale items: item ref + title, current status, board last updated, GitHub last updated, who last updated (from GitHub)
+4. Human confirms which items to move back to Todo
+
 **Automated vs. flagged:**
-- Automated: PR assignees set to author (R-PR-001)
-- Flagged for human: Issues where assignee can't be confidently determined
+- Automated: PR assignees set to author (R-PR-001), issues with linked PRs → Issue awaiting PR merge (R-SL-008)
+- Flagged for human: Issues where assignee can't be confidently determined, stale active items (R-SL-009), issues awaiting PR merge without a cycle (confirm current cycle assignment)
 
 ## Stage 5: Recently-done items — reporting readiness
 
@@ -99,10 +117,10 @@ Work through stages in order. Complete all actions and reporting for one stage b
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
 - R-FC-004: Infer Cycle Theme from repository and title
-- R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
+- R-PR-001: For unassigned PRs, assign to the PR author. For merged release PRs (bot-authored), assign to the person who merged/approved them. Dependabot PRs can be left unassigned.
 
 **Automated vs. flagged:**
-- Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author
+- Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author (or merger for release PRs)
 - Flagged for human: Issues without assignees (investigate linked PRs and comment stream, propose assignee with justification), items where Cycle Theme can't be inferred from R-FC-004
 
-**Note:** Dependabot PRs are skipped for assignee per R-PR-001. Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled.
+**Note:** Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled. For release PRs, use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find who merged.

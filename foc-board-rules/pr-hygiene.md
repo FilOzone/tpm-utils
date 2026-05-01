@@ -6,8 +6,8 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 **When:** A PR on the board has no assignee.
 **Action:** Set the assignee to the PR author (look up via GitHub API).
-**Skip if:** The author is a bot (`app/dependabot`, `FilOzzy`, or any `app/*` author).
-**Why:** Every PR should have an accountable human. The author is the natural default when no one else has been explicitly assigned.
+**Skip if:** The author is a bot (`app/dependabot`, `FilOzzy`, or any `app/*` author) — with one exception: **merged release PRs** (e.g., `chore(master): release ...`, `chore: release to production (main)`) should be assigned to the person who merged or approved them, since that human is accountable for the release. Use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find the merger. Dependabot PRs can be left unassigned.
+**Why:** Every PR should have an accountable human. The author is the natural default when no one else has been explicitly assigned. For release PRs, the bot creates the PR but a human decides to merge it — that human should be credited.
 
 ## R-PR-002: Dependabot PRs should have Cycle Theme "Dependency Updates"
 

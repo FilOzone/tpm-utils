@@ -58,6 +58,7 @@ Rules for ensuring board items have the right fields populated based on their st
 | `filecoin-project/curio` | Curio Hardening | |
 | `FilOzone/tpm-utils` | Maintainer Experience | Usually, but not always |
 | `FilOzone/foc-devnet` | Maintainer Experience | Dev tooling |
+| `FilOzone/filecoin-services` | Contract Upgrade | Often but not always — flag for human review |
 | `FilOzone/infra` | Other | Unless a better theme applies (see below) |
 
 For repositories not listed above, check the item title and description for context clues. In particular:
@@ -67,7 +68,7 @@ For repositories not listed above, check the item title and description for cont
 
 If no reasonable inference can be made, flag for human review — do not invent a new Cycle Theme value.
 
-**Existing Cycle Theme values** (as of 2026-04-27):
+**Existing Cycle Theme values** (as of 2026-05-01):
 
 > Contract Upgrade, Curio Hardening, Dealbot, Dependency Updates, Docs, filecoin.cloud, Filecoin Pay, Filecoin Pay Explorer, Filecoin Pay Tools, Filecoin Pin, GA Durability, Maintainer Experience, Operational Readiness, Other, PDP Explorer, SDK Changes, zOrganizing Item
 

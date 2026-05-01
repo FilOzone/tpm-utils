@@ -12,6 +12,10 @@ Rules governing how items should transition through board statuses.
 6. **⌚️ Issue awaiting PR merge** — Issue is done pending its linked PR(s) merging
 7. **🎉 Done** — Complete
 
+### Terminology
+
+**Active items** — Items in statuses 3–6: "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge". These represent work that is supposedly happening right now. Items in Triage, Todo, and Done are not active.
+
 ## R-SL-001: PRs with approved reviews should be "Approved by reviewer"
 
 **When:** A PR has at least one approving review from a user **with write access to the repo** and no outstanding blocking "changes requested" reviews from a write-access reviewer, but its status is "🔎 Awaiting review" or "⌨️ In Progress".
@@ -63,3 +67,10 @@ Rules governing how items should transition through board statuses.
 **Action:** Set Status to `⌚️ Issue awaiting PR merge`. Once a PR exists for an issue, the PR represents the active work — the issue just needs to wait for the PR to land. Also ensure field completeness: if the issue has no assignee, inherit from the linked PR's assignee (per R-FC-001); if no cycle, match the linked PR's cycle; if no milestone, check the linked PR or parent issue (per R-FC-003).
 **How to check:** Include "Linked pull requests" in the `list_board_items` fields. The field returns PR metadata including number, state, assignee, and author.
 **Why:** The PR is the active representation of the work. Keeping the issue in Triage, Todo, or In Progress alongside an open PR creates board clutter and double-counts the work. Moving the issue to "Issue awaiting PR merge" makes the PR the single source of truth for progress, while the issue tracks delivery completion (via R-SL-003 when all linked PRs merge).
+
+## R-SL-009: Stale active items should move back to Todo
+
+**When:** An item in "⌨️ In Progress", "🔎 Awaiting review", or "✔️ Approved by reviewer" has not been updated in 2+ weeks. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and items in "⌚️ Issue awaiting PR merge" (those are waiting on a PR, not stale — the PR's activity is what matters and is tracked separately).
+**Action:** Flag for human review. Present a table of stale items showing: item reference and title, current status, board last updated date, GitHub last updated date, who last updated it (from GitHub comments). The human should be able to quickly scan and confirm which items to move back to Todo.
+**How to check:** Two-pass approach — the board `updated` field and GitHub `updatedAt` track different things and don't necessarily match. The board `updated` reflects when board-level fields were last changed; GitHub `updatedAt` reflects when the issue/PR itself had activity (comments, commits, label changes, etc.). Use the board filter `updated:<YYYY-MM-DD` (where date is 2 weeks ago) as a first pass to find candidates. Then verify each candidate against GitHub's `updatedAt` and recent comments — if the item has recent GitHub activity, it's not actually stale (the board fields just haven't been touched). Only flag items that are stale on *both* the board and GitHub.
+**Why:** Items sitting in active statuses with no recent activity are not actually active — they create a false picture of what the team is working on. Moving them back to Todo keeps the active columns honest and makes it easier to see what's really in flight. They can always be moved back to In Progress when work actually resumes.
