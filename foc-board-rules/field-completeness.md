@@ -17,10 +17,10 @@ Rules for ensuring board items have the right fields populated based on their st
 
 ## R-FC-001: In-flight and done items must have an assignee
 
-**When:** An item has status "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", "⌚️ Issue awaiting PR merge", or "🎉 Done" (recently updated, per R-FC-008) but no assignee.
-**Exclude:** Items with Cycle Theme "zOrganizing Item" — these are meta/tracking items (section dividers, placeholders) and don't need an assignee.
+**When:** An [active item](status-lifecycle.md#terminology) or recently-done item (per R-FC-008) has no assignee.
+**Exclude:** Items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (assignees can't be set).
 **Action:** Determine the assignee using this priority order:
-1. **PRs:** Assign to the PR author (per R-PR-001). Skip if the author is a bot.
+1. **PRs:** Assign to the PR author (per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip if the author is a bot.
 2. **Issues with linked PRs:** Assign to the assignee of the linked PR. Use `get_board_item` to find "Linked pull requests", then look up the PR's assignee.
 3. **Issues without linked PRs:** Investigate the issue's comment stream and description for who is doing the work. Look for patterns like: who opened it, who is actively commenting with progress updates, who was mentioned as the DRI, who posted the closing comment.
 4. **If still uncertain:** Propose an assignee with justification and flag for human confirmation. Do not leave it blank — always make a best-effort proposal.
@@ -35,7 +35,7 @@ Rules for ensuring board items have the right fields populated based on their st
 
 ## R-FC-003: All open issues should have a Milestone
 
-**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and external items (repos outside blessed orgs — milestones can't be set).
+**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (milestones can't be set).
 **Action:** First, check if the issue has a parent issue (via `get_board_item` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
 **Why:** Every real issue should be tied to a delivery milestone so it's tracked against a timeline. Issues without milestones fall through the cracks during planning. Even Triage items benefit from early milestone assignment — it helps prioritize what to triage first.
@@ -45,7 +45,7 @@ Rules for ensuring board items have the right fields populated based on their st
 **When:** An item has no Cycle Theme set.
 **Action:** Infer the Cycle Theme from the item's repository and title:
 
-**Note:** These defaults do not apply to dependabot PRs — those are always "Dependency Updates" per R-PR-002.
+**Note:** These defaults do not apply to dependabot PRs — those are always "Dependency Updates" per [R-PR-002](pr-hygiene.md#r-pr-002-dependabot-prs-should-have-cycle-theme-dependency-updates).
 
 | Repository | Default Cycle Theme | Notes |
 |---|---|---|
@@ -81,7 +81,7 @@ If no reasonable inference can be made, flag for human review — do not invent 
 ## R-FC-005: All PRs should have a Cycle Theme
 
 **When:** A PR on the board (any status except "🎉 Done") has no Cycle Theme set.
-**Action:** Apply R-FC-004 to infer a Cycle Theme. If no inference can be made, flag for human review.
+**Action:** Apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository) to infer a Cycle Theme. If no inference can be made, flag for human review.
 **Why:** PRs represent concrete work. Every PR should be attributable to a theme so it shows up in cycle reviews and workload tracking. Unlike issues (which may be speculative), PRs are always real work in progress.
 
 ## R-FC-006: In-flight PRs without a cycle should be in the current cycle
@@ -112,5 +112,5 @@ If no reasonable inference can be made, flag for human review — do not invent 
 ## R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
 
 **When:** An item is in "🎉 Done" and was updated within the last 7 days (use `updated:>YYYY-MM-DD` filter).
-**Action:** Ensure the item has a Cycle Theme (apply R-FC-004), a Cycle (set to the current cycle if missing), and an Assignee (for PRs, use the PR author per R-PR-001). Skip bot-authored PRs for assignee (R-PR-001 skip rules apply).
+**Action:** Ensure the item has a Cycle Theme (apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository)), a Cycle (set to the current cycle if missing), and an Assignee (for PRs, use the PR author per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip bot-authored PRs for assignee (R-PR-001 skip rules apply).
 **Why:** Recently-completed items need proper tagging so periodic reporting captures the work. Without Cycle Theme, Cycle, and Assignee, done items fall through the cracks in cycle reviews and workload summaries. Older done items (beyond the 7-day window) are not worth backfilling — the reporting window has passed.

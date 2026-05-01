@@ -13,7 +13,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 **When:** A PR authored by `app/dependabot` has no Cycle Theme set, or has a Cycle Theme other than "Dependency Updates".
 **Action:** Set Cycle Theme to `Dependency Updates`.
-**Priority:** This rule overrides R-FC-004 (repo defaults). Dependabot PRs are always "Dependency Updates" regardless of which repo they're in.
+**Priority:** This rule overrides [R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository) (repo defaults). Dependabot PRs are always "Dependency Updates" regardless of which repo they're in.
 **Why:** Dependency update PRs are a distinct category of work. Consistent labeling makes it easy to filter them in or out of board views.
 
 ## R-PR-003: Dependabot PRs should be in Todo status
@@ -39,7 +39,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 **When:** A PR is not a draft, not authored by a bot, not a release PR, and its status is "📌 Triage" or "⌨️ In Progress".
 **Action:** Determine the correct status based on the PR's review state. Check the PR's reviews, commits, and reviewer permissions to pick the right destination:
 
-1. **Write-access approval, no blocking changes_requested** → `✔️ Approved by reviewer` (per R-SL-001).
+1. **Write-access approval, no blocking changes_requested** → `✔️ Approved by reviewer` (per [R-SL-001](status-lifecycle.md#r-sl-001-prs-with-approved-reviews-should-be-approved-by-reviewer)).
 2. **Human reviewer left comments/questions/changes_requested and the author has NOT pushed new commits after** → `⌨️ In Progress`. The author still needs to respond to feedback.
 3. **Human reviewer left comments but the author HAS pushed new commits after** → `🔎 Awaiting review`. The author likely addressed the feedback and is ready for re-review.
 4. **No human reviewer has engaged yet** (only bot reviews or no reviews at all) → `🔎 Awaiting review`. The PR needs initial review.

@@ -81,7 +81,9 @@ When applying rules (whether by LLM or human):
     - **Reviewers:** `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST --input - <<< '{"reviewers":["user1","user2"]}'`
     - **Note:** Reviewer requests require the user to be a collaborator on the repo. If the request fails with a 422, the user may not have access — report and move on.
 
-14. **External items: skip repo-level mutations.** Items from repos outside the blessed orgs (`FilOzone`, `filecoin-project`) are external items (see Terminology in `status-lifecycle.md`). Skip assignee, milestone, and reviewer mutations entirely for these items — they will always fail. Board-level fields (Status, Cycle Theme, Cycle) can still be set since those live on the project board, not the repo. Don't flag external items for missing assignees or milestones — those are expected persistent gaps, not action items.
+14. **External items: skip repo-level mutations.** Items from repos outside the blessed orgs (`FilOzone`, `filecoin-project`) are [external items](status-lifecycle.md#terminology). Skip assignee, milestone, and reviewer mutations entirely for these items — they will always fail. Board-level fields (Status, Cycle Theme, Cycle) can still be set since those live on the project board, not the repo. Don't flag external items for missing assignees or milestones — those are expected persistent gaps, not action items.
+
+15. **Cross-reference with relative links.** When a rule references another rule or section in a different file, use a relative markdown hyperlink (e.g., `[R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository)`). This removes ambiguity about where a cross-reference lives and helps both humans and LLMs navigate. Within the same file, links are optional since the reader is already there.
 
 ## How to use
 
@@ -94,6 +96,7 @@ These rules can be applied manually or referenced by an LLM when performing boar
 ## Rule files
 
 - [sweep-playbook.md](sweep-playbook.md) — Stage-by-stage workflow for a full board sweep
+- [sweep-agent-prompt.md](sweep-agent-prompt.md) — Prompt for running sweeps in fresh LLM sessions
 - [pr-hygiene.md](pr-hygiene.md) — Rules for keeping PR items well-formed
 - [status-lifecycle.md](status-lifecycle.md) — Rules for status transitions
 - [field-completeness.md](field-completeness.md) — Rules for required fields by status
