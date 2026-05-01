@@ -35,7 +35,7 @@ Rules for ensuring board items have the right fields populated based on their st
 
 ## R-FC-003: All open issues should have a Milestone
 
-**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (these are meta/tracking items, not real work).
+**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and external items (repos outside blessed orgs — milestones can't be set).
 **Action:** First, check if the issue has a parent issue (via `get_board_item` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
 **Why:** Every real issue should be tied to a delivery milestone so it's tracked against a timeline. Issues without milestones fall through the cracks during planning. Even Triage items benefit from early milestone assignment — it helps prioritize what to triage first.
@@ -44,6 +44,8 @@ Rules for ensuring board items have the right fields populated based on their st
 
 **When:** An item has no Cycle Theme set.
 **Action:** Infer the Cycle Theme from the item's repository and title:
+
+**Note:** These defaults do not apply to dependabot PRs — those are always "Dependency Updates" per R-PR-002.
 
 | Repository | Default Cycle Theme | Notes |
 |---|---|---|

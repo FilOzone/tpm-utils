@@ -14,6 +14,10 @@ Rules governing how items should transition through board statuses.
 
 ### Terminology
 
+**Item** — Anything on the project board: an issue, a pull request, or a draft item (note). All board rules apply to items generically unless a rule specifies "issue" or "PR" explicitly.
+
+**Blessed orgs** — `FilOzone` and `filecoin-project`. These are the GitHub orgs where we have write access and can manage assignees, milestones, reviewers, etc. Items from repos outside these orgs are **external items** — board-level fields (Status, Cycle Theme, Cycle) can be set, but repo-level fields (assignees, milestones, reviewers) cannot.
+
 **Active items** — Items in statuses 3–6: "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge". These represent work that is supposedly happening right now. Items in Triage, Todo, and Done are not active.
 
 ## R-SL-001: PRs with approved reviews should be "Approved by reviewer"

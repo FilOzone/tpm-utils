@@ -13,6 +13,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 **When:** A PR authored by `app/dependabot` has no Cycle Theme set, or has a Cycle Theme other than "Dependency Updates".
 **Action:** Set Cycle Theme to `Dependency Updates`.
+**Priority:** This rule overrides R-FC-004 (repo defaults). Dependabot PRs are always "Dependency Updates" regardless of which repo they're in.
 **Why:** Dependency update PRs are a distinct category of work. Consistent labeling makes it easy to filter them in or out of board views.
 
 ## R-PR-003: Dependabot PRs should be in Todo status

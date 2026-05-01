@@ -16,7 +16,7 @@ When applying rules (whether by LLM or human):
 
 4. **Always include item titles.** When listing items (in summaries, flags, or reports), always include the item title alongside the `org/repo#number` reference. The number alone lacks context.
 
-5. **Choose query strategy by scope.** When enforcing a *single rule* or verifying a *specific condition*, use targeted board queries (e.g., `is:pr -status:"🎉 Done" -has:"cycle-theme"` to find PRs missing a Cycle Theme). When doing a *full rule sweep* across all rules, fetch all open items in one query (`is:pr -status:"🎉 Done"`) and evaluate each item against every rule — this avoids redundant overlapping queries and is more efficient overall. See `list_board_items` tool docs for filter syntax.
+5. **Choose query strategy by scope.** When enforcing a *single rule* or verifying a *specific condition*, use targeted board queries (e.g., `is:pr -status:"🎉 Done" no:cycle-theme` to find PRs missing a Cycle Theme). When doing a *full rule sweep* across all rules, fetch all open items in one query (`is:pr -status:"🎉 Done"`) and evaluate each item against every rule — this avoids redundant overlapping queries and is more efficient overall. See `list_board_items` tool docs for filter syntax. **For field-gap checks** (R-FC-005, R-FC-006, R-FC-008), always use `no:field` filter queries (e.g., `no:cycle`, `no:cycle-theme`, `no:assignee`) rather than scanning bulk results — bulk output doesn't clearly distinguish "field is empty" from "field not returned."
 
 6. **Supplement board data with GitHub PR metadata efficiently.** The project board provides field values (Status, Cycle Theme, Milestone, etc.) but not PR-specific metadata like author, draft status, reviewer assignments, or review decisions. Many rules (R-PR-001, R-PR-002, R-PR-005, R-PR-006, R-PR-007, R-SL-001) need this metadata.
 
@@ -81,7 +81,7 @@ When applying rules (whether by LLM or human):
     - **Reviewers:** `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST --input - <<< '{"reviewers":["user1","user2"]}'`
     - **Note:** Reviewer requests require the user to be a collaborator on the repo. If the request fails with a 422, the user may not have access — report and move on.
 
-14. **External repos: try once, then move on.** The board includes items from repos outside the `FilOzone` and `filecoin-project` orgs (e.g., `ipshipyard/ipfs-deploy-action`). We typically don't have write access to these repos. When a rule requires modifying the PR itself (assigning, requesting reviewers, etc.), attempt the action once. If it fails with a permissions error (403 or 422), report it and move on — don't retry or escalate. Board-level fields (Status, Cycle Theme, etc.) can still be set regardless of repo access since those live on the project board, not the repo.
+14. **External items: skip repo-level mutations.** Items from repos outside the blessed orgs (`FilOzone`, `filecoin-project`) are external items (see Terminology in `status-lifecycle.md`). Skip assignee, milestone, and reviewer mutations entirely for these items — they will always fail. Board-level fields (Status, Cycle Theme, Cycle) can still be set since those live on the project board, not the repo. Don't flag external items for missing assignees or milestones — those are expected persistent gaps, not action items.
 
 ## How to use
 
