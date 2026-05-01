@@ -37,6 +37,12 @@ Rules governing how items should transition through board statuses.
 **Action:** Set Status to `🐱 Todo`.
 **Why:** An issue with both a Cycle Theme and a Milestone has been sufficiently categorized and scoped — it's no longer "unsorted" and belongs in the Todo backlog. This reduces triage column noise and makes it easier to see what truly needs initial review.
 
+## R-SL-006: PRs should never be in "Issue awaiting PR merge"
+
+**When:** A PR on the board has status "⌚️ Issue awaiting PR merge".
+**Action:** Flag for human review. The intended status is almost always "🔎 Awaiting review" — the person likely picked the wrong status. Do not auto-transition, but report it prominently.
+**Why:** "Issue awaiting PR merge" is semantically an *issue* status — it means the issue's work is done and it's just waiting for its linked PR(s) to land. A PR being in this status is a data entry error that makes the board confusing to read.
+
 ## R-SL-005: New items from Triage should get a status within one cycle
 
 **When:** An item has been in "📌 Triage" for more than 2 weeks.

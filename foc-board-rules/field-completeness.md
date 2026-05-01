@@ -15,11 +15,17 @@ Rules for ensuring board items have the right fields populated based on their st
 | Prio | Single-select | P1, P2, P3 |
 | Owner | Text | DRI for the item |
 
-## R-FC-001: In Progress items must have an assignee
+## R-FC-001: In-flight and done items must have an assignee
 
-**When:** An item has status "⌨️ In Progress" but no assignee.
-**Action:** Flag for human assignment. If it's a PR, suggest the PR author. Otherwise see if you can make an assignee suggestion based on the item's comment stream.
-**Why:** Active work must have someone accountable. Unassigned in-progress items are a planning gap.
+**When:** An item has status "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", "⌚️ Issue awaiting PR merge", or "🎉 Done" (recently updated, per R-FC-008) but no assignee.
+**Exclude:** Items with Cycle Theme "zOrganizing Item" — these are meta/tracking items (section dividers, placeholders) and don't need an assignee.
+**Action:** Determine the assignee using this priority order:
+1. **PRs:** Assign to the PR author (per R-PR-001). Skip if the author is a bot.
+2. **Issues with linked PRs:** Assign to the assignee of the linked PR. Use `get_board_item` to find "Linked pull requests", then look up the PR's assignee.
+3. **Issues without linked PRs:** Investigate the issue's comment stream and description for who is doing the work. Look for patterns like: who opened it, who is actively commenting with progress updates, who was mentioned as the DRI, who posted the closing comment.
+4. **If still uncertain:** Propose an assignee with justification and flag for human confirmation. Do not leave it blank — always make a best-effort proposal.
+
+**Why:** Every item that has progressed beyond Triage should have someone accountable. Unassigned in-flight items are a planning gap, and unassigned done items get missed in workload reporting.
 
 ## R-FC-002: In Progress items should have a Cycle Theme
 
@@ -55,6 +61,7 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/infra` | Other | Unless a better theme applies (see below) |
 
 For repositories not listed above, check the item title and description for context clues. In particular:
+- **Docs**: If the title contains "docs" or "docs:" (e.g., `docs: add some details about...`) and no better product-specific theme applies, use "Docs".
 - **infra** items that reference a specific product in the title or description (e.g., "dealbot" in the title) should inherit that product's Cycle Theme. Otherwise default to "Other".
 - **Stacked PRs**: Check if the item's description or comments reference related PRs/issues. If it's stacked on or related to another item that already has a Cycle Theme, use the same theme.
 
@@ -99,8 +106,8 @@ If no reasonable inference can be made, flag for human review — do not invent 
 **Action:** No field requirements beyond Status. Triage is the intake column — items are expected to be incomplete.
 **Why:** Requiring fields on triage items creates friction for capturing new work quickly.
 
-## R-FC-008: Done items don't need field enforcement
+## R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
 
-**When:** An item is in "🎉 Done".
-**Action:** No field auditing. Don't flag missing fields on completed items.
-**Why:** Retroactively filling in fields on done items has low value and high annoyance.
+**When:** An item is in "🎉 Done" and was updated within the last 7 days (use `updated:>YYYY-MM-DD` filter).
+**Action:** Ensure the item has a Cycle Theme (apply R-FC-004), a Cycle (set to the current cycle if missing), and an Assignee (for PRs, use the PR author per R-PR-001). Skip bot-authored PRs for assignee (R-PR-001 skip rules apply).
+**Why:** Recently-completed items need proper tagging so periodic reporting captures the work. Without Cycle Theme, Cycle, and Assignee, done items fall through the cracks in cycle reviews and workload summaries. Older done items (beyond the 7-day window) are not worth backfilling — the reporting window has passed.

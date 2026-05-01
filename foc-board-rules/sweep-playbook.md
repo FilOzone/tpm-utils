@@ -25,13 +25,14 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - R-PR-008: Merged PRs → Done
 - R-PR-009: Closed PRs → Done
 - R-SL-001: PRs with maintainer-level approval → Approved by reviewer (check permissions)
+- R-SL-006: PRs in "Issue awaiting PR merge" → flag (almost always a mistake)
 - R-FC-004: Set Cycle Theme from repo defaults
 - R-FC-005: All PRs should have a Cycle Theme
 - R-FC-006: In-flight PRs without a Cycle → current cycle
 
 **Automated vs. flagged:**
 - Automated: Status transitions (R-PR-002–009), Cycle Theme (R-FC-004/005), Cycle (R-FC-006), assignee (R-PR-001 for PRs)
-- Flagged for human: Missing reviewers (R-PR-007), R-SL-001 when permissions are unclear
+- Flagged for human: Missing reviewers (R-PR-007), R-SL-001 when permissions are unclear, R-SL-006 PRs in wrong status
 
 ## Stage 2: Triage issues
 
@@ -65,3 +66,40 @@ Work through stages in order. Complete all actions and reporting for one stage b
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004)
 - Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set
+
+## Stage 4: In-flight items — assignee check
+
+**Goal:** Ensure every item that has progressed beyond Triage/Todo has an accountable owner.
+
+**Query:** `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee`
+
+**Rules applied:**
+- R-FC-001: In-flight items must have an assignee
+- R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
+
+**How to investigate issues (per R-FC-001):**
+1. Batch-fetch issue metadata using GraphQL (general behavior rule 12): author, comments, closedByPullRequestsReferences, and timelineItems(CROSS_REFERENCED_EVENT) for linked PRs
+2. If a linked PR exists, use the PR's assignee
+3. Otherwise, infer from the comment stream (who is actively working on it)
+4. If uncertain, propose with justification and flag for human confirmation
+
+**Automated vs. flagged:**
+- Automated: PR assignees set to author (R-PR-001)
+- Flagged for human: Issues where assignee can't be confidently determined
+
+## Stage 5: Recently-done items — reporting readiness
+
+**Goal:** Ensure recently-completed items have Cycle Theme, Cycle, and Assignee so they show up correctly in periodic reporting.
+
+**Query:** `status:"🎉 Done" updated:>YYYY-MM-DD` (where date is 7 days ago)
+
+**Rules applied:**
+- R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
+- R-FC-004: Infer Cycle Theme from repository and title
+- R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
+
+**Automated vs. flagged:**
+- Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author
+- Flagged for human: Issues without assignees (investigate linked PRs and comment stream, propose assignee with justification), items where Cycle Theme can't be inferred from R-FC-004
+
+**Note:** Dependabot PRs are skipped for assignee per R-PR-001. Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled.
