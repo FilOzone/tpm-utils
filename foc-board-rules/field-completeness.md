@@ -83,10 +83,10 @@ If no reasonable inference can be made, flag for human review — do not invent 
 
 ## R-FC-006: In-flight PRs without a cycle should be in the current cycle
 
-**When:** A PR on the board has no Cycle set and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", or "✔️ Approved by reviewer".
+**When:** A PR on the board has no Cycle set and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", or "✔️ Approved by reviewer". Also applies to **dependabot and release PRs in "🐱 Todo"** — these are known mechanical work items that will get done in the current cycle, not speculative backlog.
 **Action:** Set the Cycle to the current active cycle. Use `list_board_field_options("Cycle")` to find the current iteration.
-**Scope:** Does **not** apply to PRs in "🐱 Todo" or "📌 Triage". Todo PRs — especially those with future milestones (MX, M4.5) — are backlog items. Forcing them into the current cycle overstates what's actually being worked on this cycle. They'll get a cycle when they move to In Progress.
-**Why:** PRs actively being worked on or reviewed should be visible in cycle planning. But the cycle field should reflect *when work is happening*, not just that the PR exists.
+**Scope:** Does **not** apply to non-bot Todo PRs or Triage PRs. Todo PRs from humans — especially those with future milestones (MX, M4.5) — are backlog items. Forcing them into the current cycle overstates what's actually being worked on. They'll get a cycle when they move to In Progress.
+**Why:** PRs actively being worked on or reviewed should be visible in cycle planning. Dependabot and release PRs in Todo are different from human-authored Todo PRs — they represent known, bounded work that belongs in the current cycle for tracking purposes.
 
 ## R-FC-009: In-flight items in active milestones should have a cycle
 

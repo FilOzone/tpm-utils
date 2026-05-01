@@ -18,23 +18,21 @@ When applying rules (whether by LLM or human):
 
 5. **Choose query strategy by scope.** When enforcing a *single rule* or verifying a *specific condition*, use targeted board queries (e.g., `is:pr -status:"🎉 Done" -has:"cycle-theme"` to find PRs missing a Cycle Theme). When doing a *full rule sweep* across all rules, fetch all open items in one query (`is:pr -status:"🎉 Done"`) and evaluate each item against every rule — this avoids redundant overlapping queries and is more efficient overall. See `list_board_items` tool docs for filter syntax.
 
-6. **Supplement board data with GitHub PR metadata efficiently.** The project board provides field values (Status, Cycle Theme, Milestone, etc.) but not PR-specific metadata like author, draft status, reviewer assignments, or review decisions. Many rules (R-PR-001, R-PR-002, R-PR-005, R-PR-006, R-PR-007, R-SL-001) need this metadata. Use a two-tier approach:
+6. **Supplement board data with GitHub PR metadata efficiently.** The project board provides field values (Status, Cycle Theme, Milestone, etc.) but not PR-specific metadata like author, draft status, reviewer assignments, or review decisions. Many rules (R-PR-001, R-PR-002, R-PR-005, R-PR-006, R-PR-007, R-SL-001) need this metadata.
 
-   **Primary: per-repo `gh pr list`** — For each repo that has open PRs on the board, run `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests,reviews`. This returns the metadata needed for PR hygiene rules in one call per repo. Group PRs by repo first, then make one call per repo. Include `reviews` (not just `reviewRequests`) so you can detect human reviewer engagement from submitted reviews, not just pending requests (see R-PR-007).
+   **Per-repo `gh pr list`** — For each repo that has open PRs on the board, run `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests,reviews`. Run calls in parallel — one per repo. This is simple, handles pagination automatically, and isolates failures per repo. Include `reviews` (not just `reviewRequests`) so you can detect human reviewer engagement from submitted reviews, not just pending requests (see R-PR-007).
 
-   **Detecting merged/closed PRs (R-PR-008, R-PR-009):** The per-repo `gh pr list --state open` call won't find merged or closed PRs. Instead, use board-side filters to detect these directly:
+   **Why not a single batched GraphQL query?** A batched GraphQL call with aliases (one per repo) could reduce ~10 REST calls to 1, but in practice it's not worth the trade-off: it's harder to construct, subject to GitHub's query complexity limits, fails as a unit if any repo alias errors, and pulls excessive data for repos with many non-board PRs (e.g., `filecoin-project/curio`). Parallel REST calls are fast enough at this scale.
+
+   **Detecting merged/closed PRs (R-PR-008, R-PR-009):** The per-repo `gh pr list --state open` call won't find merged or closed PRs. Use board-side filters instead:
    - `is:pr is:merged -status:"🎉 Done"` — merged PRs not yet marked Done
    - `is:pr is:closed -status:"🎉 Done"` — closed (not merged) PRs not yet marked Done
 
-   This is more efficient than querying `--state all` per repo (which returns hundreds of results) and directly targets the items that need action.
+   **Fallback: individual `gh pr view`** — For edge cases like permission checks on specific reviewers or PRs in external repos.
 
-   **Fallback: individual `gh pr view`** — For PRs not covered by list results (e.g., external repos, or when you need detailed review data like individual reviewer permissions).
+   **Avoid: `gh search prs`** — The search index has lag and a 200-result limit that can silently truncate results.
 
-   **Avoid: `gh search prs`** — The search index has lag (newly created PRs may not appear) and a 200-result limit that can silently truncate results. Prefer `gh pr list` per-repo which hits the REST API directly and is always up-to-date.
-
-   **Rationale:** The board API and GitHub PR API are separate systems. A full rule sweep touching 70+ items would otherwise require 70+ individual `gh pr view` calls. The per-repo list approach reduces this to ~5–10 calls total (one per repo with open PRs) while being reliable.
-
-   **Limitation:** The per-repo approach requires knowing which repos have PRs on the board. Extract the repo list from the board query results before making API calls.
+   **Rationale:** The board API and GitHub PR API are separate systems. A full rule sweep touching 70+ items would otherwise require 70+ individual `gh pr view` calls. The per-repo approach reduces this to ~5–10 parallel calls.
 
 7. **Use bulk operations when possible.** When applying the same field+value to multiple items, use `bulk_set_board_item_field` instead of individual `set_board_item_field` calls. This is common when applying a rule that affects many items the same way (e.g., setting Cycle Theme on several PRs from the same repo, or moving multiple dependabot PRs from Triage to Todo). Even two items is worth batching — it saves a tool call and resolves field info only once.
 
@@ -78,7 +76,12 @@ When applying rules (whether by LLM or human):
 
     Group issues by repo first, then batch up to ~25 per GraphQL request. One call per repo replaces N individual `gh issue view` + N `closedByPullRequestsReferences` lookups.
 
-13. **External repos: try once, then move on.** The board includes items from repos outside the `FilOzone` and `filecoin-project` orgs (e.g., `ipshipyard/ipfs-deploy-action`). We typically don't have write access to these repos. When a rule requires modifying the PR itself (assigning, requesting reviewers, etc.), attempt the action once. If it fails with a permissions error (403), report it and move on — don't retry or escalate. Board-level fields (Status, Cycle Theme, etc.) can still be set regardless of repo access since those live on the project board, not the repo.
+13. **Use REST API for PR/issue mutations, not `gh pr edit`.** The `gh pr edit` command fails on repos that have (or had) Projects Classic enabled, with a `Projects (classic) is being deprecated` GraphQL error. Instead, use the REST API directly:
+    - **Assignees:** `gh api repos/{owner}/{repo}/issues/{number}/assignees -X POST --input - <<< '{"assignees":["user1","user2"]}'`
+    - **Reviewers:** `gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST --input - <<< '{"reviewers":["user1","user2"]}'`
+    - **Note:** Reviewer requests require the user to be a collaborator on the repo. If the request fails with a 422, the user may not have access — report and move on.
+
+14. **External repos: try once, then move on.** The board includes items from repos outside the `FilOzone` and `filecoin-project` orgs (e.g., `ipshipyard/ipfs-deploy-action`). We typically don't have write access to these repos. When a rule requires modifying the PR itself (assigning, requesting reviewers, etc.), attempt the action once. If it fails with a permissions error (403 or 422), report it and move on — don't retry or escalate. Board-level fields (Status, Cycle Theme, etc.) can still be set regardless of repo access since those live on the project board, not the repo.
 
 ## How to use
 
