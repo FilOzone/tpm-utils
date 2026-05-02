@@ -124,3 +124,25 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - Flagged for human: Issues without assignees (investigate linked PRs and comment stream, propose assignee with justification), items where Cycle Theme can't be inferred from R-FC-004
 
 **Note:** Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled. For release PRs, use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find who merged.
+
+## Stage 6: Effort estimation gaps
+
+**Goal:** Surface issues in active milestones that are missing a Dev Days Estimate, so effort remaining and work completed calculations are accurate.
+
+**Rules applied:**
+- R-FC-010: Issues in active milestones should have a Dev Days Estimate
+
+**Queries:** See R-FC-010 for the full filter syntax (open issues + recently-done issues).
+
+**Fields to include:** Repository, Id, Title, Status, Assignees, Milestone, Cycle Theme
+
+**Output:** Present results as a single markdown table sorted by repository, suitable for pasting into Slack. Every item reference should be a hyperlink (e.g., `[dealbot#209](https://github.com/FilOzone/dealbot/issues/209)`).
+
+```
+| Item | Title | Status | Assignee | Milestone | Cycle Theme |
+|------|-------|--------|----------|-----------|-------------|
+| [dealbot#209](https://github.com/FilOzone/dealbot/issues/209) | We need to be able to view jobs | 🎉 Done | SgtPooki | M4.2: mainnet GA | Dealbot |
+```
+
+**Automated vs. flagged:**
+- This stage is **report-only** — no automated mutations. The human decides whether to backfill estimates or accept the gaps.

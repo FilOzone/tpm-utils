@@ -114,3 +114,19 @@ If no reasonable inference can be made, flag for human review — do not invent 
 **When:** An item is in "🎉 Done" and was updated within the last 7 days (use `updated:>YYYY-MM-DD` filter).
 **Action:** Ensure the item has a Cycle Theme (apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository)), a Cycle (set to the current cycle if missing), and an Assignee (for PRs, use the PR author per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip bot-authored PRs for assignee (R-PR-001 skip rules apply).
 **Why:** Recently-completed items need proper tagging so periodic reporting captures the work. Without Cycle Theme, Cycle, and Assignee, done items fall through the cracks in cycle reviews and workload summaries. Older done items (beyond the 7-day window) are not worth backfilling — the reporting window has passed.
+
+## R-FC-010: Issues in active milestones should have a Dev Days Estimate
+
+**When:** An **issue** on the board has an active milestone (see list below) but no Dev Days Estimate set. Includes both open issues and recently-done issues (updated within last 3 days). Exclude items with Cycle Theme "zOrganizing Item".
+**Action:** Flag for human review. Present a table of items sorted by repository showing: item reference (hyperlinked), title, status, assignee, milestone, and Cycle Theme.
+**Scope:** Issues only — PRs inherit effort context from their parent issue.
+
+**Active milestones** (keep in sync with [R-FC-009](#r-fc-009-in-flight-items-in-active-milestones-should-have-a-cycle)):
+- `M4.1: mainnet ready`
+- `M4.2: mainnet GA`
+
+**Query:**
+- Open: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" -status:"🎉 Done" is:issue no:dev-days-estimate`
+- Recently done: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate updated:>YYYY-MM-DD` (where date is 3 days ago)
+
+**Why:** Issues without a Dev Days Estimate are unaccounted effort — they distort both "effort remaining" and "work completed" calculations. Every milestoned issue should have an estimate so planning and reporting are accurate.

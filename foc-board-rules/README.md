@@ -83,7 +83,7 @@ When applying rules (whether by LLM or human):
 
 14. **External items: skip repo-level mutations.** Items from repos outside the blessed orgs (`FilOzone`, `filecoin-project`) are [external items](status-lifecycle.md#terminology). Skip assignee, milestone, and reviewer mutations entirely for these items — they will always fail. Board-level fields (Status, Cycle Theme, Cycle) can still be set since those live on the project board, not the repo. Don't flag external items for missing assignees or milestones — those are expected persistent gaps, not action items.
 
-15. **Cross-reference with relative links.** When a rule references another rule or section in a different file, use a relative markdown hyperlink (e.g., `[R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository)`). This removes ambiguity about where a cross-reference lives and helps both humans and LLMs navigate. Within the same file, links are optional since the reader is already there.
+15. **Cross-reference with relative links.** When a rule references another rule or section in a different file, use a relative markdown hyperlink (e.g., `[R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository)`). This removes ambiguity about where a cross-reference lives and helps both humans and LLMs navigate. Within the same file, links are optional since the reader is already there. **Exception:** `sweep-playbook.md` references rules by ID on nearly every line — don't hyperlink rule IDs there. The playbook is a dense operational checklist; adding links would hurt readability. Rule IDs are unique and searchable.
 
 ## How to use
 
