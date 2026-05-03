@@ -82,13 +82,18 @@ def aggregate_rows(items: List[Dict[str, Any]]) -> List[Row]:
         # Reviewers: requested on the PR plus users who submitted a PR review (COMMENTED/APPROVED/…).
         # See README — board UI can show the latter even when they're no longer in requested_reviewers.
         reviewer_logins: set[str] = set()
+        has_non_user_reviewer = False
         for rr in content.get("reviewRequests", {}).get("nodes", []):
             rev = rr.get("requestedReviewer") or {}
             login = rev.get("login")
             if login:
                 reviewer_logins.add(login)
+            elif rev:
+                has_non_user_reviewer = True
         for login in content.get("_submitted_reviewer_logins") or []:
             reviewer_logins.add(login)
+        if content.get("_has_non_user_submitted_review"):
+            has_non_user_reviewer = True
 
         if not assignee_logins:
             assignee_counts[(EMPTY_ROW_LOGIN, status)] += 1
@@ -96,7 +101,7 @@ def aggregate_rows(items: List[Dict[str, Any]]) -> List[Row]:
             for login in assignee_logins:
                 assignee_counts[(login, status)] += 1
 
-        if not reviewer_logins:
+        if not reviewer_logins and not has_non_user_reviewer:
             reviewer_counts[(EMPTY_ROW_LOGIN, status)] += 1
         else:
             for login in reviewer_logins:
