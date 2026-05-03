@@ -71,6 +71,50 @@ Those two can diverge. For example, you might **submit a review** (so the UI can
 1. **PR count by individual** — rows are GitHub users × board status; assignee and reviewer counts match the semantics above. Rows labeled **empty** (after all named users) count PRs with **no assignee** in the **assignee** column and PRs with **no reviewer** in the **reviewer** column (same reviewer union as above—only user logins; team-only review requests still show as empty here). The **assignee** cell links add `no:assignee`; the **reviewer** cell links add `no:reviewers` to match the board’s reviewer-empty filter. The **empty** label itself links to the base filter only.
 2. **PR count by repository and status** — rows are repositories (`owner/repo`), columns are statuses present in the filtered set, plus a **Total** column (row sums) and **Total** row (column sums). Repository names link to the base filter plus `repo:owner/name`. Status column headers link to the base filter plus `status:"…"` only. Each non-zero cell links to that repo and status combined. The **Total** column header and the bottom-right grand total link to the base filter only; row totals link like the repo row; the total row’s status cells link like the status column headers.
 
+## Slack “review / merge” nudge
+
+Use this when you want a short team message (e.g. Slack) instead of pasting the Markdown tables. Regenerate the report, then use the **prompt** below with an assistant or drop the rules into your own template.
+
+### 1. Regenerate the report
+
+From this directory:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) uv run foc-pr-report
+```
+
+Or write to a file and paste its **PR count by individual** section into the prompt.
+
+### 2. Prompt template (paste report + fill in gist URL)
+
+Copy everything in the fence below. Replace `PASTE_REPORT_HERE` with the tool output (at least through the person table and legend). Replace `GIST_URL` with your published gist for the full report, if you use one.
+
+```text
+You are helping draft a short team message for Slack about FOC Project 14 PRs (View 2).
+
+Input: the Markdown output from `foc-pr-report` (person table + optional matrix totals). Here it is:
+
+PASTE_REPORT_HERE
+
+Write a message that:
+
+1. States that we have many open PRs in **Awaiting review** and **Approved by reviewer** (use the matrix totals from the report if present; otherwise infer from the person table). Ask people to clear review/merge duty before taking on more in-progress or new work.
+
+2. Under a heading like **By person**, emit a **bulleted list** (•) sorted alphabetically by GitHub login. Skip the synthetic **empty** row. Skip people who only appear in **In Progress** / **Triage** with no Awaiting-review or Approved action below.
+
+3. For each **named user**, include **only** these link types, using the **exact** `filterQuery` URLs from the report cells (keep hyperlinks as Markdown `[label](url)` for copy-paste):
+   - **Awaiting your review (n)** — use the **reviewer** column link for the row where **state** is **🔎 Awaiting review** and the cell has the 👀 marker (or equivalently non-zero reviewer count on that row). Use the count *n* from that cell. Label must be exactly `Awaiting your review (n)`.
+   - **Approved by your reviewers (n)** — use the **assignee** column link for the row where **state** is **✔️ Approved by reviewer** and the cell has the 🏁 marker (or non-zero assignee count on that row). Use the count *n* from that cell. Label must be exactly `Approved by your reviewers (n)`.
+
+4. **Do not** include a separate bullet fragment like “Awaiting review · assignee (n)” when the same person also has an **Awaiting your review** link for that lane. If the person has **only** assignee work in **Awaiting review** (reviewer count 0, assignee count > 0 on that status), include one link labeled **Your PRs in Awaiting review (n)** using the **assignee** column URL for that row.
+
+5. Separate multiple links for the same person with ` · ` (space middle dot space).
+
+6. End with a line: **Full report:** [description](GIST_URL) — use a sensible description (e.g. date + “FOC PRs”).
+
+Tone: concise, friendly, imperative. No Markdown tables in the Slack body.
+```
+
 ## Links
 
 [View 2](https://github.com/orgs/FilOzone/projects/14/views/2) `filterQuery` values use the same base filter as the tool (`is:pr` excluding Done/Todo), plus qualifiers per cell as described above.
