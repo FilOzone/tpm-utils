@@ -128,7 +128,7 @@ def render_markdown(rows: List[Row]) -> str:
             state_q = _filter_body(BASE_FILTER, f'status:"{status}"')
             assign_q = _filter_body(BASE_FILTER, f'status:"{status}"', "no:assignee")
             rev_q = _filter_body(BASE_FILTER, f'status:"{status}"', "no:reviewers")
-            label = "empty"
+            label = EMPTY_ROW_LOGIN
         else:
             user_q = _filter_body(BASE_FILTER, login)
             state_q = _filter_body(BASE_FILTER, f'status:"{status}"', login)
