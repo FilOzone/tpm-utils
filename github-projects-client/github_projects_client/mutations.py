@@ -222,7 +222,10 @@ def set_field_value_bulk(
     Args:
         org: GitHub organization
         project_number: Project number
-        item_refs: List of item references
+        item_refs: List of item references (e.g., "dealbot#458") or raw
+            project item node IDs (strings starting with "PVTI_"). Node IDs
+            skip the per-item lookup, making bulk operations much faster when
+            you already have them from a prior list_items call.
         field_name: Display name of the project field
         value: Value to set on all items. Empty string clears the field.
 
@@ -257,6 +260,10 @@ def set_field_value_bulk(
     # Resolve each item — collect node IDs and old values
     resolved_items: List[Dict[str, Any]] = []
     for ref in item_refs:
+        # If the ref is a raw project item node ID (starts with PVTI_), skip lookup
+        if ref.startswith("PVTI_"):
+            resolved_items.append({"ref": ref, "node_id": ref, "old_value": ""})
+            continue
         details = get_item(session, org=org, project_number=project_number, item_ref=ref)
         if not details:
             results.append({"item": ref, "success": False, "error": f"Could not find item: {ref}"})

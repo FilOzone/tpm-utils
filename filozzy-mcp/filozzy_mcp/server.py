@@ -568,6 +568,9 @@ def bulk_set_board_item_field(
     Args:
         item_refs: Comma-separated item references
                    (e.g., "dealbot#458, synapse-sdk#748, filecoin-pin#412").
+                   Also accepts raw project item node IDs (e.g., "PVTI_...")
+                   to skip the per-item lookup — useful when you already have
+                   node IDs from a prior list_board_items call.
         field_name: Display name of the project field (e.g., "Status", "Cycle Theme").
                     Use list_board_field_options to see valid values for a field.
         value: The value to set on ALL items. For single-select fields, use the
