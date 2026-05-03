@@ -118,19 +118,22 @@ def _projects_v2_rest_headers(session: requests.Session) -> Dict[str, str]:
     return h
 
 
-def fetch_pull_request_review_logins(
+def fetch_pull_request_review_activity(
     session: requests.Session,
     owner: str,
     repo: str,
     pull_number: int,
-) -> set[str]:
+) -> tuple[set[str], bool]:
     """
-    Logins who submitted a non-pending pull request review.
+    Submitted-review activity for one pull request.
 
-    GitHub project search matches people here even when they are no longer
-    in ``requested_reviewers``.
+    Returns:
+      - user_logins: Human user logins who submitted non-pending reviews.
+      - has_non_user_review: True when any non-user actor (for example a bot) submitted
+        a non-pending review. This helps align empty-reviewer semantics with board filters.
     """
     logins: set[str] = set()
+    has_non_user_review = False
     url: Optional[str] = (
         f"https://api.github.com/repos/{owner}/{repo}/pulls/{pull_number}/reviews"
     )
@@ -152,17 +155,21 @@ def fetch_pull_request_review_logins(
             if rev.get("state") == "PENDING":
                 continue
             user = rev.get("user") or {}
-            if user.get("type") != "User":
-                continue
             login = user.get("login")
-            if isinstance(login, str):
+            if user.get("type") == "User" and isinstance(login, str):
                 logins.add(login)
+            else:
+                has_non_user_review = True
 
         next_url = resp.links.get("next", {}).get("url")
         url = next_url
         params = None
 
-    return logins
+    return logins, has_non_user_review
+
+
+# Backward-compat alias
+fetch_pull_request_review_logins = fetch_pull_request_review_activity
 
 
 def enrich_pull_items_with_submitted_reviewers(
@@ -172,10 +179,13 @@ def enrich_pull_items_with_submitted_reviewers(
     verbose: bool = True,
 ) -> None:
     """
-    Set ``content['_submitted_reviewer_logins']`` on each pull request item.
+    Set submitted-review enrichment on each pull request item:
+    - ``content['_submitted_reviewer_logins']``: sorted human reviewer logins
+    - ``content['_has_non_user_submitted_review']``: whether a non-user actor submitted a review
 
-    Excludes the PR author. Complements ``requested_reviewers`` on the project
-    card.
+    Excludes the PR author. Complements ``requested_reviewers`` on the project card: the board UI
+    often lists people under **Reviewers** after they submit a formal PR review (including
+    COMMENTED) even if they are not in ``requested_reviewers`` anymore. See foc-pr-report README.
     """
     pr_items = [
         it
@@ -195,15 +205,22 @@ def enrich_pull_items_with_submitted_reviewers(
         num = content.get("number")
         if not repo_full or num is None or "/" not in repo_full:
             content["_submitted_reviewer_logins"] = []
+            content["_has_non_user_submitted_review"] = False
             continue
 
         owner, repo = repo_full.split("/", 1)
-        logins = fetch_pull_request_review_logins(session, owner, repo, int(num))
+        logins, has_non_user_review = fetch_pull_request_review_activity(
+            session,
+            owner,
+            repo,
+            int(num),
+        )
         author = (content.get("author") or {}).get("login")
         if isinstance(author, str):
             logins.discard(author)
 
         content["_submitted_reviewer_logins"] = sorted(logins)
+        content["_has_non_user_submitted_review"] = has_non_user_review
 
         if verbose and i % 10 == 0:
             print(f"  reviews {i}/{total}...", flush=True)

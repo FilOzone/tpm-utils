@@ -399,7 +399,13 @@ class TestGetItem:
         return result["items"][0]
 
     def test_lookup_by_short_ref(self, session: requests.Session):
-        known = self._find_known_item(session)
+        # Short refs expand using the default org, so we need an item from that org
+        result = list_items(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            query=f"is:pr repo:{FILOZ_ORG}/*", per_page=1,
+        )
+        assert len(result["items"]) > 0
+        known = result["items"][0]
         repo_full = known["Repository"]
         number = known["Id"]
         repo_name = repo_full.split("/", 1)[1] if "/" in repo_full else repo_full

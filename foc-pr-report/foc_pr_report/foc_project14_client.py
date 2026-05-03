@@ -23,6 +23,7 @@ from foc_pr_report.pr_enrichment import (  # noqa: F401
     ITEMS_QUERY,
     enrich_pull_items_with_submitted_reviewers,
     fetch_project_board_items_rest_filtered,
+    fetch_pull_request_review_activity,
     fetch_pull_request_review_logins,
     rest_board_item_to_graphql_node,
     field_values_by_name,
