@@ -16,11 +16,17 @@ STATUS_TODO = "🐱 Todo"
 
 PROJECT_VIEW_2 = "https://github.com/orgs/FilOzone/projects/14/views/2"
 
-# Primary lanes first; other statuses sort after these, alphabetically
+STATUS_TRIAGE = "📌 Triage"
+STATUS_AWAITING_REVIEW = "🔎 Awaiting review"
+STATUS_APPROVED_BY_REVIEWER = "✔️ Approved by reviewer"
+
+# Primary lanes first (triage first so it surfaces PRs that should leave that lane);
+# other statuses sort after these, alphabetically
 STATUS_ORDER = [
+    STATUS_TRIAGE,
     "⌨️ In Progress",
-    "🔎 Awaiting review",
-    "✔️ Approved by reviewer",
+    STATUS_AWAITING_REVIEW,
+    STATUS_APPROVED_BY_REVIEWER,
 ]
 
 # Synthetic row: PRs with no assignee (assignee column) or no reviewer (reviewer column).
@@ -76,13 +82,18 @@ def aggregate_rows(items: List[Dict[str, Any]]) -> List[Row]:
         # Reviewers: requested on the PR plus users who submitted a PR review (COMMENTED/APPROVED/…).
         # See README — board UI can show the latter even when they're no longer in requested_reviewers.
         reviewer_logins: set[str] = set()
+        has_non_user_reviewer = False
         for rr in content.get("reviewRequests", {}).get("nodes", []):
             rev = rr.get("requestedReviewer") or {}
             login = rev.get("login")
             if login:
                 reviewer_logins.add(login)
+            elif rev:
+                has_non_user_reviewer = True
         for login in content.get("_submitted_reviewer_logins") or []:
             reviewer_logins.add(login)
+        if content.get("_has_non_user_submitted_review"):
+            has_non_user_reviewer = True
 
         if not assignee_logins:
             assignee_counts[(EMPTY_ROW_LOGIN, status)] += 1
@@ -90,7 +101,7 @@ def aggregate_rows(items: List[Dict[str, Any]]) -> List[Row]:
             for login in assignee_logins:
                 assignee_counts[(login, status)] += 1
 
-        if not reviewer_logins:
+        if not reviewer_logins and not has_non_user_reviewer:
             reviewer_counts[(EMPTY_ROW_LOGIN, status)] += 1
         else:
             for login in reviewer_logins:
@@ -121,8 +132,8 @@ def render_markdown(rows: List[Row]) -> str:
             user_q = BASE_FILTER
             state_q = _filter_body(BASE_FILTER, f'status:"{status}"')
             assign_q = _filter_body(BASE_FILTER, f'status:"{status}"', "no:assignee")
-            rev_q = _filter_body(BASE_FILTER, f'status:"{status}"', "review:none")
-            label = "empty"
+            rev_q = _filter_body(BASE_FILTER, f'status:"{status}"', "no:reviewers")
+            label = EMPTY_ROW_LOGIN
         else:
             user_q = _filter_body(BASE_FILTER, login)
             state_q = _filter_body(BASE_FILTER, f'status:"{status}"', login)
@@ -130,13 +141,36 @@ def render_markdown(rows: List[Row]) -> str:
             rev_q = _filter_body(BASE_FILTER, f'status:"{status}"', f"reviewers:{login}")
             label = login
 
+        assignee_cell = f"[{a_count}]({view2_url(assign_q)})"
+        reviewer_cell = f"[{r_count}]({view2_url(rev_q)})"
+        if login != EMPTY_ROW_LOGIN:
+            if status == STATUS_APPROVED_BY_REVIEWER and a_count > 0:
+                assignee_cell += " 🏁"
+            if status == STATUS_AWAITING_REVIEW and r_count > 0:
+                reviewer_cell += " 👀"
+
         lines.append(
             "| "
             + f"[{label}]({view2_url(user_q)}) | "
             + f"[{status}]({view2_url(state_q)}) | "
-            + f"[{a_count}]({view2_url(assign_q)}) | "
-            + f"[{r_count}]({view2_url(rev_q)}) |"
+            + f"{assignee_cell} | "
+            + f"{reviewer_cell} |"
         )
+
+    lines.extend(
+        [
+            "",
+            "_Legend:_",
+            (
+                "- 👀 after a **reviewer** count: that person is a reviewer on at least one PR in "
+                f"**{STATUS_AWAITING_REVIEW}** (review expected)."
+            ),
+            (
+                "- 🏁 after an **assignee** count: that person is an assignee on at least one PR in "
+                f"**{STATUS_APPROVED_BY_REVIEWER}** (they can merge when ready)."
+            ),
+        ]
+    )
 
     return "\n".join(lines) + "\n"
 
