@@ -605,7 +605,7 @@ def bulk_set_board_item_field(
                 params={
                     "org": GITHUB_ORG,
                     "project_number": GITHUB_PROJECT_NUMBER,
-                    "item_ref": r["item"],
+                    "item_ref": r["item_ref"],
                     "field_name": field_name,
                     "value": value,
                 },
@@ -627,17 +627,17 @@ def bulk_set_board_item_field(
             new = r.get("new_value", "")
             if new:
                 lines.append(
-                    f"  ✓ {r['item']}: {field_name} "
+                    f"  ✓ {r['item_ref']}: {field_name} "
                     f"{'from \"' + old + '\" ' if old else ''}"
                     f'to "{new}"'
                 )
             else:
                 lines.append(
-                    f"  ✓ {r['item']}: {field_name} "
+                    f"  ✓ {r['item_ref']}: {field_name} "
                     f"{'cleared (was \"' + old + '\")' if old else 'already empty'}"
                 )
         else:
-            lines.append(f"  ✗ {r['item']}: {r.get('error', 'unknown error')}")
+            lines.append(f"  ✗ {r['item_ref']}: {r.get('error', 'unknown error')}")
 
     return "\n".join(lines)
 

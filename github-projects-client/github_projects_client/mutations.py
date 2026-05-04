@@ -175,7 +175,7 @@ def _execute_clear_batch(
         graphql_query(session, query, variables)
         for item in batch:
             results.append({
-                "item": item["ref"],
+                "item_ref": item["ref"],
                 "success": True,
                 "old_value": item["old_value"],
                 "new_value": "",
@@ -191,7 +191,7 @@ def _execute_clear_batch(
                     "fieldId": field_id,
                 })
                 results.append({
-                    "item": item["ref"],
+                    "item_ref": item["ref"],
                     "success": True,
                     "old_value": item["old_value"],
                     "new_value": "",
@@ -199,7 +199,7 @@ def _execute_clear_batch(
                 })
             except Exception as item_exc:
                 results.append({
-                    "item": item["ref"],
+                    "item_ref": item["ref"],
                     "success": False,
                     "error": str(item_exc),
                 })
@@ -250,7 +250,7 @@ def set_field_value_bulk(
 
     if not field_info.get("success"):
         for ref in item_refs:
-            results.append({"item": ref, "success": False, "error": field_info["error"]})
+            results.append({"item_ref": ref, "success": False, "error": field_info["error"]})
         return {"success_count": 0, "failure_count": len(item_refs), "results": results}
 
     project_id = field_info["project_id"]
@@ -266,11 +266,11 @@ def set_field_value_bulk(
             continue
         details = get_item(session, org=org, project_number=project_number, item_ref=ref)
         if not details:
-            results.append({"item": ref, "success": False, "error": f"Could not find item: {ref}"})
+            results.append({"item_ref": ref, "success": False, "error": f"Could not find item: {ref}"})
             continue
         node_id = details.get("_node_id")
         if not node_id:
-            results.append({"item": ref, "success": False, "error": f"No node ID for item: {ref}"})
+            results.append({"item_ref": ref, "success": False, "error": f"No node ID for item: {ref}"})
             continue
         old_value = details.get(field_name, "")
         resolved_items.append({"ref": ref, "node_id": node_id, "old_value": old_value})
@@ -308,7 +308,7 @@ def set_field_value_bulk(
                 graphql_query(session, query, variables)
                 for item in batch:
                     results.append({
-                        "item": item["ref"],
+                        "item_ref": item["ref"],
                         "success": True,
                         "old_value": item["old_value"],
                         "new_value": value,
@@ -326,7 +326,7 @@ def set_field_value_bulk(
                         }
                         graphql_query(session, UPDATE_FIELD_MUTATION, {"input": single_input})
                         results.append({
-                            "item": item["ref"],
+                            "item_ref": item["ref"],
                             "success": True,
                             "old_value": item["old_value"],
                             "new_value": value,
@@ -334,7 +334,7 @@ def set_field_value_bulk(
                         })
                     except Exception as item_exc:
                         results.append({
-                            "item": item["ref"],
+                            "item_ref": item["ref"],
                             "success": False,
                             "error": str(item_exc),
                         })
