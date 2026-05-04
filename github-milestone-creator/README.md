@@ -1,11 +1,65 @@
 # GitHub Milestone Manager
 
-A Python script for creating and updating GitHub milestones across multiple repositories from a JSON configuration file.
+A Python script for creating, updating, and closing GitHub milestones across multiple repositories from a JSON configuration file.
+
+## Quick Reference
+
+```bash
+cd github-milestone-creator
+
+# Always dry-run first
+uv run github_milestone_manager.py --config <config>.json --token $(gh auth token) --dry-run
+
+# Execute for real
+uv run github_milestone_manager.py --config <config>.json --token $(gh auth token)
+```
+
+### Config file structure (JSON with comments supported)
+
+```jsonc
+{
+  "repos": ["owner/repo", ...],
+  "milestones": [
+    // Direct milestone: set fields explicitly
+    { "name": "M4.2: mainnet GA", "dueDate": "2026-06-12", "state": "open" },
+
+    // Reference milestone: sync name + due date from source of truth
+    { "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/11" },
+
+    // Close a milestone by name
+    { "name": "M4.1: mainnet ready", "state": "closed" },
+
+    // Rename an existing milestone
+    { "name": "New Name", "existingNameToRename": "Old Name" }
+  ]
+}
+```
+
+### Field semantics
+
+| Field | Omitted | `null` or `""` | Value |
+|-------|---------|----------------|-------|
+| `description` | Don't touch | Clear | Set |
+| `dueDate` | Don't touch | Clear | Set (YYYY-MM-DD) |
+| `state` | Don't touch | — | `"open"` or `"closed"` |
+
+### FOC milestone source-of-truth URLs (in `FilOzone/filecoin-services`)
+
+| Milestone | URL |
+|-----------|-----|
+| M4.0: mainnet staged | `/milestone/10` |
+| M4.1: mainnet ready | `/milestone/7` |
+| M4.2: mainnet GA | `/milestone/11` |
+| M4.5: GA Fast Follows | `/milestone/9` |
+| MX: Priority TBD | `/milestone/2` |
+
+---
 
 ## Overview
 
 This tool allows you to:
 - Create or update milestones across multiple GitHub repositories
+- Close or reopen milestones across repos
 - Sync milestones from a reference repository (source of truth)
 - Automatically match existing milestones by name
 - Rename existing milestones
@@ -18,6 +72,7 @@ This tool allows you to:
 - **Reference Milestones**: Sync milestones from one repository to others, automatically matching by name
 - **Automatic Matching**: Finds existing milestones by name before creating new ones
 - **Milestone Renaming**: Rename existing milestones using `existingNameToRename`
+- **Close/Reopen**: Set `"state": "closed"` or `"open"` to close or reopen milestones
 - **Flexible Updates**: Clear or update descriptions and due dates with null/empty string handling
 - **JSON Schema Validation**: Validates configuration files against a schema
 - **Comment Support**: Supports `//` and `/* */` style comments in JSON files
@@ -113,6 +168,10 @@ The configuration file is a JSON file with the following structure:
   - `null` or `""`: Field will be cleared
   - Date string: Field will be set to that date
   - Ignored if `referenceMilestoneUrl` is set
+- **`state`** (string, optional): `"open"` or `"closed"`
+  - Not present: State won't be changed
+  - `"closed"`: Closes the milestone
+  - `"open"`: Reopens the milestone
 
 ### Example Configurations
 

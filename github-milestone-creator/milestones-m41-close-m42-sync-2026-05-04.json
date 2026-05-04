@@ -1,0 +1,36 @@
+{
+  // Close M4.1 milestones and sync M4.2 due date (2026-06-12) from
+  // the master milestone at FilOzone/filecoin-services/milestone/11.
+  "repos": [
+    "FilOzone/SessionKeyRegistry",
+    "FilOzone/dealbot",
+    "FilOzone/early-repair",
+    "FilOzone/filecoin-cloud",
+    "FilOzone/filecoin-pay",
+    "FilOzone/filecoin-pay-auction-bot",
+    "FilOzone/filecoin-pay-explorer",
+    "FilOzone/filecoin-services",
+    "FilOzone/foc-devnet",
+    "FilOzone/fs-pm",
+    "FilOzone/infra",
+    "FilOzone/pdp",
+    "FilOzone/pdp-explorer",
+    "FilOzone/synapse-sdk",
+    "FilOzone/tpm-utils",
+    "filecoin-project/curio",
+    "filecoin-project/filecoin-pin",
+    "filecoin-project/filecoin-pin-website",
+    "filecoin-project/lotus"
+  ],
+  "milestones": [
+    {
+      // Close M4.1: mainnet ready (sync description + date from source of truth)
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/7",
+      "state": "closed"
+    },
+    {
+      // Sync M4.2: mainnet GA (due date 2026-06-12 from master milestone)
+      "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/11"
+    }
+  ]
+}
