@@ -80,7 +80,10 @@ def main() -> None:
                     detail = f": {body['message']}"
             except Exception:  # noqa: S110
                 detail = f": {resp.text[:500]}"
-        print(f"GitHub API error ({resp.status_code if resp else 'n/a'}){detail}", file=sys.stderr)
+        print(
+            f"GitHub API error ({resp.status_code if resp else 'n/a'}){detail}",
+            file=sys.stderr,
+        )
         sys.exit(2)
     except Exception as e:  # noqa: BLE001 — surface client errors as API-class
         # foc_project14_client raises Exception for GraphQL/scope errors; normalize to stderr + exit 2

@@ -47,16 +47,19 @@ def session() -> requests.Session:
     if not token:
         try:
             token = subprocess.check_output(
-                ["gh", "auth", "token"], text=True,
+                ["gh", "auth", "token"],
+                text=True,
             ).strip()
         except (subprocess.CalledProcessError, FileNotFoundError):
             pytest.skip("No GITHUB_TOKEN and gh CLI unavailable")
 
     s = requests.Session()
-    s.headers.update({
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    })
+    s.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    )
     return s
 
 
@@ -155,8 +158,11 @@ class TestListItems:
 
     def test_returns_expected_shape(self, session: requests.Session):
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:issue", per_page=5,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:issue",
+            per_page=5,
         )
         assert "items" in result
         assert "next_cursor" in result
@@ -165,8 +171,11 @@ class TestListItems:
 
     def test_items_have_default_fields(self, session: requests.Session):
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:pr", per_page=3,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:pr",
+            per_page=3,
         )
         assert len(result["items"]) > 0
         item = result["items"][0]
@@ -175,7 +184,9 @@ class TestListItems:
 
     def test_custom_fields(self, session: requests.Session):
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             query="is:pr",
             fields=["Repository", "Id", "Title"],
             per_page=3,
@@ -188,14 +199,21 @@ class TestListItems:
 
     def test_cursor_pagination(self, session: requests.Session):
         r1 = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:pr", per_page=3,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:pr",
+            per_page=3,
         )
         assert r1["has_more"] is True
 
         r2 = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:pr", per_page=3, cursor=r1["next_cursor"],
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:pr",
+            per_page=3,
+            cursor=r1["next_cursor"],
         )
         assert len(r2["items"]) > 0
 
@@ -205,8 +223,11 @@ class TestListItems:
 
     def test_debug_info(self, session: requests.Session):
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:issue", per_page=5,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:issue",
+            per_page=5,
         )
         debug = result["debug"]
         assert debug["rest_query"] == "is:issue"
@@ -217,15 +238,20 @@ class TestListItems:
     def test_time_based_filter(self, session: requests.Session):
         """Verify last-updated filter works through the full stack."""
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="-last-updated:1days", per_page=50,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="-last-updated:1days",
+            per_page=50,
         )
         assert len(result["items"]) > 0
 
     def test_combined_filters(self, session: requests.Session):
         """Verify combining custom field + time-based filter."""
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             query='"cycle-theme":"Contract Upgrade" -last-updated:7days',
             per_page=50,
         )
@@ -234,8 +260,11 @@ class TestListItems:
     def test_node_id_synthetic_field(self, session: requests.Session):
         """Verify 'Node ID' can be requested and returns PVTI_ prefixed IDs."""
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:pr", fields=["Repository", "Id", "Title", "Node ID"],
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:pr",
+            fields=["Repository", "Id", "Title", "Node ID"],
             per_page=3,
         )
         assert len(result["items"]) > 0
@@ -280,7 +309,9 @@ class TestResolveViewUrl:
         assert resolved["slice_filter"] is None
         assert resolved["effective_filter"] == resolved["base_filter"]
 
-    def test_visible_fields_query_param_overrides_view_field_order(self, session: requests.Session):
+    def test_visible_fields_query_param_overrides_view_field_order(
+        self, session: requests.Session
+    ):
         view_url = (
             "https://github.com/orgs/FilOzone/projects/14/views/20"
             "?visibleFields=%5B%22Repository%22%2C%22Title%22%2C%22Assignees%22%2C%22Reviewers%22%2C%22Linked+pull+requests%22%2C194437039%2C245538973%2C%22Milestone%22%2C%22Status%22%2C%22Parent+issue%22%2C204711739%2C242588518%2C244708427%2C%22Sub-issues+progress%22%2C%22Labels%22%5D"
@@ -343,7 +374,9 @@ class TestListFieldOptions:
 
     def test_status_field_options(self, session: requests.Session):
         result = list_field_options(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             field_name="Status",
         )
         assert "project_id" in result
@@ -358,7 +391,9 @@ class TestListFieldOptions:
 
     def test_iteration_field(self, session: requests.Session):
         result = list_field_options(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             field_name="Cycle",
         )
         if "Cycle" not in result["fields"]:
@@ -370,14 +405,18 @@ class TestListFieldOptions:
 
     def test_nonexistent_field(self, session: requests.Session):
         result = list_field_options(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             field_name="NonexistentField12345",
         )
         assert result["fields"] == {}
 
     def test_all_fields_when_no_name(self, session: requests.Session):
         result = list_field_options(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
         )
         assert len(result["fields"]) > 3
 
@@ -390,7 +429,9 @@ class TestListFieldOptions:
 class TestListFieldIdsByName:
     def test_returns_field_map(self, session: requests.Session):
         fields = list_field_ids_by_name(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
         )
         assert isinstance(fields, dict)
         assert "Status" in fields
@@ -406,8 +447,11 @@ class TestGetItem:
     def _find_known_item(self, session: requests.Session) -> dict:
         """Find a known item on the board to test against."""
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query="is:pr", per_page=1,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query="is:pr",
+            per_page=1,
         )
         assert len(result["items"]) > 0
         return result["items"][0]
@@ -415,8 +459,11 @@ class TestGetItem:
     def test_lookup_by_short_ref(self, session: requests.Session):
         # Short refs expand using the default org, so we need an item from that org
         result = list_items(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
-            query=f"is:pr repo:{FILOZ_ORG}/*", per_page=1,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query=f"is:pr repo:{FILOZ_ORG}/*",
+            per_page=1,
         )
         assert len(result["items"]) > 0
         known = result["items"][0]
@@ -425,7 +472,9 @@ class TestGetItem:
         repo_name = repo_full.split("/", 1)[1] if "/" in repo_full else repo_full
 
         details = get_item(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             item_ref=f"{repo_name}#{number}",
         )
         assert details is not None
@@ -438,7 +487,9 @@ class TestGetItem:
         number = known["Id"]
 
         details = get_item(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             item_ref=f"{repo_full}#{number}",
         )
         assert details is not None
@@ -451,7 +502,9 @@ class TestGetItem:
             pytest.skip("No URL on known item")
 
         details = get_item(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             item_ref=url,
         )
         assert details is not None
@@ -459,14 +512,18 @@ class TestGetItem:
 
     def test_nonexistent_item(self, session: requests.Session):
         details = get_item(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             item_ref="nonexistent-repo-xyz#99999",
         )
         assert details is None
 
     def test_invalid_ref_format(self, session: requests.Session):
         details = get_item(
-            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
             item_ref="not-a-valid-ref",
         )
         assert details is None

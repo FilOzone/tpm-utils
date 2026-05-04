@@ -36,16 +36,19 @@ def session() -> requests.Session:
     if not token:
         try:
             token = subprocess.check_output(
-                ["gh", "auth", "token"], text=True,
+                ["gh", "auth", "token"],
+                text=True,
             ).strip()
         except (subprocess.CalledProcessError, FileNotFoundError):
             pytest.skip("No GITHUB_TOKEN and gh CLI unavailable")
 
     s = requests.Session()
-    s.headers.update({
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    })
+    s.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    )
     return s
 
 
@@ -65,7 +68,7 @@ class TestListBoardItemsDocstringExamples:
         runnable_queries: list[str] = []
         skipped_queries: list[str] = []
         for line in doc.splitlines():
-            match = re.match(r'^\s{2,}(.+?)\s+—\s+.+$', line)
+            match = re.match(r"^\s{2,}(.+?)\s+—\s+.+$", line)
             if not match:
                 continue
             query = match.group(1).strip()
@@ -73,7 +76,7 @@ class TestListBoardItemsDocstringExamples:
                 continue
 
             should_skip = False
-            if query.startswith("\"search text\""):
+            if query.startswith('"search text"'):
                 should_skip = True
             if query == "blocking:FilOzone/dealbot#470":
                 should_skip = True
@@ -103,7 +106,9 @@ class TestListBoardItemsDocstringExamples:
 
     def test_docstring_examples_return_non_empty(self, session: requests.Session):
         examples, _skipped = self._parse_docstring_query_examples()
-        assert len(examples) > 0, "No query examples parsed from list_board_items docstring"
+        assert len(examples) > 0, (
+            "No query examples parsed from list_board_items docstring"
+        )
         print(f"Extracted {len(examples)} docstring query examples:")
         for idx, query in enumerate(examples, start=1):
             print(f"  {idx:02d}. {query}")
@@ -111,8 +116,11 @@ class TestListBoardItemsDocstringExamples:
         empty_results: list[str] = []
         for query in examples:
             result = list_items(
-                session, org=GITHUB_ORG, project_number=GITHUB_PROJECT_NUMBER,
-                query=query, per_page=1,
+                session,
+                org=GITHUB_ORG,
+                project_number=GITHUB_PROJECT_NUMBER,
+                query=query,
+                per_page=1,
             )
             if len(result["items"]) == 0:
                 empty_results.append(query)
@@ -122,17 +130,26 @@ class TestListBoardItemsDocstringExamples:
             + "\n".join(f"- {q}" for q in empty_results)
         )
 
-    def test_docstring_skipped_examples_are_syntactically_accepted(self, session: requests.Session):
+    def test_docstring_skipped_examples_are_syntactically_accepted(
+        self, session: requests.Session
+    ):
         _examples, skipped = self._parse_docstring_query_examples()
-        assert len(skipped) > 0, "No skipped query examples parsed from list_board_items docstring"
-        print(f"Skipped {len(skipped)} docstring query examples (syntax-only validation):")
+        assert len(skipped) > 0, (
+            "No skipped query examples parsed from list_board_items docstring"
+        )
+        print(
+            f"Skipped {len(skipped)} docstring query examples (syntax-only validation):"
+        )
         for idx, query in enumerate(skipped, start=1):
             print(f"  {idx:02d}. {query}")
 
         for query in skipped:
             result = list_items(
-                session, org=GITHUB_ORG, project_number=GITHUB_PROJECT_NUMBER,
-                query=query, per_page=1,
+                session,
+                org=GITHUB_ORG,
+                project_number=GITHUB_PROJECT_NUMBER,
+                query=query,
+                per_page=1,
             )
             assert "items" in result
             assert "has_more" in result

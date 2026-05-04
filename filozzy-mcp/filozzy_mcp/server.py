@@ -49,7 +49,9 @@ BOARD_NAMES = [
 
 def _build_instructions() -> str:
     """Generate dynamic MCP instructions incorporating board aliases."""
-    names_str = ", ".join(f'"{n}"' for n in BOARD_NAMES) if BOARD_NAMES else "the project board"
+    names_str = (
+        ", ".join(f'"{n}"' for n in BOARD_NAMES) if BOARD_NAMES else "the project board"
+    )
     return (
         f"FilOzzy MCP server for managing the {BOARD_NAMES[0] if BOARD_NAMES else 'project board'} "
         f"(GitHub Projects v2 #{GITHUB_PROJECT_NUMBER} in the {GITHUB_ORG} org). "
@@ -74,10 +76,12 @@ def _build_session() -> requests.Session:
             "See the README for setup instructions."
         )
     session = requests.Session()
-    session.headers.update({
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    })
+    session.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    )
     return session
 
 
@@ -275,7 +279,11 @@ def list_board_items(
 
     lines = []
     for item in items:
-        display = {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
+        display = {
+            k: v
+            for k, v in item.items()
+            if not k.startswith("_") and v not in (None, "")
+        }
         lines.append(json.dumps(display, ensure_ascii=False))
 
     header = f"Found {len(items)} items"
@@ -284,7 +292,9 @@ def list_board_items(
     output = header + ":\n" + "\n".join(lines)
 
     if has_more:
-        output += f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+        output += (
+            f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+        )
 
     if verbose:
         output += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
@@ -365,7 +375,11 @@ def list_board_view_items(
 
     lines = []
     for item in items:
-        display = {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
+        display = {
+            k: v
+            for k, v in item.items()
+            if not k.startswith("_") and v not in (None, "")
+        }
         lines.append(json.dumps(display, ensure_ascii=False))
 
     header = f"Found {len(items)} items for view #{resolved['view_number']} ({resolved['view_name']})"
@@ -376,7 +390,9 @@ def list_board_view_items(
         output = order_warning + "\n\n" + output
 
     if has_more:
-        output += f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+        output += (
+            f"\n\n--- Next page ---\nPass this cursor to fetch more: {next_cursor}"
+        )
 
     if verbose:
         output += (
@@ -413,7 +429,11 @@ def get_board_item(item_ref: str) -> str:
     if details is None:
         return f"Item not found: {item_ref}"
 
-    display = {k: v for k, v in details.items() if not k.startswith("_") and v not in (None, "")}
+    display = {
+        k: v
+        for k, v in details.items()
+        if not k.startswith("_") and v not in (None, "")
+    }
     return json.dumps(display, ensure_ascii=False, indent=2)
 
 
@@ -540,7 +560,7 @@ def set_board_item_field(
 
         if new:
             from_part = f'from "{old}" ' if old else ""
-            return f"Updated {item_ref}: {field_name} {from_part}to \"{new}\""
+            return f'Updated {item_ref}: {field_name} {from_part}to "{new}"'
         else:
             was_part = f'(was "{old}")' if old else "(was already empty)"
             return f"Cleared {item_ref}: {field_name} {was_part}"
@@ -622,14 +642,10 @@ def bulk_set_board_item_field(
             new = r.get("new_value", "")
             if new:
                 from_part = f'from "{old}" ' if old else ""
-                lines.append(
-                    f"  ✓ {r['item_ref']}: {field_name} {from_part}to \"{new}\""
-                )
+                lines.append(f'  ✓ {r["item_ref"]}: {field_name} {from_part}to "{new}"')
             else:
                 was_part = f'cleared (was "{old}")' if old else "already empty"
-                lines.append(
-                    f"  ✓ {r['item_ref']}: {field_name} {was_part}"
-                )
+                lines.append(f"  ✓ {r['item_ref']}: {field_name} {was_part}")
         else:
             lines.append(f"  ✗ {r['item_ref']}: {r.get('error', 'unknown error')}")
 

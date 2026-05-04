@@ -110,6 +110,7 @@ query($projectId: ID!, $cursor: String) {
 # REST helpers
 # ---------------------------------------------------------------------------
 
+
 def _projects_v2_rest_headers(session: requests.Session) -> Dict[str, str]:
     """Headers for organization Project v2 REST endpoints."""
     h = {k: v for k, v in session.headers.items() if v is not None}
@@ -230,6 +231,7 @@ def enrich_pull_items_with_submitted_reviewers(
 # REST-to-GraphQL mapping (for board items fetched via REST)
 # ---------------------------------------------------------------------------
 
+
 def rest_board_item_to_graphql_node(item: Dict[str, Any]) -> Dict[str, Any]:
     """Map a REST list-item JSON object to GraphQL ``items.nodes`` shape."""
     field_nodes: List[Dict[str, Any]] = []
@@ -330,7 +332,9 @@ def fetch_project_board_items_rest_filtered(
     from github_projects_client.api import list_field_ids_by_name, fetch_items_rest
 
     fields_map = list_field_ids_by_name(
-        session, org=org, project_number=project_number,
+        session,
+        org=org,
+        project_number=project_number,
     )
     status_id = fields_map.get("Status")
     if status_id is None:

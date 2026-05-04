@@ -76,7 +76,9 @@ class TestFormatItemNodeId:
         assert result["_node_id"] == "PVTI_lADOBt3abc4AkXYZzgZ1234"
 
     def test_node_id_alongside_other_fields(self):
-        result = _format_item(MOCK_ITEM, ["Repository", "Id", "Title", "Node ID", "Status"])
+        result = _format_item(
+            MOCK_ITEM, ["Repository", "Id", "Title", "Node ID", "Status"]
+        )
         assert result["Node ID"] == "PVTI_lADOBt3abc4AkXYZzgZ1234"
         assert result["Title"] == "chore: release to production (main)"
         assert result["Id"] == "458"

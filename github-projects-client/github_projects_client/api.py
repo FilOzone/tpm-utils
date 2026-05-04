@@ -116,9 +116,7 @@ def fetch_items_rest(
         url: Optional[str] = cursor
         params: Optional[Dict[str, Any]] = None
     else:
-        url = (
-            f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
-        )
+        url = f"https://api.github.com/orgs/{org}/projectsV2/{project_number}/items"
         params = {
             "per_page": per_page,
             "q": query,
