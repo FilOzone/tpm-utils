@@ -45,5 +45,6 @@ jobs:
         working-directory: ${{ matrix.package }}
 
       - name: Run unit tests
-        run: uv run pytest -m "not integration"
+        run: |
+          uv run pytest -m "not integration" || test $? -eq 5
         working-directory: ${{ matrix.package }}

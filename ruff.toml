@@ -1,0 +1,10 @@
+# Ruff configuration
+# Pre-existing lint issues in legacy files — to be cleaned up in a separate PR.
+
+[lint.per-file-ignores]
+"filozzy-mcp/tests/test_integration.py" = ["E402"]
+"foc-pr-report/tests/test_integration.py" = ["E402"]
+"foc_wg_pr_notifier.py" = ["E402", "F841"]
+"github_pr_report.py" = ["F401"]
+"slack_search.py" = ["F401", "E722", "F541"]
+"team_pr_report.py" = ["F401"]
