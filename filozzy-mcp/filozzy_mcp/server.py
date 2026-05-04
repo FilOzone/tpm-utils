@@ -539,16 +539,11 @@ def set_board_item_field(
         )
 
         if new:
-            return (
-                f"Updated {item_ref}: {field_name} "
-                f"{'from \"' + old + '\" ' if old else ''}"
-                f'to "{new}"'
-            )
+            from_part = f'from "{old}" ' if old else ""
+            return f"Updated {item_ref}: {field_name} {from_part}to \"{new}\""
         else:
-            return (
-                f"Cleared {item_ref}: {field_name} "
-                f"{'(was \"' + old + '\")' if old else '(was already empty)'}"
-            )
+            was_part = f'(was "{old}")' if old else "(was already empty)"
+            return f"Cleared {item_ref}: {field_name} {was_part}"
     else:
         return f"Failed: {result.get('error', 'unknown error')}"
 
@@ -626,15 +621,14 @@ def bulk_set_board_item_field(
             old = r.get("old_value", "")
             new = r.get("new_value", "")
             if new:
+                from_part = f'from "{old}" ' if old else ""
                 lines.append(
-                    f"  ✓ {r['item_ref']}: {field_name} "
-                    f"{'from \"' + old + '\" ' if old else ''}"
-                    f'to "{new}"'
+                    f"  ✓ {r['item_ref']}: {field_name} {from_part}to \"{new}\""
                 )
             else:
+                was_part = f'cleared (was "{old}")' if old else "already empty"
                 lines.append(
-                    f"  ✓ {r['item_ref']}: {field_name} "
-                    f"{'cleared (was \"' + old + '\")' if old else 'already empty'}"
+                    f"  ✓ {r['item_ref']}: {field_name} {was_part}"
                 )
         else:
             lines.append(f"  ✗ {r['item_ref']}: {r.get('error', 'unknown error')}")
