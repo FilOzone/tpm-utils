@@ -18,21 +18,28 @@ When applying rules (whether by LLM or human):
 
 5. **Choose query strategy by scope.** When enforcing a *single rule* or verifying a *specific condition*, use targeted board queries (e.g., `is:pr -status:"🎉 Done" no:cycle-theme` to find PRs missing a Cycle Theme). When doing a *full rule sweep* across all rules, fetch all open items in one query (`is:pr -status:"🎉 Done"`) and evaluate each item against every rule — this avoids redundant overlapping queries and is more efficient overall. See `list_board_items` tool docs for filter syntax. **For field-gap checks** (R-FC-005, R-FC-006, R-FC-008), always use `no:field` filter queries (e.g., `no:cycle`, `no:cycle-theme`, `no:assignee`) rather than scanning bulk results — bulk output doesn't clearly distinguish "field is empty" from "field not returned."
 
-6. **Supplement board data with GitHub PR metadata efficiently.** The project board provides field values (Status, Cycle Theme, Milestone, etc.) but not PR-specific metadata like author, draft status, reviewer assignments, or review decisions. Many rules (R-PR-001, R-PR-002, R-PR-005, R-PR-006, R-PR-007, R-SL-001) need this metadata.
+6. **Supplement board data with GitHub PR metadata in two phases.** The project board provides field values (Status, Cycle Theme, Milestone, etc.) but not PR-specific metadata like author, draft status, reviewer assignments, or review decisions. Many rules (R-PR-001, R-PR-002, R-PR-005, R-PR-006, R-PR-007, R-SL-001) need this metadata. Use a two-phase approach to keep context lean.
 
-   **Per-repo `gh pr list`** — For each repo that has open PRs on the board, run `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests,reviews`. Run calls in parallel — one per repo. This is simple, handles pagination automatically, and isolates failures per repo. Include `reviews` (not just `reviewRequests`) so you can detect human reviewer engagement from submitted reviews, not just pending requests (see R-PR-007).
+   **Phase 1 — lightweight per-repo fetch.** For each repo that has open PRs on the board, run `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests`. Run calls in parallel — one per repo. **Do NOT include `reviews`** — full review bodies are the main source of context blowout (repos like `filecoin-project/curio` have many open PRs with lengthy review threads, most of which aren't on the board). Phase 1 handles:
+   - R-PR-001: `author` → assignee
+   - R-PR-002/003/004: `author` → bot/release detection
+   - R-PR-005: `isDraft`
+   - R-PR-007: `reviewRequests` → human reviewer engagement (pending requests)
+   - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2
 
-   **Why not a single batched GraphQL query?** A batched GraphQL call with aliases (one per repo) could reduce ~10 REST calls to 1, but in practice it's not worth the trade-off: it's harder to construct, subject to GitHub's query complexity limits, fails as a unit if any repo alias errors, and pulls excessive data for repos with many non-board PRs (e.g., `filecoin-project/curio`). Parallel REST calls are fast enough at this scale.
+   **Phase 2 — targeted per-PR deep dive.** For specific PRs identified by cross-referencing Phase 1 data with board status, run `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests`. Phase 2 candidates:
+   - **R-PR-006 (status determination):** Non-draft, non-bot PRs in Triage or In Progress — need `reviews` and `commits` to compare last human review timestamp vs last commit timestamp
+   - **R-SL-001 (approval verification):** PRs where `reviewDecision=APPROVED` but board status is not Approved — need `reviews` to identify the approving reviewer for a permission check
+   - **R-SL-007 (changes requested):** PRs where `reviewDecision=CHANGES_REQUESTED` in Awaiting Review or Approved — need `reviews` to confirm the reviewer has write access
+   - **R-PR-007 (review engagement):** PRs in Awaiting Review with no `reviewRequests` — need `reviews` to check for submitted (not just pending) human reviews
+
+   **Why two phases?** Phase 1 data is ~5 compact fields per PR. Phase 2 adds ~3–8 individual `gh pr view` calls, but only for PRs that actually need deep analysis. This replaces the previous approach of fetching full `reviews` for every open PR in every repo, which consumed thousands of context lines — mostly for PRs not on the board — and led to scanning errors and incomplete follow-through on In Progress candidates.
 
    **Detecting merged/closed PRs (R-PR-008, R-PR-009):** The per-repo `gh pr list --state open` call won't find merged or closed PRs. Use board-side filters instead:
    - `is:pr is:merged -status:"🎉 Done"` — merged PRs not yet marked Done
    - `is:pr is:closed -status:"🎉 Done"` — closed (not merged) PRs not yet marked Done
 
-   **Fallback: individual `gh pr view`** — For edge cases like permission checks on specific reviewers or PRs in external repos.
-
    **Avoid: `gh search prs`** — The search index has lag and a 200-result limit that can silently truncate results.
-
-   **Rationale:** The board API and GitHub PR API are separate systems. A full rule sweep touching 70+ items would otherwise require 70+ individual `gh pr view` calls. The per-repo approach reduces this to ~5–10 parallel calls.
 
 7. **Use bulk operations when possible.** When applying the same field+value to multiple items, use `bulk_set_board_item_field` instead of individual `set_board_item_field` calls. This is common when applying a rule that affects many items the same way (e.g., setting Cycle Theme on several PRs from the same repo, or moving multiple dependabot PRs from Triage to Todo). Even two items is worth batching — it saves a tool call and resolves field info only once.
 

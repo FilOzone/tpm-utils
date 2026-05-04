@@ -12,8 +12,9 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - Board: `is:pr -status:"🎉 Done"` (all non-Done PRs)
 - Board: `is:pr is:merged -status:"🎉 Done"` (merged PRs not yet Done — R-PR-008)
 - Board: `is:pr is:closed -status:"🎉 Done"` (closed PRs not yet Done — R-PR-009)
-- GitHub: `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests,reviews` (one call per repo with open PRs on the board)
-- GitHub (for R-PR-006 In Progress candidates only): `gh pr view -R <repo> <number> --json reviews,commits` to compare last human review timestamp vs last commit timestamp
+- Board (field gaps): `is:pr -status:"🎉 Done" no:assignee`, `is:pr -status:"🎉 Done" no:cycle-theme`, `is:pr -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:cycle` — use these targeted queries for field-gap checks (R-PR-001, R-FC-005, R-FC-006) instead of scanning the bulk PR list
+- GitHub Phase 1 (lightweight): `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests` (one call per repo — **no `reviews` field**)
+- GitHub Phase 2 (targeted): `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests` — only for PRs needing deep analysis (R-PR-006 status determination, R-SL-001 approval verification, R-SL-007 changes-requested check). See general behavior rule 6 for trigger conditions.
 
 **Rules applied:**
 - R-PR-001: Assign unassigned PRs to their author
