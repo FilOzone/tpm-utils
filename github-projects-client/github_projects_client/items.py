@@ -16,6 +16,7 @@ DEFAULT_FIELDS = [
 
 SYNTHETIC_FIELDS = {
     "repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees",
+    "node id", "node_id",
 }
 
 
@@ -112,6 +113,11 @@ def _extract_synthetic(content: Optional[Dict[str, Any]], key: str) -> str:
     return ""
 
 
+def _extract_node_id(item: Dict[str, Any]) -> str:
+    """Extract the project item node ID for use in mutations."""
+    return item.get("node_id") or item.get("id") or ""
+
+
 def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]:
     """Format a REST project item into a dict of field_name -> display_value."""
     content = item.get("content")
@@ -131,7 +137,9 @@ def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]
     result: Dict[str, str] = {}
 
     for name in field_names:
-        if name.lower() in SYNTHETIC_FIELDS:
+        if name.lower() in ("node id", "node_id"):
+            result[name] = _extract_node_id(item)
+        elif name.lower() in SYNTHETIC_FIELDS:
             result[name] = _extract_synthetic(content, name)
         elif name in field_values:
             result[name] = field_values[name]

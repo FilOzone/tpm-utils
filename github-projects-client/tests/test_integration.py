@@ -231,6 +231,20 @@ class TestListItems:
         )
         assert len(result["items"]) >= 1
 
+    def test_node_id_synthetic_field(self, session: requests.Session):
+        """Verify 'Node ID' can be requested and returns PVTI_ prefixed IDs."""
+        result = list_items(
+            session, org=FILOZ_ORG, project_number=PROJECT_NUMBER,
+            query="is:pr", fields=["Repository", "Id", "Title", "Node ID"],
+            per_page=3,
+        )
+        assert len(result["items"]) > 0
+        for item in result["items"]:
+            assert "Node ID" in item, "Node ID field not in output"
+            assert item["Node ID"].startswith("PVTI_"), (
+                f"Expected PVTI_ prefix, got: {item['Node ID']!r}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # resolve_view_url

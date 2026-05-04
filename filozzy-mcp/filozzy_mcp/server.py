@@ -17,6 +17,7 @@ from github_projects_client import (
     list_items,
     resolve_view_url,
     set_field_value,
+    set_field_value_bulk,
 )
 
 # ---------------------------------------------------------------------------
@@ -88,7 +89,12 @@ def list_board_items(
     cursor: Optional[str] = None,
     verbose: bool = False,
 ) -> str:
-    """List project board items with optional filter.
+    """List project board items, filtered via the `query` parameter.
+
+    IMPORTANT: The filter is passed via the `query` parameter (not `filter`).
+    Unknown parameters are silently ignored — if you pass a parameter name
+    that doesn't exist (e.g., `filter`), it will be dropped and the default
+    query will be used instead.
 
     The query uses GitHub Projects v2 filter syntax — the same syntax as the
     board UI search bar. Multiple filters are ANDed together.
@@ -101,7 +107,9 @@ def list_board_items(
     Reference: https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects
 
     Args:
-        query: Project search filter. Default: '-status:"🎉 Done"'.
+        query: Project search filter (this is the parameter to use for
+               filtering — do NOT pass a `filter` parameter, it doesn't exist).
+               Default: '-status:"🎉 Done"'.
         fields: Comma-separated list of fields to include.
                 Default: Repository, Id, url, Title, Status, Kind,
                 Milestone, Assignees, Cycle Theme, Dev Days Estimate.
@@ -211,6 +219,27 @@ def list_board_items(
       QUOTING: Use double quotes around values with spaces or special chars:
         status:"⌨️ In Progress"
         milestone:"M4.2: mainnet GA"
+
+      FIELD PRESENCE with custom fields:
+        -has:"cycle-theme"   — items where Cycle Theme is NOT set
+        has:"cycle-theme"    — items where Cycle Theme IS set
+        -has:"milestone"     — items with no milestone
+        Works with any project field name (use kebab-case).
+
+      TIPS — prefer targeted queries:
+        When looking for items that need a specific fix (e.g., missing field,
+        wrong status), build the query to match the rule condition directly
+        rather than fetching all items and scanning manually.
+
+        Examples:
+          is:pr -status:"🎉 Done" -has:"cycle-theme"
+            → PRs missing Cycle Theme (much better than fetching all PRs)
+          is:pr no:assignee -status:"🎉 Done"
+            → unassigned open PRs
+          is:pr status:"📌 Triage"
+            → PRs still in Triage (for applying triage rules)
+          is:pr is:merged -status:"🎉 Done"
+            → merged PRs not yet marked Done
 
       NOTE: Invalid filters return 0 results (they are not silently ignored).
 
@@ -475,6 +504,7 @@ def set_board_item_field(
         value: The value to set. For single-select fields, use the option name
                (e.g., "🐱 Todo", "⌨️ In Progress"). For iteration fields, use the
                iteration title. For number fields, use a numeric string.
+               Pass an empty string ("") to clear the field.
 
     Returns:
         Result of the mutation (success/failure, old and new values).
@@ -505,16 +535,105 @@ def set_board_item_field(
             },
             result="success",
             old_value=old,
-            new_value=new,
+            new_value=new if new else "(cleared)",
         )
 
-        return (
-            f"Updated {item_ref}: {field_name} "
-            f"{'from \"' + old + '\" ' if old else ''}"
-            f'to "{new}"'
-        )
+        if new:
+            from_part = f'from "{old}" ' if old else ""
+            return f"Updated {item_ref}: {field_name} {from_part}to \"{new}\""
+        else:
+            was_part = f'(was "{old}")' if old else "(was already empty)"
+            return f"Cleared {item_ref}: {field_name} {was_part}"
     else:
         return f"Failed: {result.get('error', 'unknown error')}"
+
+
+@mcp.tool()
+def bulk_set_board_item_field(
+    item_refs: str,
+    field_name: str,
+    value: str,
+) -> str:
+    """Set a project board field value on multiple items at once.
+
+    This is much more efficient than calling set_board_item_field repeatedly.
+    Field resolution (looking up field ID, option ID) is done once, and
+    GraphQL mutations are batched.
+
+    Args:
+        item_refs: Comma-separated item references
+                   (e.g., "dealbot#458, synapse-sdk#748, filecoin-pin#412").
+                   Also accepts raw project item node IDs (e.g., "PVTI_...")
+                   to skip the per-item lookup — useful when you already have
+                   node IDs from a prior list_board_items call. To get node IDs,
+                   include "Node ID" in the fields parameter of list_board_items.
+        field_name: Display name of the project field (e.g., "Status", "Cycle Theme").
+                    Use list_board_field_options to see valid values for a field.
+        value: The value to set on ALL items. For single-select fields, use the
+               option name (e.g., "🐱 Todo"). For iteration fields, use the
+               iteration title. For number fields, use a numeric string.
+               Pass an empty string ("") to clear the field on all items.
+
+    Returns:
+        Summary of changes with per-item old → new values and any failures.
+    """
+    refs = [r.strip() for r in item_refs.split(",") if r.strip()]
+    if not refs:
+        return "No item references provided."
+
+    session = _build_session()
+
+    result = set_field_value_bulk(
+        session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
+        item_refs=refs,
+        field_name=field_name,
+        value=value,
+    )
+
+    # Log each successful mutation individually
+    for r in result.get("results", []):
+        if r.get("success"):
+            log_action(
+                tool="bulk_set_board_item_field",
+                params={
+                    "org": GITHUB_ORG,
+                    "project_number": GITHUB_PROJECT_NUMBER,
+                    "item_ref": r["item_ref"],
+                    "field_name": field_name,
+                    "value": value,
+                },
+                result="success",
+                old_value=r.get("old_value", ""),
+                new_value=r.get("new_value", ""),
+            )
+
+    # Format output
+    lines = []
+    success_count = result.get("success_count", 0)
+    failure_count = result.get("failure_count", 0)
+    lines.append(f"Bulk update: {success_count} succeeded, {failure_count} failed")
+    lines.append("")
+
+    for r in result.get("results", []):
+        if r.get("success"):
+            old = r.get("old_value", "")
+            new = r.get("new_value", "")
+            if new:
+                from_part = f'from "{old}" ' if old else ""
+                lines.append(
+                    f"  ✓ {r['item_ref']}: {field_name} {from_part}to \"{new}\""
+                )
+            else:
+                was_part = f'cleared (was "{old}")' if old else "already empty"
+                lines.append(
+                    f"  ✓ {r['item_ref']}: {field_name} {was_part}"
+                )
+        else:
+            lines.append(f"  ✗ {r['item_ref']}: {r.get('error', 'unknown error')}")
+
+    return "\n".join(lines)
 
 
 @mcp.tool()

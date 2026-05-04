@@ -14,7 +14,7 @@ query($org: String!, $number: Int!) {
     organization(login: $org) {
         projectV2(number: $number) {
             id
-            fields(first: 50) {
+            fields(first: 100) {
                 nodes {
                     ... on ProjectV2SingleSelectField {
                         name
@@ -76,7 +76,12 @@ def list_field_options(
         {"org": org, "number": project_number},
     )
 
-    project = data["organization"]["projectV2"]
+    project = (data.get("organization") or {}).get("projectV2")
+    if not project:
+        raise Exception(
+            f"Project {project_number} not found in org '{org}'. "
+            "Check that the project number is correct and your token has access."
+        )
     project_id = project["id"]
     fields_data = project["fields"]["nodes"]
 

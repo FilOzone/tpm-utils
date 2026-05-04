@@ -20,7 +20,7 @@ query($org: String!, $number: Int!) {
           number
           name
           filter
-          fields(first: 50) {
+          fields(first: 100) {
             nodes {
               ... on ProjectV2FieldCommon {
                 name
