@@ -1,4 +1,4 @@
-"""Read tools for FOC project board (Projects v2)."""
+"""Item listing, compact formatting, and reference parsing for GitHub Projects v2."""
 
 from __future__ import annotations
 
@@ -6,14 +6,17 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from foc_pr_report.foc_project14_client import (
-    FILOZ_ORG,
-    PROJECT_NUMBER,
-    fetch_project_v2_items_rest,
-    graphql_query,
-    list_project_v2_field_ids_by_name,
-    resolve_view_url_filter,
-)
+from .api import fetch_items_rest, list_field_ids_by_name
+
+
+DEFAULT_FIELDS = [
+    "Repository", "Id", "url", "Title", "Status", "Kind",
+    "Milestone", "Assignees", "Cycle Theme", "Dev Days Estimate",
+]
+
+SYNTHETIC_FIELDS = {
+    "repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees",
+}
 
 
 def _format_field_value(value: Any) -> str:
@@ -126,10 +129,9 @@ def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]
         field_values[name] = _format_field_value(f.get("value"))
 
     result: Dict[str, str] = {}
-    synthetics = {"repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees"}
 
     for name in field_names:
-        if name.lower() in synthetics:
+        if name.lower() in SYNTHETIC_FIELDS:
             result[name] = _extract_synthetic(content, name)
         elif name in field_values:
             result[name] = field_values[name]
@@ -148,57 +150,46 @@ def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]
     return result
 
 
-def list_project_items(
+def list_items(
     session: requests.Session,
     *,
+    org: str,
+    project_number: int,
     query: str = '-status:"🎉 Done"',
     fields: Optional[List[str]] = None,
     per_page: int = 50,
     cursor: Optional[str] = None,
-    org: str = FILOZ_ORG,
-    project_number: int = PROJECT_NUMBER,
-    verbose: bool = False,
 ) -> Dict[str, Any]:
     """List project items with optional filter query.
 
     Uses cursor-based pagination: each call fetches one page from the REST API.
     Pass the returned ``next_cursor`` back to get the next page.
 
-    Args:
-        per_page: Number of items per page (default: 50, max: 100).
-        cursor: Opaque cursor from a previous call to resume pagination.
-
     Returns a dict with:
-        "items": list of formatted dicts
+        "items": list of compact formatted dicts (~200-300 bytes each)
         "next_cursor": cursor string to fetch the next page, or None
         "has_more": whether more pages are available
         "debug": dict with query details
     """
-    # Get field IDs so we can request them
-    field_map = list_project_v2_field_ids_by_name(
-        session, org=org, project_number=project_number, verbose=False,
+    field_map = list_field_ids_by_name(
+        session, org=org, project_number=project_number,
     )
 
-    # Default fields if none specified
     if fields is None:
-        fields = [
-            "Repository", "Id", "url", "Title", "Status", "Kind",
-            "Milestone", "Assignees", "Cycle Theme", "Dev Days Estimate",
-        ]
+        fields = list(DEFAULT_FIELDS)
 
     # Determine which REST field IDs to request
-    synthetics = {"repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees"}
     field_ids = []
     resolved_fields: List[str] = []
     for name in fields:
-        if name.lower() not in synthetics:
+        if name.lower() not in SYNTHETIC_FIELDS:
             for board_name, fid in field_map.items():
                 if board_name.lower() == name.lower():
                     field_ids.append(fid)
                     resolved_fields.append(f"{board_name} (id: {fid})")
                     break
 
-    fetch_result = fetch_project_v2_items_rest(
+    fetch_result = fetch_items_rest(
         session,
         org=org,
         project_number=project_number,
@@ -207,7 +198,6 @@ def list_project_items(
         per_page=per_page,
         max_pages=1,
         cursor=cursor,
-        verbose=False,
     )
     raw_items = fetch_result["items"]
 
@@ -234,157 +224,30 @@ def list_project_items(
 def list_fields(
     session: requests.Session,
     *,
-    org: str = FILOZ_ORG,
-    project_number: int = PROJECT_NUMBER,
+    org: str,
+    project_number: int,
 ) -> Dict[str, int]:
     """List all project field names and their REST numeric IDs."""
-    return list_project_v2_field_ids_by_name(
-        session, org=org, project_number=project_number, verbose=False,
+    return list_field_ids_by_name(
+        session, org=org, project_number=project_number,
     )
 
 
-# GraphQL query for project field options (single-select / iteration)
-FIELD_OPTIONS_QUERY = """
-query($org: String!, $number: Int!) {
-    organization(login: $org) {
-        projectV2(number: $number) {
-            id
-            fields(first: 50) {
-                nodes {
-                    ... on ProjectV2SingleSelectField {
-                        name
-                        id
-                        options {
-                            id
-                            name
-                        }
-                    }
-                    ... on ProjectV2IterationField {
-                        name
-                        id
-                        configuration {
-                            iterations {
-                                id
-                                title
-                                startDate
-                                duration
-                            }
-                            completedIterations {
-                                id
-                                title
-                                startDate
-                                duration
-                            }
-                        }
-                    }
-                    ... on ProjectV2Field {
-                        name
-                        id
-                        dataType
-                    }
-                }
-            }
-        }
-    }
-}
-"""
-
-
-def list_field_options(
+def get_item(
     session: requests.Session,
     *,
-    field_name: Optional[str] = None,
-    org: str = FILOZ_ORG,
-    project_number: int = PROJECT_NUMBER,
-) -> Dict[str, Any]:
-    """
-    List field options for single-select and iteration fields.
-
-    If field_name is given, returns options for that field only.
-    Otherwise returns all fields with their options.
-
-    Also returns the project node ID (needed for mutations).
-    """
-    data = graphql_query(
-        session,
-        FIELD_OPTIONS_QUERY,
-        {"org": org, "number": project_number},
-    )
-
-    project = data["organization"]["projectV2"]
-    project_id = project["id"]
-    fields_data = project["fields"]["nodes"]
-
-    result: Dict[str, Any] = {"project_id": project_id, "fields": {}}
-
-    for field in fields_data:
-        if not field:
-            continue
-        name = field.get("name")
-        if name is None:
-            continue
-
-        if field_name and name.lower() != field_name.lower():
-            continue
-
-        field_info: Dict[str, Any] = {
-            "id": field.get("id"),
-        }
-
-        # Single-select field
-        if "options" in field:
-            field_info["type"] = "single_select"
-            field_info["options"] = [
-                {"id": opt["id"], "name": opt["name"]}
-                for opt in field["options"]
-            ]
-
-        # Iteration field
-        elif "configuration" in field:
-            field_info["type"] = "iteration"
-            config = field["configuration"]
-            field_info["iterations"] = [
-                {
-                    "id": it["id"],
-                    "title": it["title"],
-                    "startDate": it.get("startDate"),
-                    "duration": it.get("duration"),
-                }
-                for it in config.get("iterations") or []
-            ]
-            field_info["completed_iterations"] = [
-                {
-                    "id": it["id"],
-                    "title": it["title"],
-                }
-                for it in config.get("completedIterations") or []
-            ]
-
-        # Other field types (text, number, date)
-        else:
-            field_info["type"] = field.get("dataType", "unknown")
-
-        result["fields"][name] = field_info
-
-    return result
-
-
-def get_item_details(
-    session: requests.Session,
-    *,
+    org: str,
+    project_number: int,
     item_ref: str,
-    org: str = FILOZ_ORG,
-    project_number: int = PROJECT_NUMBER,
 ) -> Optional[Dict[str, str]]:
     """
     Get details of a specific project item by reference.
 
     item_ref can be:
     - "repo#number" (e.g., "dealbot#111")
-    - "owner/repo#number" (e.g., "FilOzone/dealbot#111")
-    - A full URL (e.g., "https://github.com/FilOzone/dealbot/issues/111")
+    - "owner/repo#number" (e.g., "SomeOrg/dealbot#111")
+    - A full URL (e.g., "https://github.com/SomeOrg/dealbot/issues/111")
     """
-    # Parse the reference to get repo and number
     repo_filter = ""
     number = None
 
@@ -396,13 +259,10 @@ def get_item_details(
         except ValueError:
             return None
         if "/" in repo_part:
-            # "FilOzone/dealbot#111" -> "FilOzone/dealbot"
             repo_filter = repo_part
         elif repo_part:
-            # "dealbot#111" -> "FilOzone/dealbot" (assume org)
             repo_filter = f"{org}/{repo_part}"
     elif "github.com" in item_ref:
-        # Parse URL like https://github.com/FilOzone/dealbot/issues/111
         url_parts = item_ref.rstrip("/").split("/")
         try:
             number = int(url_parts[-1])
@@ -415,8 +275,6 @@ def get_item_details(
     if number is None:
         return None
 
-    # Make get_item_details a thin layer over list_project_items:
-    # ask the server for "repo:<owner/repo> <number>" and scan paginated results.
     if repo_filter:
         query = f"repo:{repo_filter} {number}"
     else:
@@ -425,8 +283,8 @@ def get_item_details(
     all_fields = ["Repository", "Id", "url", "Title", "Status", "Kind",
                   "Milestone", "Assignees", "Reviewers", "Cycle Theme",
                   "Dev Days Estimate", "Cycle"]
-    field_map = list_project_v2_field_ids_by_name(
-        session, org=org, project_number=project_number, verbose=False,
+    field_map = list_field_ids_by_name(
+        session, org=org, project_number=project_number,
     )
     for name in field_map:
         if name not in all_fields:
@@ -434,15 +292,14 @@ def get_item_details(
 
     cursor: Optional[str] = None
     while True:
-        result = list_project_items(
+        result = list_items(
             session,
+            org=org,
+            project_number=project_number,
             query=query,
             fields=all_fields,
             per_page=50,
             cursor=cursor,
-            org=org,
-            project_number=project_number,
-            verbose=False,
         )
 
         for item in result["items"]:
@@ -458,4 +315,3 @@ def get_item_details(
         cursor = result["next_cursor"]
 
     return None
-

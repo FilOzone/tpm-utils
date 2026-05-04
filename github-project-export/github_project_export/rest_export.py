@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 import requests
 
-from foc_pr_report.foc_project14_client import (
-    fetch_project_v2_items_rest,
-    list_project_v2_field_ids_by_name,
+from github_projects_client import (
+    fetch_items_rest as fetch_project_v2_items_rest,
+    list_field_ids_by_name as list_project_v2_field_ids_by_name,
 )
 
 from github_project_export import synthetic
@@ -184,7 +184,6 @@ def export_rows(
         session,
         org=org,
         project_number=project_number,
-        verbose=verbose,
     )
     columns, field_ids = build_columns(fields, board_map)
 
@@ -194,7 +193,6 @@ def export_rows(
         project_number=project_number,
         query=query,
         field_ids=field_ids if field_ids else None,
-        verbose=verbose,
     )
 
     return [_item_to_row(it, columns) for it in result["items"]]

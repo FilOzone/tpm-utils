@@ -1,4 +1,4 @@
-"""FilOzzy MCP server — FOC project board operations for GitHub Projects v2."""
+"""FilOzzy MCP server — project board operations for GitHub Projects v2."""
 
 from __future__ import annotations
 
@@ -9,26 +9,57 @@ from typing import Optional
 import requests
 from mcp.server import FastMCP
 
-from filozzy_mcp.action_log import read_recent_actions
-from filozzy_mcp.mutation_tools import set_item_field
-from filozzy_mcp.read_tools import (
-    get_item_details,
-    list_field_options,
-    list_fields,
-    list_project_items,
-    resolve_view_url_filter,
+from filozzy_mcp.action_log import log_action, read_recent_actions
+from github_projects_client import (
+    get_item,
+    list_field_options as client_list_field_options,
+    list_fields as client_list_fields,
+    list_items,
+    resolve_view_url,
+    set_field_value,
 )
 
-mcp = FastMCP(
-    "filozzy",
-    instructions=(
-        "FilOzzy MCP server for managing the FilOzone FOC project board "
-        "(GitHub Projects v2 #14). Use these tools to read and modify "
-        "project board items, fields, and statuses. "
+# ---------------------------------------------------------------------------
+# Configuration from environment
+# ---------------------------------------------------------------------------
+
+GITHUB_ORG = os.environ.get("GITHUB_ORG", "FilOzone")
+
+
+def _get_github_project_number() -> int:
+    """Read and validate the GitHub project number from environment."""
+    raw_value = os.environ.get("GITHUB_PROJECT_NUMBER", "14")
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "GITHUB_PROJECT_NUMBER environment variable must be set to an "
+            f"integer project number; got {raw_value!r}."
+        ) from exc
+
+
+GITHUB_PROJECT_NUMBER = _get_github_project_number()
+BOARD_NAMES = [
+    n.strip()
+    for n in os.environ.get("BOARD_NAMES", "FOC Board,FOC Project Board").split(",")
+    if n.strip()
+]
+
+
+def _build_instructions() -> str:
+    """Generate dynamic MCP instructions incorporating board aliases."""
+    names_str = ", ".join(f'"{n}"' for n in BOARD_NAMES) if BOARD_NAMES else "the project board"
+    return (
+        f"FilOzzy MCP server for managing the {BOARD_NAMES[0] if BOARD_NAMES else 'project board'} "
+        f"(GitHub Projects v2 #{GITHUB_PROJECT_NUMBER} in the {GITHUB_ORG} org). "
+        f"Also known as: {names_str}. "
+        "Use these tools to read and modify project board items, fields, and statuses. "
         "For issue/PR-level operations (assignees, milestones, reviewers), "
         "use the `gh` CLI directly instead."
-    ),
-)
+    )
+
+
+mcp = FastMCP("filozzy", instructions=_build_instructions())
 
 
 def _build_session() -> requests.Session:
@@ -57,7 +88,7 @@ def list_board_items(
     cursor: Optional[str] = None,
     verbose: bool = False,
 ) -> str:
-    """List FOC project board items with optional filter.
+    """List project board items with optional filter.
 
     The query uses GitHub Projects v2 filter syntax — the same syntax as the
     board UI search bar. Multiple filters are ANDed together.
@@ -193,13 +224,14 @@ def list_board_items(
     if fields:
         field_list = [f.strip() for f in fields.split(",")]
 
-    result = list_project_items(
+    result = list_items(
         session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
         query=query,
         fields=field_list,
         per_page=per_page,
         cursor=cursor,
-        verbose=verbose,
     )
     items = result["items"]
     debug = result["debug"]
@@ -212,7 +244,6 @@ def list_board_items(
             msg += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
         return msg
 
-    # Format as readable text (exclude internal _node_id)
     lines = []
     for item in items:
         display = {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
@@ -243,7 +274,7 @@ def list_board_view_items(
     """List project items for a GitHub project view URL.
 
     This resolves the effective filter from the view URL and then delegates to
-    list_board_items/list_project_items.
+    list_board_items/list_items.
 
     Behavior:
     - Uses the saved view filter from GitHub (project view metadata).
@@ -261,7 +292,7 @@ def list_board_view_items(
         verbose: If true, include resolved view/filter debug details.
     """
     session = _build_session()
-    resolved = resolve_view_url_filter(session, view_url=view_url)
+    resolved = resolve_view_url(session, view_url=view_url)
 
     field_list = None
     if fields:
@@ -275,15 +306,14 @@ def list_board_view_items(
             "field order, which may differ from the live UI column order."
         )
 
-    result = list_project_items(
+    result = list_items(
         session,
+        org=resolved["org"],
+        project_number=resolved["project_number"],
         query=resolved["effective_filter"],
         fields=field_list,
         per_page=per_page,
         cursor=cursor,
-        org=resolved["org"],
-        project_number=resolved["project_number"],
-        verbose=verbose,
     )
 
     items = result["items"]
@@ -344,7 +374,12 @@ def get_board_item(item_ref: str) -> str:
         All field values for the item.
     """
     session = _build_session()
-    details = get_item_details(session, item_ref=item_ref)
+    details = get_item(
+        session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
+        item_ref=item_ref,
+    )
 
     if details is None:
         return f"Item not found: {item_ref}"
@@ -355,13 +390,17 @@ def get_board_item(item_ref: str) -> str:
 
 @mcp.tool()
 def list_board_fields() -> str:
-    """List all fields on the FOC project board and their REST numeric IDs.
+    """List all fields on the project board and their REST numeric IDs.
 
     Returns:
         List of field names available on the project.
     """
     session = _build_session()
-    fields = list_fields(session)
+    fields = client_list_fields(
+        session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
+    )
 
     lines = [f"  {name} (id: {fid})" for name, fid in sorted(fields.items())]
     return f"Project fields ({len(fields)}):\n" + "\n".join(lines)
@@ -381,7 +420,12 @@ def list_board_field_options(field_name: str) -> str:
         Available options/values for the field.
     """
     session = _build_session()
-    data = list_field_options(session, field_name=field_name)
+    data = client_list_field_options(
+        session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
+        field_name=field_name,
+    )
 
     fields = data.get("fields", {})
     if not fields:
@@ -437,8 +481,10 @@ def set_board_item_field(
     """
     session = _build_session()
 
-    result = set_item_field(
+    result = set_field_value(
         session,
+        org=GITHUB_ORG,
+        project_number=GITHUB_PROJECT_NUMBER,
         item_ref=item_ref,
         field_name=field_name,
         value=value,
@@ -447,9 +493,24 @@ def set_board_item_field(
     if result.get("success"):
         old = result.get("old_value", "")
         new = result.get("new_value", "")
+
+        log_action(
+            tool="set_board_item_field",
+            params={
+                "org": GITHUB_ORG,
+                "project_number": GITHUB_PROJECT_NUMBER,
+                "item_ref": item_ref,
+                "field_name": field_name,
+                "value": value,
+            },
+            result="success",
+            old_value=old,
+            new_value=new,
+        )
+
         return (
             f"Updated {item_ref}: {field_name} "
-            f"{'from "' + old + '" ' if old else ''}"
+            f"{'from \"' + old + '\" ' if old else ''}"
             f'to "{new}"'
         )
     else:

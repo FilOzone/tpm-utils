@@ -4,11 +4,23 @@ version = "0.1.0"
 description = "Markdown report for FilOzone GitHub Project 14 (FOC) PR workload by person and status"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["requests>=2.31"]
+dependencies = [
+    "requests>=2.31",
+    "github-projects-client",
+]
 
 [project.scripts]
 foc-pr-report = "foc_pr_report.cli:main"
 
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
 [build-system]
 requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+markers = ["integration: hits live GitHub API (requires GITHUB_TOKEN)"]
+
+[tool.uv.sources]
+github-projects-client = { path = "../github-projects-client", editable = true }

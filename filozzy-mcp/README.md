@@ -1,6 +1,6 @@
 # FilOzzy MCP Server
 
-MCP server for managing the FilOzone FOC project board (GitHub Projects v2 #14).
+MCP server for managing GitHub Projects v2 boards. Configurable via environment variables to work with any org/project.
 
 Fills the gap that GitHub's official MCP and `gh` CLI don't cover: **reading and setting project-level field values** (Status, Cycle Theme, Dev Days Estimate, Cycle, etc.).
 
@@ -48,7 +48,10 @@ Create a `.mcp.json` file in the `tpm-utils/` root (this file is gitignored):
       "command": "uv",
       "args": ["--directory", "./filozzy-mcp", "run", "filozzy-mcp"],
       "env": {
-        "GITHUB_TOKEN": "<paste output of gh auth token>"
+        "GITHUB_TOKEN": "<paste output of gh auth token>",
+        "GITHUB_ORG": "FilOzone",
+        "GITHUB_PROJECT_NUMBER": "14",
+        "BOARD_NAMES": "FOC Board,FOC Project Board"
       }
     }
   }
@@ -63,10 +66,22 @@ Add the server to your global Claude Code settings. You can do this via the CLI:
 claude mcp add filozzy \
   --command uv \
   --args "--directory" "/absolute/path/to/tpm-utils/filozzy-mcp" "run" "filozzy-mcp" \
-  --env GITHUB_TOKEN="<paste output of gh auth token>"
+  --env GITHUB_TOKEN="<paste output of gh auth token>" \
+  --env GITHUB_ORG="FilOzone" \
+  --env GITHUB_PROJECT_NUMBER="14" \
+  --env BOARD_NAMES="FOC Board,FOC Project Board"
 ```
 
 Or edit `~/.claude/settings.json` directly and add the same JSON block as Option A under `mcpServers`.
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `GITHUB_TOKEN` | Yes | — | GitHub PAT with `project`, `repo`, `read:org` scopes |
+| `GITHUB_ORG` | No | `FilOzone` | GitHub organization that owns the project |
+| `GITHUB_PROJECT_NUMBER` | No | `14` | Project number within the org |
+| `BOARD_NAMES` | No | `FOC Board,FOC Project Board` | Comma-separated aliases for the board (used in MCP instructions to help LLMs route requests) |
 
 ### 4. Restart Claude Code
 
@@ -106,26 +121,24 @@ Every mutation is logged to `action_log.jsonl`.
 
 ## Testing
 
-Integration tests run against the live GitHub API (read-only, no mutations).
-
-### Prerequisites
-
-- A GitHub token with `project` and `repo` scopes (same as the server itself)
-- Network access to `api.github.com`
+Tests are split across packages. Shared client tests live in `github-projects-client/`;
+MCP-layer-specific tests (docstring validation) live here.
 
 ### Run tests
 
 ```bash
+# This package only (MCP-layer tests)
 cd filozzy-mcp
-GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v
+GITHUB_TOKEN=$(gh auth token) uv run pytest tests/ -v
+
+# All packages from repo root
+./scripts/test-all.sh
 ```
 
-Tests cover:
-- REST API fetcher (pagination, cursors, capping, invalid filters)
-- Item listing (default/custom fields, time-based filters, combined filters)
-- Field discovery and field option enumeration
-- Item lookup by short ref, full ref, and URL
-- Cursor-based pagination with no overlap between pages
+### Prerequisites
+
+- A GitHub token with `project` and `repo` scopes
+- Network access to `api.github.com`
 
 ## Example usage (in Claude Code)
 
@@ -165,17 +178,26 @@ This is a [known problem across the GitHub MCP server](https://github.com/github
 
 For the full evaluation, see [FilOzone/tpm-utils#25 (comment)](https://github.com/FilOzone/tpm-utils/issues/25#issuecomment-4314857318).
 
+## Architecture
+
+FilOzzy MCP is a thin adapter layer on top of
+[`github-projects-client`](../github-projects-client/), a reusable Python library for
+GitHub Projects v2. The shared client handles all API communication; the MCP
+server adds:
+
+- Environment-based board configuration
+- Response formatting for LLM consumption
+- Audit logging (`action_log.jsonl`)
+- MCP tool descriptions with query syntax reference
+
 ## Next steps
 
 1. ~~Clarify positioning~~ — Done. See FAQ above. filozzy-mcp exists because
    GitHub's official MCP returns ~8KB per item with no way to suppress the
    content blob. Tracking upstream fix at [github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383).
-2. Evaluate generalizing both `filozzy-mcp` and
-   `foc-pr-report/foc_pr_report/foc_project14_client.py` so they work for any
-   GitHub Projects v2 board, not just `https://github.com/orgs/FilOzone/projects/14`.
-3. If generalized, factor the shared project-board client logic out of
-   `foc-pr-report` into a reusable module/package, since the API surface is now
-   broader than FOC-specific reporting.
-4. If no existing generic GitHub Projects MCP is suitable, review FilOzzy MCP
-   docstrings/tool descriptions against GitHub MCP tool descriptions and improve
-   wording, guidance, and examples accordingly.
+2. ~~Generalize for any board~~ — Done. The MCP server now reads org/project
+   from environment variables. Shared client logic extracted to `github-projects-client`.
+3. ~~Factor shared client~~ — Done. `github-projects-client/` is a standalone package
+   used by `filozzy-mcp`, `foc-pr-report`, and `github-project-export`.
+4. Review FilOzzy MCP docstrings/tool descriptions against GitHub MCP tool
+   descriptions and improve wording, guidance, and examples accordingly.
