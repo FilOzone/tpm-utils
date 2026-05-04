@@ -53,6 +53,10 @@ GITHUB_TOKEN=$(gh auth token) uv run pytest tests/ -v
 
 Tests are integration tests against a live GitHub Projects v2 board.
 
+## Known gaps
+
+- `list_items` does not surface built-in item properties like `updated_at` and `creator` — see [foc-board-rules/future-ideas.md](../foc-board-rules/future-ideas.md#expose-built-in-item-properties-in-list_board_items).
+
 ## Design contract
 
 See [specs/003-generalize-mcp-client/contracts/shared-client-api.md](../specs/003-generalize-mcp-client/contracts/shared-client-api.md).
