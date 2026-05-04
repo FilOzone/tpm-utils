@@ -22,12 +22,12 @@ Rules governing how items should transition through board statuses.
 
 ## R-SL-001: PRs with approved reviews should be "Approved by reviewer"
 
-**When:** A PR has at least one approving review from a user **with write access to the repo** and no outstanding blocking "changes requested" reviews from a write-access reviewer, but its status is "🔎 Awaiting review" or "⌨️ In Progress".
+**When:** A PR has at least one approving review from a user **with write/maintain/admin access to the repo** and no outstanding blocking "changes requested" reviews from a reviewer with merge authority, but its status is "🔎 Awaiting review" or "⌨️ In Progress".
 **Action:** Set Status to `✔️ Approved by reviewer`.
-**Verification:** Before moving, confirm the approving reviewer has write (or admin) access to the repository. An approval from someone without merge permissions doesn't unblock the PR — it still needs a maintainer review. Use `gh api repos/{owner}/{repo}/collaborators/{username}/permission --jq '.permission'` to check (look for `write` or `admin`). When evaluating "changes requested" — only changes requested by reviewers with write access block the transition. A "changes requested" from a read-only reviewer doesn't prevent moving to Approved if a write-access reviewer has approved.
+**Verification:** Before moving, confirm the approving reviewer has write, maintain, or admin access to the repository. An approval from someone without merge permissions doesn't unblock the PR — it still needs a maintainer review. Use `gh api repos/{owner}/{repo}/collaborators/{username}/permission --jq '.permission'` to check (look for `write`, `maintain`, or `admin`). When evaluating "changes requested" — only changes requested by reviewers with write access block the transition. A "changes requested" from a read-only reviewer doesn't prevent moving to Approved if a write-access reviewer has approved.
 **Superseding changes requested:** A more recent write-access approval can supersede an older write-access "changes requested" review. Treat the changes requested as resolved if *either* condition is met: (1) new commits were pushed after the "changes requested" review and before the approval — this implies the feedback was addressed; or (2) the approval is unconditional (i.e., does not contain language like "approving assuming you incorporate X's feedback" or "approve pending changes from [reviewer]"). If the approving comment defers to the previous reviewer's feedback, the "changes requested" is still blocking — flag for human review rather than auto-transitioning.
-**Flagging context:** When flagging a PR where an approval doesn't have sufficient permissions, always report the full reviewer picture — not just the insufficient approval. Include who else is requested or has reviewed, and whether any of them *do* have write access. The flag should help the human understand whether action is needed, not just that a permission check failed.
-**Why:** PRs with maintainer-level approval are ready for merge regardless of their current board status. A PR in "In Progress" can receive an approval while the author is still pushing commits — the board should reflect that the review gate has passed. Only write-access reviewer objections ("changes requested") should block this transition.
+**Flagging context:** When flagging a PR where an approval doesn't have sufficient permissions, always report the full reviewer picture — not just the insufficient approval. Include who else is requested or has reviewed, and whether any of them *do* have merge authority (write/maintain/admin). The flag should help the human understand whether action is needed, not just that a permission check failed.
+**Why:** PRs with maintainer-level approval are ready for merge regardless of their current board status. A PR in "In Progress" can receive an approval while the author is still pushing commits — the board should reflect that the review gate has passed. Only objections from reviewers with merge authority ("changes requested") should block this transition.
 
 ## R-SL-002: Items should not skip backwards without reason
 
@@ -61,9 +61,9 @@ Rules governing how items should transition through board statuses.
 
 ## R-SL-007: PRs with changes requested should move back to In Progress
 
-**When:** A PR has status "🔎 Awaiting review" or "✔️ Approved by reviewer" and receives a "changes requested" review from a user **with write access to the repo**.
+**When:** A PR has status "🔎 Awaiting review" or "✔️ Approved by reviewer" and receives a "changes requested" review from a user **with write/maintain/admin access to the repo**.
 **Action:** Set Status to `⌨️ In Progress`.
-**Why:** A write-access reviewer requesting changes means the PR needs rework before it can proceed. The board should reflect that it's back in active development, not waiting for review. This is the counterpart to R-SL-001 — just as an approval advances the status, a changes-requested pushes it back. Only write-access reviewer objections trigger this; a "changes requested" from a read-only reviewer doesn't warrant a status change since it doesn't block the PR.
+**Why:** A reviewer with merge authority requesting changes means the PR needs rework before it can proceed. The board should reflect that it's back in active development, not waiting for review. This is the counterpart to R-SL-001 — just as an approval advances the status, a changes-requested pushes it back. Only objections from reviewers with merge authority trigger this; a "changes requested" from a read-only reviewer doesn't warrant a status change since it doesn't block the PR.
 
 ## R-SL-008: Issues with linked PRs should be "Issue awaiting PR merge"
 

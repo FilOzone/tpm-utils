@@ -9,7 +9,7 @@ Work through stages in order. Complete all actions and reporting for one stage b
 **Goal:** Apply PR hygiene, status lifecycle, and field completeness rules to all open PRs.
 
 **Queries:**
-- Board: `is:pr -status:"🎉 Done"` (all open PRs)
+- Board: `is:pr -status:"🎉 Done"` (all non-Done PRs)
 - Board: `is:pr is:merged -status:"🎉 Done"` (merged PRs not yet Done — R-PR-008)
 - Board: `is:pr is:closed -status:"🎉 Done"` (closed PRs not yet Done — R-PR-009)
 - GitHub: `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests,reviews` (one call per repo with open PRs on the board)
@@ -25,8 +25,8 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - R-PR-007: Awaiting Review PRs must have human reviewer engagement (flag if not)
 - R-PR-008: Merged PRs → Done
 - R-PR-009: Closed PRs → Done
-- R-SL-001: PRs with write-access approval (in Awaiting Review or In Progress) → Approved by reviewer
-- R-SL-007: PRs with write-access changes requested (in Awaiting Review or Approved) → In Progress
+- R-SL-001: PRs with merge-authority approval (in Awaiting Review or In Progress) → Approved by reviewer
+- R-SL-007: PRs with merge-authority changes requested (in Awaiting Review or Approved) → In Progress
 - R-SL-006: PRs in "Issue awaiting PR merge" → flag (almost always a mistake)
 - R-FC-004: Set Cycle Theme from repo defaults
 - R-FC-005: All PRs should have a Cycle Theme
@@ -52,9 +52,9 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - Automated: Cycle Theme (R-FC-004), Status → Todo (R-SL-004 when both fields are set), linked-PR status transitions (R-SL-008)
 - Flagged for human: Missing Milestone when no parent to inherit from
 
-## Stage 3: Open issues — field completeness
+## Stage 3: Non-Done issues — field completeness
 
-**Goal:** Ensure all open issues have Cycle Theme and Milestone.
+**Goal:** Ensure all non-Done issues have Cycle Theme and Milestone.
 
 **Queries:**
 - `is:issue -status:"🎉 Done" no:cycle-theme`

@@ -13,7 +13,7 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `sweep-playbook.md` — The stage-by-stage workflow you will follow
    - `pr-hygiene.md` — Rules R-PR-001 through R-PR-009
    - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
-   - `field-completeness.md` — Rules R-FC-001 through R-FC-009
+   - `field-completeness.md` — Rules R-FC-001 through R-FC-010
 
 2. **Check the current cycle**: Run `list_board_field_options("Cycle")` to find the current active iteration.
 

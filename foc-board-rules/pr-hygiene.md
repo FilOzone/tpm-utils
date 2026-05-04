@@ -45,7 +45,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 4. **No human reviewer has engaged yet** (only bot reviews or no reviews at all) → `🔎 Awaiting review`. The PR needs initial review.
 
 **How to check:** Use `gh pr view -R <repo> <number> --json reviews,commits --jq '{reviews: [.reviews[] | {author: .author.login, state: .state, submittedAt: .submittedAt}], lastCommit: .commits[-1].committedDate}'` to compare the last human review timestamp against the last commit timestamp. Only needed for PRs where the per-repo `gh pr list` data shows human review engagement.
-**Why:** Non-draft, non-bot PRs should always leave Triage, and In Progress PRs may need re-evaluation. But the destination depends on review state — not every PR goes to Awaiting Review. A PR with unaddressed feedback belongs in In Progress, a PR with a write-access approval belongs in Approved, and a PR with no feedback or addressed feedback belongs in Awaiting Review. This is the counterpart to R-PR-005: when a draft PR becomes non-draft, it advances — but the destination depends on what reviewers have already said.
+**Why:** Non-draft, non-bot PRs should always leave Triage, and In Progress PRs may need re-evaluation. But the destination depends on review state — not every PR goes to Awaiting Review. A PR with unaddressed feedback belongs in In Progress, a PR with a merge-authority approval belongs in Approved, and a PR with no feedback or addressed feedback belongs in Awaiting Review. This is the counterpart to R-PR-005: when a draft PR becomes non-draft, it advances — but the destination depends on what reviewers have already said.
 
 ## R-PR-007: Awaiting Review PRs must have human reviewer engagement
 
