@@ -135,7 +135,7 @@ When contributing to this repository:
 - Keep commit messages informative and professional
 
 ## Active Technologies
-- Python >=3.10 (existing constraint from all `pyproject.toml` files) + `requests>=2.31` (shared client), `mcp>=1.0` (MCP server only) (003-generalize-mcp-client)
+- Python >=3.13 (constraint from all `pyproject.toml` files) + `requests>=2.31` (shared client), `mcp>=1.0` (MCP server only) (003-generalize-mcp-client)
 - `action_log.jsonl` (append-only, MCP layer only) (003-generalize-mcp-client)
 
 ---
