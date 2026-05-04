@@ -24,7 +24,7 @@
   ],
   "milestones": [
     {
-      // Close M4.1: mainnet ready (sync description + date from source of truth)
+      // Close M4.1: mainnet ready (sync date from source of truth, description set to pointer URL)
       "referenceMilestoneUrl": "https://github.com/FilOzone/filecoin-services/milestone/7",
       "state": "closed"
     },

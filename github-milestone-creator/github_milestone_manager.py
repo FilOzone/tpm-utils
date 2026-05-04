@@ -248,6 +248,7 @@ class GitHubMilestoneManager:
         title: str,
         description: Optional[str] = None,
         due_on: Optional[str] = None,
+        state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new milestone."""
         url = f"{self.BASE_URL}/repos/{owner}/{repo}/milestones"
@@ -257,6 +258,8 @@ class GitHubMilestoneManager:
             data["description"] = description
         if due_on is not None:
             data["due_on"] = due_on
+        if state is not None:
+            data["state"] = state
 
         response = self._api_request("POST", url, json=data)
         response.raise_for_status()
@@ -491,6 +494,7 @@ class GitHubMilestoneManager:
                         milestone_name,
                         description=description,
                         due_on=due_date,
+                        state=state,
                     )
                     result["milestone_number"] = created["number"]
                     result["action"] = "created"
