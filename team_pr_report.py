@@ -8,7 +8,6 @@ and generates a report with pretty-formatted tables.
 
 import os
 import sys
-import json
 import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Any

@@ -11,7 +11,7 @@ import sys
 import json
 import requests
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import argparse
 import time
 from dataclasses import dataclass, asdict
@@ -181,7 +181,7 @@ class SlackSearcher:
             try:
                 dt = datetime.fromtimestamp(float(timestamp))
                 date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-            except:
+            except Exception:
                 date_str = timestamp
         else:
             date_str = 'Unknown'
@@ -238,7 +238,7 @@ class SlackSearcher:
         # Limit to specified count
         messages = messages[:count]
         
-        print(f"Resolving channel and user names...", file=sys.stderr)
+        print("Resolving channel and user names...", file=sys.stderr)
         
         search_results = []
         for i, message in enumerate(messages, 1):
@@ -254,7 +254,7 @@ class SlackSearcher:
                 try:
                     dt = datetime.fromtimestamp(float(timestamp))
                     date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-                except:
+                except Exception:
                     date_str = timestamp
             else:
                 date_str = 'Unknown'

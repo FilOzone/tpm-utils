@@ -22,13 +22,13 @@ import subprocess
 import pytest
 import requests
 
-pytestmark = pytest.mark.integration
-
 from foc_pr_report.pr_enrichment import (
     fetch_project_board_items_rest_filtered,
     field_values_by_name,
 )
 from foc_pr_report.report import BASE_FILTER, aggregate_rows, render_full_markdown
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="session")

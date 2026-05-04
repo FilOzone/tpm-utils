@@ -23,10 +23,10 @@ import subprocess
 import pytest
 import requests
 
-pytestmark = pytest.mark.integration
-
 from github_projects_client import list_items
 from filozzy_mcp.server import list_board_items, GITHUB_ORG, GITHUB_PROJECT_NUMBER
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="session")

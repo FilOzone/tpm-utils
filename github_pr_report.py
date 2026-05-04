@@ -8,7 +8,6 @@ a report with open non-draft PR counts and detailed PR summaries.
 
 import os
 import sys
-import json
 import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Any

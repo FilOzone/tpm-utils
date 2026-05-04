@@ -26,7 +26,7 @@ _FOC_PR_REPORT_DIR = os.path.join(_REPO_ROOT, "foc-pr-report")
 if _FOC_PR_REPORT_DIR not in sys.path:
     sys.path.insert(0, _FOC_PR_REPORT_DIR)
 
-from foc_pr_report.pr_enrichment import (
+from foc_pr_report.pr_enrichment import (  # noqa: E402
     fetch_project_board_items_rest_filtered,
     field_values_by_name,
 )
@@ -395,8 +395,6 @@ class FOCWGNotifier:
         messages = []
         current_blocks = []
         message_num = 1
-        total_messages = 1  # Will be calculated if we need to split
-        
         # Compact header for first message
         header_blocks = [
             {
@@ -424,9 +422,6 @@ class FOCWGNotifier:
             prs_per_message = blocks_per_message - len(prs_by_repo)  # Rough estimate
             if prs_per_message < 10:
                 prs_per_message = 10  # Minimum
-            total_messages = (len(prs_sorted) + prs_per_message - 1) // prs_per_message
-        else:
-            total_messages = 1
         
         current_blocks.extend(header_blocks)
 
@@ -505,7 +500,6 @@ class FOCWGNotifier:
                 
                 # Dates - parse ISO format dates
                 created_at = pr.get('createdAt', '')
-                updated_at = pr.get('updatedAt', '')
                 try:
                     if created_at:
                         created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).strftime('%Y-%m-%d')
@@ -513,14 +507,6 @@ class FOCWGNotifier:
                         created_date = 'Unknown'
                 except (ValueError, AttributeError):
                     created_date = 'Unknown'
-                
-                try:
-                    if updated_at:
-                        updated_date = datetime.fromisoformat(updated_at.replace('Z', '+00:00')).strftime('%Y-%m-%d')
-                    else:
-                        updated_date = 'Unknown'
-                except (ValueError, AttributeError):
-                    updated_date = 'Unknown'
                 
                 # Project fields
                 project_fields = pr.get('_project_fields', {})
