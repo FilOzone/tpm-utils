@@ -4,7 +4,7 @@ Export items from a **GitHub Organization Project (Projects v2)** to **TSV** usi
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.13+
 - `uv`
 - GitHub token with **`read:project`** (and access to the org project), e.g.:
 
