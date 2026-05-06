@@ -19,12 +19,13 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
 
 3. **Note today's date** for time-based queries (staleness checks, recently-done window).
 
-## Your tools
+## Required tools
 
-- **FilOzzy MCP server** (`filozzy` tools): Board queries and mutations
-- **GitHub MCP server** (`github` tools): Reading issues, PRs, repos
-- **`gh` CLI**: PR metadata, reviewer permissions, assignee mutations, GraphQL queries
-- **Bash**: Running `gh` commands and other shell operations
+The sweep agent **must** have access to the following. If any are missing, stop and ask the human to configure them before proceeding.
+
+- **FilOzzy MCP server** (`filozzy` tools): Board queries and mutations. This is non-negotiable — without it you cannot read or write board fields.
+- **GitHub MCP server** (`github` tools) **or** **`gh` CLI** (via Bash): At least one of these must be available for reading issues, PRs, reviewer permissions, assignee mutations, and GraphQL queries. The `gh` CLI is preferred for batch operations (Phase 1/Phase 2 metadata, permission checks, REST mutations) due to its flexibility with `--json`, `--jq`, and `gh api`.
+- **Bash**: Running `gh` commands and other shell operations.
 
 ## How to work
 
@@ -60,3 +61,5 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 5. **Use full org/repo refs** for items in `filecoin-project` org (e.g., `filecoin-project/filecoin-pin#123` not `filecoin-pin#123`). The short form may not resolve with FilOzzy tools.
 
 6. **zOrganizing Items are excluded** from most field completeness rules. Don't try to assign them or set their fields.
+
+7. **Use jq to join board and Phase 1 data — don't reason through raw JSON.** The playbook's "Cross-referencing board data with GitHub metadata" section describes the approach. Fetch board PRs, fetch Phase 1 per repo, then use `jq` to filter Phase 1 to board-only PRs and produce per-rule action lists (e.g., draft PRs in non-draft statuses, non-draft non-bot in Triage, CHANGES_REQUESTED in Awaiting Review). Doing this join manually in your reasoning is slow, error-prone at scale, and burns context. Produce structured action lists programmatically, then only read individual items that need Phase 2 judgment. (Added after a sweep where manual cross-referencing made Stage 1 unnecessarily slow.)

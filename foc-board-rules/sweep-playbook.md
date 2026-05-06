@@ -33,6 +33,32 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - R-FC-005: All PRs should have a Cycle Theme
 - R-FC-006: In-flight PRs + dependabot/release Todo PRs without a Cycle → current cycle
 
+**Cross-referencing board data with GitHub metadata:**
+
+The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls. After fetching both datasets:
+
+1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
+
+2. **Produce action lists per rule.** Pipe the filtered join through `jq` queries that directly identify rule violations:
+   - R-PR-005: `select(.isDraft and board_status is in ["Triage","Awaiting review","Approved","Issue awaiting PR merge"])`
+   - R-PR-006 Phase 2 candidates: `select(.isDraft==false and .author.is_bot==false and board_status is in ["Triage","In Progress"])`
+   - R-SL-007: `select(.reviewDecision=="CHANGES_REQUESTED" and board_status is in ["Awaiting review","Approved"])`
+
+3. **Treat `reviewDecision: ""` as ambiguous.** Empty means GitHub produced no formal verdict — not that no reviews exist. Always Phase 2 before changing status on these PRs. See general behavior rule 6.
+
+Example — build a joined dataset in one bash call:
+```bash
+# After fetching board PRs into $BOARD_ITEMS and Phase 1 per-repo into files:
+for repo_file in /tmp/phase1_*.json; do
+  repo=$(basename "$repo_file" .json | sed 's/phase1_//')
+  jq --argjson board "$BOARD_ITEMS" '
+    [.[] | select(.number as $n | $board | any(.repo == env.repo and .number == $n))]
+  ' "$repo_file"
+done
+```
+
+This gives you a clean, small dataset to reason about — typically 15-30 items instead of 100+.
+
 **Automated vs. flagged:**
 - Automated: Status transitions (R-PR-002–009, R-SL-001, R-SL-007), Cycle Theme (R-FC-004/005), Cycle (R-FC-006), assignee (R-PR-001 for PRs)
 - Flagged for human: Missing reviewers (R-PR-007), R-SL-001 when permissions are unclear, R-SL-006 PRs in wrong status
@@ -78,13 +104,13 @@ Work through stages in order. Complete all actions and reporting for one stage b
 **Queries:**
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee` (unassigned active items)
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" updated:<YYYY-MM-DD` (stale active items, where date is 2 weeks ago; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale)
-- `is:issue -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge"` with "Linked pull requests" field (active issues that should be in "Issue awaiting PR merge")
-- `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle)
+- `is:issue -status:"🎉 Done" -status:"⌚️ Issue awaiting PR merge"` with "Linked pull requests" field (issues with linked PRs that might need to move to "Issue awaiting PR merge" — but only if the linked PR is In Progress or later, per R-SL-008)
+- `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle — inherit from linked PR per R-SL-008, not just R-FC-009)
 
 **Rules applied:**
 - R-FC-001: Active items must have an assignee
 - R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
-- R-SL-008: Active issues with linked PRs should be in "Issue awaiting PR merge"
+- R-SL-008: Not-done issues with linked PRs **where at least one PR is In Progress or later** should be in "Issue awaiting PR merge"; also inherit cycle from linked PR for items already in this status
 - R-SL-009: Stale items in In Progress / Awaiting Review / Approved (no update in 2+ weeks on both board and GitHub) should move back to Todo
 - R-FC-009: Issues in "Issue awaiting PR merge" with active milestones should have a cycle
 
