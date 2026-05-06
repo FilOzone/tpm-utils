@@ -39,10 +39,10 @@ The main bottleneck in Stage 1 is joining board query results (65+ items) with G
 
 1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
 
-2. **Produce action lists per rule.** Pipe the filtered join through `jq` queries that directly identify rule violations:
-   - R-PR-005: `select(.isDraft and board_status is in ["Triage","Awaiting review","Approved","Issue awaiting PR merge"])`
-   - R-PR-006 Phase 2 candidates: `select(.isDraft==false and .author.is_bot==false and board_status is in ["Triage","In Progress"])`
-   - R-SL-007: `select(.reviewDecision=="CHANGES_REQUESTED" and board_status is in ["Awaiting review","Approved"])`
+2. **Produce action lists per rule.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations:
+   - R-PR-005: `select(.isDraft and (.board_status | IN("Triage","Awaiting review","Approved","Issue awaiting PR merge")))`
+   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.board_status | IN("Triage","In Progress")))`
+   - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("Awaiting review","Approved")))`
 
 3. **Treat `reviewDecision: ""` as ambiguous.** Empty means GitHub produced no formal verdict — not that no reviews exist. Always Phase 2 before changing status on these PRs. See general behavior rule 6.
 
@@ -51,8 +51,8 @@ Example — build a joined dataset in one bash call:
 # After fetching board PRs into $BOARD_ITEMS and Phase 1 per-repo into files:
 for repo_file in /tmp/phase1_*.json; do
   repo=$(basename "$repo_file" .json | sed 's/phase1_//')
-  jq --argjson board "$BOARD_ITEMS" '
-    [.[] | select(.number as $n | $board | any(.repo == env.repo and .number == $n))]
+  jq --argjson board "$BOARD_ITEMS" --arg repo "$repo" '
+    [.[] | select(.number as $n | $board | any(.repo == $repo and .number == $n))]
   ' "$repo_file"
 done
 ```
@@ -122,7 +122,7 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 
 **How to check for linked PRs (per R-SL-008):**
 1. Include "Linked pull requests" in the `list_board_items` fields
-2. Any active issue with a non-empty linked PR list should move to "Issue awaiting PR merge"
+2. Cross-reference linked PRs with board data to check their status — only move the issue to "Issue awaiting PR merge" if at least one linked PR is In Progress or later (not in Todo/Triage)
 3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008)
 
 **How to report stale items (per R-SL-009):**
@@ -132,7 +132,7 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 4. Human confirms which items to move back to Todo
 
 **Automated vs. flagged:**
-- Automated: PR assignees set to author (R-PR-001), issues with linked PRs → Issue awaiting PR merge (R-SL-008)
+- Automated: PR assignees set to author (R-PR-001), issues with linked PRs where at least one PR is In Progress or later → Issue awaiting PR merge (R-SL-008)
 - Flagged for human: Issues where assignee can't be confidently determined, stale active items (R-SL-009), issues awaiting PR merge without a cycle (confirm current cycle assignment)
 
 ## Stage 5: Recently-done items — reporting readiness
