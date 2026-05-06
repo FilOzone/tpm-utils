@@ -50,6 +50,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 ## R-PR-007: Awaiting Review PRs must have human reviewer engagement
 
 **When:** A PR has status "🔎 Awaiting review" (including PRs just routed there by R-PR-006) but has no human reviewer — neither a pending request nor a submitted review from a human.
+**Exclude:** [External items](status-lifecycle.md#terminology) — we can't request reviewers on repos outside the blessed orgs, so flagging them is noise. (Added after ipshipyard/ipfs-deploy-action PRs were flagged every sweep with no possible action.)
 **Action:** Flag for human review. Suggest the PR author request a reviewer. Do not auto-assign reviewers — the author or team lead should decide who reviews.
 **How to check:** Look at both `reviewRequests` (pending requests) and `reviews` (already submitted). A PR has human reviewer engagement if *either* list contains a non-bot entry. Filter out bot reviewers (`copilot-pull-request-reviewer`, any `app/*` author). Use `gh pr list -R <repo> --state open --json number,reviewRequests,reviews` to batch-check per repo.
 **Check this every sweep:** This rule must be checked for *all* PRs in Awaiting Review status, not just newly routed ones.

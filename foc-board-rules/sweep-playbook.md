@@ -33,9 +33,15 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - R-FC-005: All PRs should have a Cycle Theme
 - R-FC-006: In-flight PRs + dependabot/release Todo PRs without a Cycle → current cycle
 
+**Ordering note — Cycle gaps after status changes:** Run the `no:cycle` field-gap queries *after* completing status mutations, not before. PRs that move from Triage/Todo into in-flight statuses (R-PR-003→Todo for dependabot, R-PR-005/006→In Progress or Awaiting Review) also need cycles per R-FC-006, but they won't appear in the pre-mutation `no:cycle` in-flight query. Either re-query after status changes or track the newly in-flight items from your status mutations and include them in the cycle bulk update. (Added after a sweep where cycle gaps for newly in-flight items had to be re-derived manually.)
+
 **Cross-referencing board data with GitHub metadata:**
 
-The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls. After fetching both datasets:
+The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls.
+
+**`list_board_items` output is JSONL.** Each line after the "Found N items:" header is a valid JSON object. To build a JSON array for `jq` joins: `echo "$RESULT" | tail -n +2 | grep '^{' | jq -s '.'`. Do NOT hand-transcribe board items into JSON — parse the output directly. Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
+
+After fetching both datasets:
 
 1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
 
@@ -139,7 +145,12 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 
 **Goal:** Ensure recently-completed items have Cycle Theme, Cycle, and Assignee so they show up correctly in periodic reporting.
 
-**Query:** `status:"🎉 Done" updated:>YYYY-MM-DD` (where date is 7 days ago)
+**Queries — use targeted gap queries, not a bulk fetch:**
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:cycle-theme` (missing Cycle Theme)
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:cycle` (missing Cycle)
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:assignee -cycle-theme:"Dependency Updates"` (missing assignee, excluding dependabot — those are expected to be unassigned per R-PR-001)
+
+where date is 7 days ago. Do **not** fetch all recently-done items first — that returns 100+ items and wastes context. The gap queries surface only the items that need action. (Added after a sweep where the bulk fetch consumed a full page of results before the gap queries found only ~20 actionable items.)
 
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee

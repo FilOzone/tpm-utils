@@ -63,3 +63,4 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 6. **zOrganizing Items are excluded** from most field completeness rules. Don't try to assign them or set their fields.
 
 7. **Use jq to join board and Phase 1 data — don't reason through raw JSON.** The playbook's "Cross-referencing board data with GitHub metadata" section describes the approach. Fetch board PRs, fetch Phase 1 per repo, then use `jq` to filter Phase 1 to board-only PRs and produce per-rule action lists (e.g., draft PRs in non-draft statuses, non-draft non-bot in Triage, CHANGES_REQUESTED in Awaiting Review). Doing this join manually in your reasoning is slow, error-prone at scale, and burns context. Produce structured action lists programmatically, then only read individual items that need Phase 2 judgment. (Added after a sweep where manual cross-referencing made Stage 1 unnecessarily slow.)
+

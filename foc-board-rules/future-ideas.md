@@ -18,3 +18,4 @@ Add an MCP tool (or option on `list_board_items`) that returns GitHub PR metadat
 The board REST API returns built-in properties like `updated_at` and `creator` on each item, but `list_board_items` only surfaces custom project fields (Status, Cycle Theme, etc.) and a few display fields (Repository, Id, Title). Expose `updated_at` and `creator` as requestable fields so reports like R-FC-010 (Dev Days Estimate gaps) can include "last updated" and "created by" without supplemental GitHub API calls.
 
 **Triggered by:** Stage 6 (effort estimation gaps) wants to show when each item was last updated and who created it, but neither field is available from the tool today.
+

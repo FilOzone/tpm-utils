@@ -118,6 +118,12 @@ def list_board_items(
                 Default: Repository, Id, url, Title, Status, Kind,
                 Milestone, Assignees, Cycle Theme, Dev Days Estimate.
                 Use list_board_fields to see available fields.
+                In addition to board fields, the following pseudo-fields
+                are available (derived from item metadata, not board columns):
+                  Node ID — project item node ID (e.g., "PVTI_..."), needed
+                            for set_board_item_field / bulk_set_board_item_field.
+                  Repository, Id, Number, url, Title, Kind, Assignees —
+                            built-in item properties (some included by default).
         per_page: Number of items per page (default: 50, max: 100).
         cursor: Opaque cursor from a previous response to fetch the next page.
                 When provided, the same query and fields from the original
