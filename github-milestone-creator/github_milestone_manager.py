@@ -248,6 +248,7 @@ class GitHubMilestoneManager:
         title: str,
         description: Optional[str] = None,
         due_on: Optional[str] = None,
+        state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new milestone."""
         url = f"{self.BASE_URL}/repos/{owner}/{repo}/milestones"
@@ -257,6 +258,8 @@ class GitHubMilestoneManager:
             data["description"] = description
         if due_on is not None:
             data["due_on"] = due_on
+        if state is not None:
+            data["state"] = state
 
         response = self._api_request("POST", url, json=data)
         response.raise_for_status()
@@ -270,6 +273,7 @@ class GitHubMilestoneManager:
         title: Optional[str] = None,
         description: Optional[str] = None,
         due_on: Optional[str] = None,
+        state: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update an existing milestone."""
         url = f"{self.BASE_URL}/repos/{owner}/{repo}/milestones/{milestone_number}"
@@ -281,6 +285,8 @@ class GitHubMilestoneManager:
             data["description"] = description
         if due_on is not None:
             data["due_on"] = due_on
+        if state is not None:
+            data["state"] = state
 
         response = self._api_request("PATCH", url, json=data)
         response.raise_for_status()
@@ -376,9 +382,11 @@ class GitHubMilestoneManager:
             "previous_name": None,
             "previous_description": None,
             "previous_due_date": None,
+            "previous_state": None,
             "new_name": None,
             "new_description": None,
             "new_due_date": None,
+            "new_state": None,
         }
 
         try:
@@ -396,11 +404,12 @@ class GitHubMilestoneManager:
                     milestone_config["referenceMilestoneUrl"]
                 )
 
-            # Resolve description and due date
+            # Resolve description, due date, and state
             description = self.resolve_description(
                 milestone_config, reference_milestone
             )
             due_date = self.resolve_due_date(milestone_config, reference_milestone)
+            state = milestone_config.get("state")  # None means don't change
 
             # Find existing milestone to update - check BOTH names before creating:
             # 1. Check for milestone with existingNameToRename name (if provided)
@@ -438,6 +447,7 @@ class GitHubMilestoneManager:
             result["new_name"] = milestone_name
             result["new_description"] = description
             result["new_due_date"] = due_date
+            result["new_state"] = state
 
             # Determine if we're creating or updating
             if existing_milestone:
@@ -448,6 +458,7 @@ class GitHubMilestoneManager:
                     existing_milestone.get("description") or None
                 )
                 result["previous_due_date"] = existing_milestone.get("due_on") or None
+                result["previous_state"] = existing_milestone.get("state")
 
                 # If we found it by existingNameToRename, we need to rename it to the target name
                 # (which could be from referenceMilestoneUrl or the provided name)
@@ -463,6 +474,7 @@ class GitHubMilestoneManager:
                         title=milestone_name if needs_rename else None,
                         description=description,
                         due_on=due_date,
+                        state=state,
                     )
                     result["milestone_number"] = updated["number"]
                     result["action"] = "updated"
@@ -482,6 +494,7 @@ class GitHubMilestoneManager:
                         milestone_name,
                         description=description,
                         due_on=due_date,
+                        state=state,
                     )
                     result["milestone_number"] = created["number"]
                     result["action"] = "created"
@@ -584,6 +597,12 @@ class GitHubMilestoneManager:
                                     "Due Date", None, new_due_date, is_date=True
                                 )
                             )
+                            if result["new_state"]:
+                                print(
+                                    self._format_value_change(
+                                        "State", None, result["new_state"]
+                                    )
+                                )
                         elif action == "update":
                             print(
                                 f"  Would UPDATE: {name} (milestone #{result['milestone_number']})"
@@ -608,6 +627,14 @@ class GitHubMilestoneManager:
                                     is_date=True,
                                 )
                             )
+                            if result["new_state"]:
+                                print(
+                                    self._format_value_change(
+                                        "State",
+                                        result["previous_state"],
+                                        result["new_state"],
+                                    )
+                                )
                     else:
                         if action == "created":
                             print(f"  ✅ Created: {name} - {result['milestone_url']}")
@@ -622,6 +649,12 @@ class GitHubMilestoneManager:
                                     "Due Date", None, new_due_date, is_date=True
                                 )
                             )
+                            if result["new_state"]:
+                                print(
+                                    self._format_value_change(
+                                        "State", None, result["new_state"]
+                                    )
+                                )
                         elif action == "updated":
                             print(f"  ✅ Updated: {name} - {result['milestone_url']}")
                             print(
@@ -644,6 +677,14 @@ class GitHubMilestoneManager:
                                     is_date=True,
                                 )
                             )
+                            if result["new_state"]:
+                                print(
+                                    self._format_value_change(
+                                        "State",
+                                        result["previous_state"],
+                                        result["new_state"],
+                                    )
+                                )
 
         return results
 

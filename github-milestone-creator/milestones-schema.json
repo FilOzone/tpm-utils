@@ -71,6 +71,11 @@
               }
             ],
             "description": "Due date for the milestone in ISO-8601 format (YYYY-MM-DD). Optional. Behavior: undefined/not present = field won't be touched; null or empty string \"\" = field will be cleared; date string (YYYY-MM-DD) = field will be set to that value. Ignored if referenceMilestoneUrl is set (reference milestone's due date takes precedence)."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "closed"],
+            "description": "State of the milestone. Optional. If set to 'closed', the milestone will be closed. If set to 'open', the milestone will be reopened. If not present, state won't be changed."
           }
         },
         "additionalProperties": false
