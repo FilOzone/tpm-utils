@@ -61,9 +61,7 @@ class TestSimpleOr:
         ]
 
     def test_three_branches(self):
-        result = expand_or_query(
-            "is:issue (status:A) OR (status:B) OR (status:C)"
-        )
+        result = expand_or_query("is:issue (status:A) OR (status:B) OR (status:C)")
         assert result == [
             "is:issue status:A",
             "is:issue status:B",
@@ -91,9 +89,7 @@ class TestMultiBranch:
         ]
 
     def test_quoted_values_inside_groups(self):
-        result = expand_or_query(
-            '(status:"🏗 In Progress") OR (status:"📋 Backlog")'
-        )
+        result = expand_or_query('(status:"🏗 In Progress") OR (status:"📋 Backlog")')
         assert result == [
             'status:"🏗 In Progress"',
             'status:"📋 Backlog"',

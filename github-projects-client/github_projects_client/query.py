@@ -42,20 +42,20 @@ def expand_or_query(query: str) -> list[str]:
             continue
 
         # Open paren
-        if ch == '(':
+        if ch == "(":
             if paren_depth == 1:
                 raise ValueError("Nested parentheses are not supported")
             paren_depth = 1
             found_parens = True
             # Everything collected before first group (and not after a group) is prefix
             if not groups and not found_or:
-                token = ''.join(current).strip()
+                token = "".join(current).strip()
                 if token:
                     prefix_parts.append(token)
                 current = []
             elif current:
                 # Text between ')' and '(' that isn't OR
-                token = ''.join(current).strip()
+                token = "".join(current).strip()
                 if token:
                     raise ValueError(
                         "Filter terms after the last group are not allowed"
@@ -65,11 +65,11 @@ def expand_or_query(query: str) -> list[str]:
             continue
 
         # Close paren
-        if ch == ')':
+        if ch == ")":
             if paren_depth == 0:
                 raise ValueError("Unexpected closing parenthesis")
             paren_depth = 0
-            group_content = ''.join(current).strip()
+            group_content = "".join(current).strip()
             if not group_content:
                 raise ValueError("Empty group")
             groups.append(group_content)
@@ -78,13 +78,13 @@ def expand_or_query(query: str) -> list[str]:
             continue
 
         # Check for OR keyword (outside quotes, outside parens)
-        if paren_depth == 0 and ch in ('O', 'o') and query[i:i+2] == 'OR':
+        if paren_depth == 0 and ch in ("O", "o") and query[i : i + 2] == "OR":
             # Ensure OR is whitespace-bounded
-            before_ok = (i == 0) or query[i - 1] in (' ', '\t')
-            after_ok = (i + 2 >= n) or query[i + 2] in (' ', '\t')
+            before_ok = (i == 0) or query[i - 1] in (" ", "\t")
+            after_ok = (i + 2 >= n) or query[i + 2] in (" ", "\t")
             if before_ok and after_ok:
                 found_or = True
-                token = ''.join(current).strip()
+                token = "".join(current).strip()
                 if token:
                     # Text before OR that's not in a group — means OR without parens
                     if not found_parens:
@@ -97,9 +97,9 @@ def expand_or_query(query: str) -> list[str]:
                 continue
 
         # Check for OR inside parens
-        if paren_depth == 1 and ch in ('O', 'o') and query[i:i+2] == 'OR':
-            before_ok = (i == 0) or query[i - 1] in (' ', '\t')
-            after_ok = (i + 2 >= n) or query[i + 2] in (' ', '\t')
+        if paren_depth == 1 and ch in ("O", "o") and query[i : i + 2] == "OR":
+            before_ok = (i == 0) or query[i - 1] in (" ", "\t")
+            after_ok = (i + 2 >= n) or query[i + 2] in (" ", "\t")
             if before_ok and after_ok:
                 raise ValueError("OR inside parentheses is not supported")
 
@@ -122,11 +122,11 @@ def expand_or_query(query: str) -> list[str]:
         raise ValueError("OR requires parenthesized groups")
 
     # Trailing terms after last group
-    trailing = ''.join(current).strip()
+    trailing = "".join(current).strip()
     if trailing:
         raise ValueError("Filter terms after the last group are not allowed")
 
-    prefix = ' '.join(prefix_parts).strip()
+    prefix = " ".join(prefix_parts).strip()
 
     if not groups:
         return [query]
