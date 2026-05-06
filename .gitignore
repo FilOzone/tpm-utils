@@ -1,4 +1,10 @@
 __pycache__/
 *.pyc
+*.egg-info/
+.venv/
+venv/
+dist/
 .claude/settings.local.json
 .mcp.json
+.env*
+.DS_Store

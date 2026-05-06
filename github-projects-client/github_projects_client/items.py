@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from .api import fetch_items_rest, list_field_ids_by_name
+from .query import expand_or_query
 
 
 DEFAULT_FIELDS = [
@@ -224,17 +225,44 @@ def list_items(
                     resolved_fields.append(f"{board_name} (id: {fid})")
                     break
 
-    fetch_result = fetch_items_rest(
-        session,
-        org=org,
-        project_number=project_number,
-        query=query,
-        field_ids=field_ids if field_ids else None,
-        per_page=per_page,
-        max_pages=1,
-        cursor=cursor,
-    )
-    raw_items = fetch_result["items"]
+    queries = expand_or_query(query)
+
+    if len(queries) == 1:
+        # Single query: standard cursor-based pagination (one page)
+        fetch_result = fetch_items_rest(
+            session,
+            org=org,
+            project_number=project_number,
+            query=queries[0],
+            field_ids=field_ids if field_ids else None,
+            per_page=per_page,
+            max_pages=1,
+            cursor=cursor,
+        )
+        raw_items = fetch_result["items"]
+        next_cursor = fetch_result["next_cursor"]
+        has_more = fetch_result["has_more"]
+    else:
+        # Multiple OR branches: fetch all pages for all queries, deduplicate
+        raw_items: List[Dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for q in queries:
+            fetch_result = fetch_items_rest(
+                session,
+                org=org,
+                project_number=project_number,
+                query=q,
+                field_ids=field_ids if field_ids else None,
+                per_page=per_page,
+                max_pages=None,
+            )
+            for item in fetch_result["items"]:
+                node_id = item.get("node_id") or item.get("id") or ""
+                if node_id not in seen_ids:
+                    seen_ids.add(node_id)
+                    raw_items.append(item)
+        next_cursor = None
+        has_more = False
 
     items = [_format_item(item, fields) for item in raw_items]
 
@@ -245,13 +273,13 @@ def list_items(
         "resolved_fields": resolved_fields,
         "per_page": per_page,
         "items_returned": len(items),
-        "has_more": fetch_result["has_more"],
+        "has_more": has_more,
     }
 
     return {
         "items": items,
-        "next_cursor": fetch_result["next_cursor"],
-        "has_more": fetch_result["has_more"],
+        "next_cursor": next_cursor,
+        "has_more": has_more,
         "debug": debug,
     }
 

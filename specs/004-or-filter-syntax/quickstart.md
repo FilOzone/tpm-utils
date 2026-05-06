@@ -7,16 +7,16 @@
 ```json
 {
   "projectUrl": "https://github.com/orgs/FilOzone/projects/14",
-  "query": "is:issue (milestone:\"M4.2: mainnet GA\" -status:\"🎉 Done\") OR (-last-updated:7days)",
-  "fields": ["Repository", "Id", "Title", "Status", "Milestone", "url"]
+  "query": "is:issue (milestone:\"M4.0: mainnet staged\" no:assignee) OR (milestone:\"M4.1: mainnet ready\" has:assignee)",
+  "fields": ["Repository", "Id", "Title", "Status", "Milestone", "Assignees", "url"]
 }
 ```
 
 This retrieves:
-- All issues in milestone M4.2 that are not done, **plus**
-- All issues updated within the last 7 days
+- All unassigned issues in milestone M4.0, **plus**
+- All assigned issues in milestone M4.1
 
-The `is:issue` prefix applies to both branches.
+The `is:issue` prefix applies to both branches. Each branch has different conditions that can't be expressed in a single query.
 
 ### 2. Run the export
 
@@ -38,17 +38,17 @@ shared-prefix (branch-1) OR (branch-2) OR (branch-3)
 
 ### More examples
 
-**Multiple milestones, excluding done items:**
+**Done issues plus recently updated (common real-world use case):**
 ```json
 {
-  "query": "is:issue -status:\"🎉 Done\" (milestone:\"M4.1: mainnet ready\") OR (milestone:\"M4.2: mainnet GA\")"
+  "query": "is:issue (status:\"🎉 Done\") OR (-last-updated:7days)"
 }
 ```
 
 **Fully independent clauses (no shared prefix):**
 ```json
 {
-  "query": "(is:issue milestone:\"M4.2: mainnet GA\") OR (is:pr -last-updated:7days)"
+  "query": "(is:issue milestone:\"M4.1: mainnet ready\") OR (is:pr -last-updated:7days)"
 }
 ```
 
@@ -57,9 +57,9 @@ shared-prefix (branch-1) OR (branch-2) OR (branch-3)
 {
   "queryParts": [
     "is:issue",
-    "(milestone:\"M4.2: mainnet GA\" -status:\"🎉 Done\") OR (-last-updated:7days)"
+    "(milestone:\"M4.0: mainnet staged\" no:assignee) OR (milestone:\"M4.1: mainnet ready\" has:assignee)"
   ]
 }
 ```
 
-The parts are joined first (`is:issue (milestone:...) OR (-last-updated:...)`), then OR parsing applies.
+The parts are joined first (`is:issue (milestone:...) OR (milestone:...)`), then OR parsing applies.

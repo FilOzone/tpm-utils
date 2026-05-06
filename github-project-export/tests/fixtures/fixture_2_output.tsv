@@ -1,0 +1,241 @@
+Repository	Id	Title	Status	Milestone	Assignees	url
+synapse-sdk	564	Cut Synapse-SDK 0.37.0	🎉 Done	M4.0: mainnet staged		https://github.com/FilOzone/synapse-sdk/issues/564
+dealbot	73	Deploy Dealbot to Mainnet	🎉 Done	M4.0: mainnet staged		https://github.com/FilOzone/dealbot/issues/73
+filecoin-services	379	[Tracker] Mainnet is staged for GA	🎉 Done	M4.0: mainnet staged		https://github.com/FilOzone/filecoin-services/issues/379
+synapse-sdk	576	StorageManagerUploadOptions is not exported from @filoz/synapse-sdk	🎉 Done	M4.0: mainnet staged		https://github.com/FilOzone/synapse-sdk/issues/576
+synapse-sdk	591	Cut Synapse-SDK v0.38.0	🎉 Done	M4.0: mainnet staged		https://github.com/FilOzone/synapse-sdk/issues/591
+filecoin-pin	324	Failure after upgrade to filecoin-pin@0.15.1	🎉 Done	M4.0: mainnet staged		https://github.com/filecoin-project/filecoin-pin/issues/324
+dealbot	159	"GA ""Retrieval"" check implementation and documentation"	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/159
+synapse-sdk	483	Review/update API for GA	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/483
+synapse-sdk	484	GA: API Changes	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/484
+synapse-sdk	563	Migration Guide / Docs - Mainnet Ready Synapse Release	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/563
+synapse-sdk	242	feat: support safer size and rate/lockup calculations	🎉 Done	M4.1: mainnet ready	lordshashank	https://github.com/FilOzone/synapse-sdk/issues/242
+synapse-sdk	308	Pre-flight checks before upload	🎉 Done	M4.1: mainnet ready	lordshashank	https://github.com/FilOzone/synapse-sdk/issues/308
+tpm-utils	4	FOG WG notifier of open PRs	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/tpm-utils/issues/4
+filecoin-services	370	Runbooks for common support/oncall actions	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/370
+filecoin-services	359	Share script for how filecoinpin.contact can get the peerIds of all SPs [team/filecoin-pin]	🎉 Done	M4.1: mainnet ready	bajtos	https://github.com/FilOzone/filecoin-services/issues/359
+dealbot	70	Consolidate dealbot-infra with other infra	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/70
+dealbot	77	Make operational readiness plan	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/77
+dealbot	86	[Op Readiness: P0]: publish frontend and backend docker images to github container registry	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/86
+dealbot	111	Robust wallet management	🎉 Done	M4.1: mainnet ready	rjan90,rvagg,SgtPooki,silent-cipher	https://github.com/FilOzone/dealbot/issues/111
+dealbot	87	[Op Readiness: P0] Export prometheus metrics	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/87
+dealbot	90	[Op Readiness: P0] Runbook and ops docs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/90
+dealbot	102	fix: hardcode a version number for dataSet metadata	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/102
+foc-devnet	10	Local-net: Make initial/GA project plan	🎉 Done	M4.1: mainnet ready	BigLep,redpanda-f	https://github.com/FilOzone/foc-devnet/issues/10
+filecoin-services	346	Document FWSS upgrade process	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/346
+synapse-sdk	540	Decision: Endorsement Certificates vs Smart Contract Approach	🎉 Done	M4.1: mainnet ready	wjmelements	https://github.com/FilOzone/synapse-sdk/issues/540
+filecoin-pin	8	Add `rm --piece $pieceCid` command	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/filecoin-project/filecoin-pin/issues/8
+filecoin-services	229	Proposal: monorepo & no git submodules	🎉 Done	M4.1: mainnet ready	redpanda-f,rjan90	https://github.com/FilOzone/filecoin-services/issues/229
+filecoin-services	212	Define release strategy for FilecoinWarmStorageServices	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/212
+filecoin-services	31	Debt Handling and Payment Failure Policy Design	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/FilOzone/filecoin-services/issues/31
+filecoin-services	55	Document Pricing / Top-up & Renewal in a spec.md	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/55
+filecoin-services	178	Add CI for subgraph	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-services/issues/178
+synapse-sdk	51	Streaming PDP piece upload flow	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/synapse-sdk/issues/51
+filecoin-services	211	unpaginated getApprovedProviders	🎉 Done	M4.1: mainnet ready	Chaitu-Tatipamula	https://github.com/FilOzone/filecoin-services/issues/211
+synapse-sdk	203	Payments operatorApprovals doesnt fail if wallet is not connect	🎉 Done	M4.1: mainnet ready	DarkLord017	https://github.com/FilOzone/synapse-sdk/issues/203
+synapse-sdk	204	Port all tests to the new rpc mock setup	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/204
+synapse-sdk	232	Stop exporting all the things on the top level	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/232
+filecoin-pay	235	Adopt Contract Name and File Name Versioning	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-pay/issues/235
+fs-pm	240	As the protocol, I want to have a content routing solution for IPFS CIDs included in PDP deals that doesn't rely on cid.contact during its season of instability and doesn't require manual Kubo config updates	🎉 Done	M4.1: mainnet ready	BigLep	https://github.com/FilOzone/fs-pm/issues/240
+filecoin-pin-website	103	Load test filecoin-pin-website	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/filecoin-project/filecoin-pin-website/issues/103
+filecoin-services	250	2 copy of each upload	🎉 Done	M4.1: mainnet ready	wjmelements	https://github.com/FilOzone/filecoin-services/issues/250
+synapse-sdk	259	Test new faucet api 	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/259
+curio	669	pdpv0: Delete piece locally after a client initiated deletion	🎉 Done	M4.1: mainnet ready	Kubuxu	https://github.com/filecoin-project/curio/issues/669
+filecoin-services	254	M3.5 Release checklist	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/254
+synapse-sdk	225	Remove ethers from dependencies	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/225
+synapse-sdk	503	extract testing rpc mock to its own package	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/503
+synapse-sdk	273	use http/ws client for reads instead of wallet client (fix metamask)	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/273
+pdp	216	Update deployment parameters in the docs/comments/	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/pdp/issues/216
+curio	688	M3.1 Curio PDP Burndown Overview	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/filecoin-project/curio/issues/688
+synapse-sdk	296	Bug: pieceStatus confuses piece ownership	🎉 Done	M4.1: mainnet ready	juliangruber	https://github.com/FilOzone/synapse-sdk/issues/296
+synapse-sdk	312	Default Replication	🎉 Done	M4.1: mainnet ready	wjmelements	https://github.com/FilOzone/synapse-sdk/issues/312
+synapse-sdk	321	Filecoin Onchain Cloud docs	🎉 Done	M4.1: mainnet ready	longfeiWan9	https://github.com/FilOzone/synapse-sdk/issues/321
+synapse-sdk	322	Docs: Introduction	🎉 Done	M4.1: mainnet ready	longfeiWan9	https://github.com/FilOzone/synapse-sdk/issues/322
+synapse-sdk	323	Docs: Getting started	🎉 Done	M4.1: mainnet ready	longfeiWan9	https://github.com/FilOzone/synapse-sdk/issues/323
+curio	713	pdpv0: implement EXTRA_DATA_MAX_SIZE limit	🎉 Done	M4.1: mainnet ready	siddharthbaleja7	https://github.com/filecoin-project/curio/issues/713
+synapse-sdk	221	Create getCosts method	🎉 Done	M4.1: mainnet ready	lordshashank	https://github.com/FilOzone/synapse-sdk/issues/221
+synapse-sdk	345	Docs: concepts section	🎉 Done	M4.1: mainnet ready	longfeiWan9	https://github.com/FilOzone/synapse-sdk/issues/345
+synapse-sdk	346	Docs: Developer/Synapse-sdk	🎉 Done	M4.1: mainnet ready	nijoe1	https://github.com/FilOzone/synapse-sdk/issues/346
+pdp	230	Transfer ownership of PDP contracts to SAFE msig	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/pdp/issues/230
+synapse-sdk	358	"""dev"" selector should use `serviceStatus=dev` in SP capabilities list"	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/synapse-sdk/issues/358
+synapse-sdk	359	Increase TRANSACTION_PROPAGATION_TIMEOUT_MS	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/synapse-sdk/issues/359
+synapse-sdk	360	New Costs API	🎉 Done	M4.1: mainnet ready	lordshashank	https://github.com/FilOzone/synapse-sdk/issues/360
+dealbot	32	Add SP Curio version to Dealbot page	🎉 Done	M4.1: mainnet ready	pali101	https://github.com/FilOzone/dealbot/issues/32
+curio	758	ServiceProviderRegistry: align on canonical decoding `address` from `bytes`	🎉 Done	M4.1: mainnet ready	siddharthbaleja7	https://github.com/filecoin-project/curio/issues/758
+curio	760	pdpv0: deletion in pdp proving task is too eager	🎉 Done	M4.1: mainnet ready	LexLuthr	https://github.com/filecoin-project/curio/issues/760
+filecoin-pin-website	31	fix: do not call to synapse-sdk directly	🎉 Done	M4.1: mainnet ready	juliangruber	https://github.com/filecoin-project/filecoin-pin-website/issues/31
+synapse-sdk	363	Change client-side telemetry in preparation for GA	🎉 Done	M4.1: mainnet ready	juliangruber	https://github.com/FilOzone/synapse-sdk/issues/363
+filecoin-pin	65	feat: support multiple providers	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/filecoin-project/filecoin-pin/issues/65
+filecoin-pin	189	Add `data-set $dataSetId --terminate`	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/filecoin-project/filecoin-pin/issues/189
+curio	746	pdpv0: Optimize PDP Watch: 30-second delay between transaction confirmation in PDP vs onchain	🎉 Done	M4.1: mainnet ready	snadrus	https://github.com/filecoin-project/curio/issues/746
+dealbot	44	7-day view in detailed metrics showing wrong count	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/44
+synapse-sdk	392	Synapse API to query the remaining egress allowances for a given data set	🎉 Done	M4.1: mainnet ready	pyropy	https://github.com/FilOzone/synapse-sdk/issues/392
+filecoin-services	340	Transfer ownership of FWSS v1.0.0/v1.1.0 contracts to SAFE msig	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/340
+curio	786	pdp/ipni: IPNI assumes default HTTPS port when announcing	🎉 Done	M4.1: mainnet ready	beck-8,BigLep	https://github.com/filecoin-project/curio/issues/786
+filecoin-services	347	Update contract links to Blockscout	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/FilOzone/filecoin-services/issues/347
+synapse-sdk	428	Update contract links to Blockscout	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/FilOzone/synapse-sdk/issues/428
+dealbot	55	Mainnet Dealbot Parameters	🎉 Done	M4.1: mainnet ready	BigLep	https://github.com/FilOzone/dealbot/issues/55
+filecoin-services	351	validatePayerFunds for piecesAdded	🎉 Done	M4.1: mainnet ready	DarkLord017	https://github.com/FilOzone/filecoin-services/issues/351
+dealbot	59	Active Providers is showing too few provider	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/dealbot/issues/59
+dealbot	95	bug in UI for stats?	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/dealbot/issues/95
+dealbot	60	add auto-funding or alert mechanism for low balance in dealbot filecoin-pay account	🎉 Done	M4.1: mainnet ready	pali101	https://github.com/FilOzone/dealbot/issues/60
+filecoin-services	354	doc: Deployment Addresses json	🎉 Done	M4.1: mainnet ready	Chaitu-Tatipamula	https://github.com/FilOzone/filecoin-services/issues/354
+dealbot	63	IPNI indexing: Average time to retrieve metrics is negative	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/63
+filecoin-pay-explorer	54	docs: need instructions for setup	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/54
+filecoin-pin-website	129	Add monitoring for the shared wallet balance	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/filecoin-project/filecoin-pin-website/issues/129
+dealbot	66	All dealbot deals are failing with `Timeout Errors During Deal Creation`	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/66
+filecoin-pin	268	Potential discrepancy in uploaded/stored accounting in pin	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/filecoin-project/filecoin-pin/issues/268
+synapse-sdk	468	Add type validation to docs	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/468
+filecoin-cloud	156	docs.filecoin.cloud plausible	🎉 Done	M4.1: mainnet ready	timfong888	https://github.com/FilOzone/filecoin-cloud/issues/156
+curio	815	pdpv0: cleanup functions may delete too much data	🎉 Done	M4.1: mainnet ready	LexLuthr	https://github.com/filecoin-project/curio/issues/815
+dealbot	68	Set up 7 day database backups	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/68
+dealbot	69	[Op Readiness: P0] Filecoin-Pin integration	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/69
+curio	723	pdpv0: log IPNI announcement endpoints and their HTTP response	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/filecoin-project/curio/issues/723
+curio	814	pdpv0: panic in `processIndexingAndIPNICleanup` when creating IPNI removal advertisement	🎉 Done	M4.1: mainnet ready	LexLuthr	https://github.com/filecoin-project/curio/issues/814
+pdp	235	`transfer-owner.sh` fails verification step when run in zsh	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/FilOzone/pdp/issues/235
+curio	821	pdpv0: sync from `main`	🎉 Done	M4.1: mainnet ready	snadrus	https://github.com/filecoin-project/curio/issues/821
+filecoin-pay	253	Audit and documentation for auction	🎉 Done	M4.1: mainnet ready	rjan90,ZenGround0	https://github.com/FilOzone/filecoin-pay/issues/253
+filecoin-services	361	Document Migration Strategy for FWSS Contracts	🎉 Done	M4.1: mainnet ready	BigLep,rjan90	https://github.com/FilOzone/filecoin-services/issues/361
+foc-devnet	3	Make this repo public	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/3
+foc-devnet	5	Basic DevNet with End-to-End Deal + Retrieval	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/5
+foc-devnet	6	Run with Local/Branch Versions of Components	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/6
+foc-devnet	7	Example of how to use with Synapse	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/7
+foc-devnet	8	CI/Nightly End-to-End Validation of FOC as a whole	🎉 Done	M4.1: mainnet ready	galargh,redpanda-f	https://github.com/FilOzone/foc-devnet/issues/8
+foc-devnet	9	Document for team adoption and maintenance	🎉 Done	M4.1: mainnet ready	BigLep,redpanda-f	https://github.com/FilOzone/foc-devnet/issues/9
+synapse-sdk	469	Add support to mainnet in examples/cli	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/469
+filecoin-pay	255	Write up Auction System functionality in SPEC.md	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/FilOzone/filecoin-pay/issues/255
+synapse-sdk	486	Wrongly named `signerAddress` is misnamed in context selection & resolution methods	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/FilOzone/synapse-sdk/issues/486
+filecoin-pin	282	Add public PieceCID/CommP helper and top-level API for uploads	🎉 Done	M4.1: mainnet ready	bajtos	https://github.com/filecoin-project/filecoin-pin/issues/282
+synapse-sdk	495	Simplify provider & data set resolution logic & API	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/synapse-sdk/issues/495
+dealbot	80	[SEV3] Dealbot stalled	🎉 Done	M4.1: mainnet ready	SgtPooki,silent-cipher	https://github.com/FilOzone/dealbot/issues/80
+dealbot	85	[Op Readiness: P0] separate web ui and dealbot backend infrastructure	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/85
+synapse-sdk	504	figure out public/wallet client options	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/504
+dealbot	93	[Op Readiness: P0] get filoz hosted domain and decide on permanent home for dealbot	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/93
+filecoin-pay-explorer	58	Weekly unique query discrepancy	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/58
+filecoin-pay-explorer	59	Integrate Plausible Analytics for usage tracking	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/59
+filecoin-pay-explorer	63	Provide subgraph endpoint access for settlement and wallet metrics	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-pay-explorer/issues/63
+filecoin-pay-explorer	64	Integrate numbers across public-facing dashboards	🎉 Done	M4.1: mainnet ready	davidgasquez,timfong888	https://github.com/FilOzone/filecoin-pay-explorer/issues/64
+dealbot	97	docs: clarify purpose and usage of dealbot env vars	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/97
+filecoin-pay-explorer	69	Link back to this repo so people can see the code, know where to file feature requests or bugs.	🎉 Done	M4.1: mainnet ready	pyropy	https://github.com/FilOzone/filecoin-pay-explorer/issues/69
+synapse-sdk	437	Add intelligent synapse.payments.fund(amount) (improve golden path)	🎉 Done	M4.1: mainnet ready	lordshashank	https://github.com/FilOzone/synapse-sdk/issues/437
+filecoin-services	371	Pre-GA review: Sybil fee cost burden and abuse vector	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/FilOzone/filecoin-services/issues/371
+synapse-sdk	520	Use getPDPConfig() instead of individual PDP config getters	🎉 Done	M4.1: mainnet ready	akronim26	https://github.com/FilOzone/synapse-sdk/issues/520
+filecoin-cloud	183	Add SP approval status to Service Table	🎉 Done	M4.1: mainnet ready	mirhamasala,timfong888	https://github.com/FilOzone/filecoin-cloud/issues/183
+filecoin-cloud	184	Rethink refresh functionality on Service Table	🎉 Done	M4.1: mainnet ready	CharlyMartin	https://github.com/FilOzone/filecoin-cloud/issues/184
+foc-devnet	15	Build script timing causes compilation failure for embedded MockUSDFC archive	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/15
+dealbot	113	bug: The retrieval task cannot be ended	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/113
+filecoin-services	375	Rail settlement check on Dataset Deletion	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/filecoin-services/issues/375
+pdp	240	Update gas benchmarks with production stack	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/FilOzone/pdp/issues/240
+curio	860	PDP(v0): submitting too-late proofs `ProvingPeriodPassed`	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/filecoin-project/curio/issues/860
+foc-devnet	17	Nightly CI runs, needs clarity	🎉 Done	M4.1: mainnet ready	BigLep,redpanda-f	https://github.com/FilOzone/foc-devnet/issues/17
+foc-devnet	23	Run fails on proof param download	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/23
+infra	2	Epic: get basic infra set up	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/2
+infra	3	set up argocd	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/3
+infra	4	set up traefik	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/4
+infra	5	set up basic prod cluster and ensure all are happy with setup	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/5
+infra	6	set up staging cluster	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/6
+infra	7	feat: deploy dealbot on filoz infra	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/7
+infra	8	Create DNS entry pointing to dealbot staging and prod	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/8
+infra	15	ensure betterstack is setup for dealbot logs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/15
+curio	870	pdpv0: ServiceProviderRegistry capability entry IPNIPeerID isn't consistently cased	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/filecoin-project/curio/issues/870
+filecoin-services	382	Endorsed Providers Contract	🎉 Done	M4.1: mainnet ready	wjmelements	https://github.com/FilOzone/filecoin-services/issues/382
+filecoin-services	383	`terminateService` and `terminateCDNService` revert if CDN rails already terminated externally	🎉 Done	M4.1: mainnet ready	pyropy	https://github.com/FilOzone/filecoin-services/issues/383
+tpm-utils	6	Create FOC monitoring and incident runbook for FOC websites	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/tpm-utils/issues/6
+dealbot	119	Change task scheduling to use startup-relative intervals instead of wall-clock time	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/119
+curio	880	pdpv0: Task backlog will affect normal data uploading	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/filecoin-project/curio/issues/880
+filecoin-services	391	Runbook for how to get a dump of relevant BetterStack logs	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/391
+dealbot	123	Determine GA scope	🎉 Done	M4.1: mainnet ready	BigLep	https://github.com/FilOzone/dealbot/issues/123
+infra	23	"ensure that merging of ""merge to prod"" results in deployment to prod dealbot"	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/23
+foc-devnet	29	`cargo run -- init` fails with NotFound when docker is not installed.	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/29
+foc-devnet	30	`cargo run -- init` fails in `groupadd` with GID already exists	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/FilOzone/foc-devnet/issues/30
+curio	892	pdpv0: understand load capacity at GA	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/filecoin-project/curio/issues/892
+filecoin-services	392	Overall FOC Operational Readiness Review	🎉 Done	M4.1: mainnet ready	BigLep	https://github.com/FilOzone/filecoin-services/issues/392
+synapse-sdk	557	Bug: piece deletion not working with synapse	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/557
+infra	27	solve errors in logs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/27
+infra	28	kaggle 403	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/28
+infra	29	dataset folder error	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/29
+foc-devnet	35	Provide `aarch64` / MacOS M series chip support for `foc-devnet`	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/35
+foc-devnet	36	Canonicalize `foc-devnet` SetupContext, ContractAddresses and Wallet keys	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/36
+foc-devnet	37	Fix issues with `latest` symlinks	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/37
+foc-devnet	38	Make `~/.foc-devnet` directory configurable.	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/38
+infra	32	create dealbot deployment and management docs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/32
+dealbot	139	Size effort for off-chain PDP challenges	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/139
+infra	33	make sure prod dealbot is testing unapproved providers as well	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/infra/issues/33
+dealbot	144	bug: when we retrieve or verify content downloaded from SP or IPFS, we do not validate the actual content	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/144
+filecoin-services	398	"Recoverability test: ensure realistic SP outages are recoverable ""quick enough"""	🎉 Done	M4.1: mainnet ready	TippyFlitsUK	https://github.com/FilOzone/filecoin-services/issues/398
+curio	904	pdpv0: PDP subsystem documentation	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/filecoin-project/curio/issues/904
+dealbot	145	handle aborted upload error properly	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/145
+filecoin-pin	309	bug: payments setup doesnt respect `--mainnet`	🎉 Done	M4.1: mainnet ready	DeFiPrince	https://github.com/filecoin-project/filecoin-pin/issues/309
+curio	924	pdpv0:  pdp_data_set_pieces.removed not updated after successful deletion transaction	🎉 Done	M4.1: mainnet ready	rjan90,ZenGround0	https://github.com/filecoin-project/curio/issues/924
+dealbot	158	"GA ""Data Storage"" check implementation and documentation"	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/158
+dealbot	160	"Document ""check"" events and metrics"	🎉 Done	M4.1: mainnet ready	BigLep,SgtPooki	https://github.com/FilOzone/dealbot/issues/160
+filecoin-pay-explorer	89	Add entity for `OneTimePayment`	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/89
+dealbot	163	Routinely pause dealbot to allow for SP maintenance	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/163
+foc-devnet	48	Check for required binaries before allowing start	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/foc-devnet/issues/48
+dealbot	165	chainLatencyMs metric is misnamed or incorrectly calculated	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/165
+filecoin-pay-explorer	93	bug: rail lockup calculation error	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/93
+dealbot	168	fully remove use of SP_RECEIVED_RETRIEVE_REQUEST	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/dealbot/issues/168
+dealbot	169	remove ENABLE_CDN_TESTING and places that use it	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/169
+dealbot	170	Update to Synapse 0.38.0 (and corresponding FilecoinPin)	🎉 Done	M4.1: mainnet ready	juliangruber	https://github.com/FilOzone/dealbot/issues/170
+dealbot	171	use only the random-unique-dataset creation method in datasource.service.ts	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/171
+dealbot	172	remove proxy_list and proxy_label	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/172
+filecoin-pay-explorer	95	"Add ""Total transacted per token"" metric for GA"	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/filecoin-pay-explorer/issues/95
+dealbot	173	stop trimming CID/spAddress/pieceCID in logs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/173
+dealbot	174	Document production configuration settings	🎉 Done	M4.1: mainnet ready	BigLep,geomatrick	https://github.com/FilOzone/dealbot/issues/174
+dealbot	178	Run Data Storage check 4 times per hour per SP	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/178
+filecoin-services	407	Pull PDP submodule and add PDP_INIT_COUNTER param to PDPVerifier deployment scripts	🎉 Done	M4.1: mainnet ready	DarkLord017	https://github.com/FilOzone/filecoin-services/issues/407
+dealbot	209	We need to be able to view jobs	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/209
+filecoin-services	411	Cleanup Calibration datasets to (temporarily) reduce chain bandwidth pressure before GA	🎉 Done	M4.1: mainnet ready	beck-8,silent-cipher	https://github.com/FilOzone/filecoin-services/issues/411
+filecoin-services	412	"Move ""subgraph"" to supported repository"	🎉 Done	M4.1: mainnet ready	nijoe1,rjan90	https://github.com/FilOzone/filecoin-services/issues/412
+synapse-sdk	589	foc-devnet Chain builder in synpase-core	🎉 Done	M4.1: mainnet ready	redpanda-f	https://github.com/FilOzone/synapse-sdk/issues/589
+dealbot	222	Data retention fault metrics via subgraph	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/222
+dealbot	238	Determine what telemetry visualization/alarming stack we're using for GA: BetterStack or Grafana	🎉 Done	M4.1: mainnet ready	BigLep,rjan90,SgtPooki	https://github.com/FilOzone/dealbot/issues/238
+dealbot	239	Simplified dealbot functionality for GA	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/239
+synapse-sdk	599	Require `source` parameter for SDK initialisation for namespace isolation	🎉 Done	M4.1: mainnet ready	hugomrdias,rvagg	https://github.com/FilOzone/synapse-sdk/issues/599
+filecoin-services	418	FWSS M4.1 Contract Upgrade	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/418
+dealbot	245	"Document job ""design/architecture"""	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/245
+filecoin-services	422	Adjust `challengeWindowSize` to 60 on FWSS Mainnet	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-services/issues/422
+infra	60	"add ""add to project"" github CI workflow to this repo"	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/infra/issues/60
+dealbot	258	we need to set deal/retrieval max timeout	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/258
+dealbot	260	pgboss/jobs mode should refresh providers daily	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/260
+synapse-sdk	602	Validate a terminating a already terminated dataset decodes the proper error with the recent lotus changes	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/602
+filecoin-cloud	232	Update roadmap	🎉 Done	M4.1: mainnet ready	jennijuju,mirhamasala,timfong888	https://github.com/FilOzone/filecoin-cloud/issues/232
+synapse-sdk	606	"addPieces fails with ""value.length"" error when metadata entry value is undefined"	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/synapse-sdk/issues/606
+synapse-sdk	613	Security: Validate operator address and allowance when custom operator is provided in approve operations	🎉 Done	M4.1: mainnet ready	Chaitu-Tatipamula	https://github.com/FilOzone/synapse-sdk/issues/613
+dealbot	276	BetterStack: top-level dashboard summarizing SP performance as a whole	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/276
+dealbot	277	BetterStack: provider dashboard	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/277
+dealbot	278	BetterStack: dealbot logs can be publicly queried	🎉 Done	M4.1: mainnet ready	SgtPooki,silent-cipher	https://github.com/FilOzone/dealbot/issues/278
+dealbot	279	Dealbot UI: basic table of SPs for easy links to dashboards	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/279
+dealbot	284	Dealbot ensures SPs-under-test have `MIN_NUM_DATASETS_FOR_CHECKS` datasets	🎉 Done	M4.1: mainnet ready	Chaitu-Tatipamula	https://github.com/FilOzone/dealbot/issues/284
+filecoin-pin-website	146	Refresh session key	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/filecoin-project/filecoin-pin-website/issues/146
+dealbot	294	we should emit individual ttfb metrics for block-fetch strategy	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/294
+curio	1031	pdpv0: Sanity check for changing challenge window	🎉 Done	M4.1: mainnet ready	ZenGround0	https://github.com/filecoin-project/curio/issues/1031
+curio	1045	pdpv0: ResolveViewAddress can block indefinitely, hanging the chain scheduler	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/filecoin-project/curio/issues/1045
+dealbot	310	fix: logs are structured and in one line.	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/310
+dealbot	311	fix: structured logs include providerId / providerAddress / pieceCid / ipfsRootCID where appropriate.	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/311
+filecoin-services	431	Event `ProviderRegistered` does not include name and description	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/filecoin-services/issues/431
+dealbot	319	Address Staging KubePodCrashLooping issue	🎉 Done	M4.1: mainnet ready	SgtPooki,silent-cipher	https://github.com/FilOzone/dealbot/issues/319
+synapse-sdk	646	Update synapse-react to support multi sp upload flow	🎉 Done	M4.1: mainnet ready	hugomrdias	https://github.com/FilOzone/synapse-sdk/issues/646
+filecoin-services	435	Options for the Sybil Fee Payment	🎉 Done	M4.1: mainnet ready	timfong888,ZenGround0	https://github.com/FilOzone/filecoin-services/issues/435
+dealbot	326	followup to data-retention checks	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/326
+dealbot	327	Review: Better Stack dashboard vs DealBot JTBD requirements	🎉 Done	M4.1: mainnet ready	BigLep,SgtPooki	https://github.com/FilOzone/dealbot/issues/327
+synapse-sdk	652	Make FOC working group maintainer demos and tools more discoverable	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/synapse-sdk/issues/652
+tpm-utils	14	Improve discoverability of demo/example projects on FilOzone GitHub landing page	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/tpm-utils/issues/14
+filecoin-pin	348	Give option to skip content routing checks	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/filecoin-project/filecoin-pin/issues/348
+synapse-sdk	657	Improve UploadResult ergonomics: add requestedCopies, complete, rename failures	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/synapse-sdk/issues/657
+dealbot	336	New UI intuitively sees storage/retrieval issues	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/336
+filecoin-pay-explorer	122	Setup goldsky payment	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/filecoin-pay-explorer/issues/122
+dealbot	342	Follow-up: make time window parsing DST/timezone-stable	🎉 Done	M4.1: mainnet ready	silent-cipher	https://github.com/FilOzone/dealbot/issues/342
+dealbot	345	fixup: dealbot SP logs dashboard on betterstack	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/345
+curio	1088	pdpv0: settle payment rails every ~7 days	🎉 Done	M4.1: mainnet ready	LexLuthr	https://github.com/filecoin-project/curio/issues/1088
+curio	1091	pdpv0: pdp/v1.3.0 for M4.1	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/filecoin-project/curio/issues/1091
+dealbot	349	review of dealbot on mainnet - 03-11-26	🎉 Done	M4.1: mainnet ready	timfong888	https://github.com/FilOzone/dealbot/issues/349
+filecoin-services	440	Add remaining endorsed SP certificates for M4.1	🎉 Done	M4.1: mainnet ready	rjan90,TippyFlitsUK	https://github.com/FilOzone/filecoin-services/issues/440
+filecoin-services	443	Add pagination to clientDataSets and getClientDataSets	🎉 Done	M4.1: mainnet ready	rvagg	https://github.com/FilOzone/filecoin-services/issues/443
+pdp	252	Calibnet: PDPVerifier upgrade from `v3.1.0` to `v3.2.0`	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/pdp/issues/252
+pdp	253	Mainnet: PDPVerifier upgrade from `v3.1.0` to `v3.2.0`	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/pdp/issues/253
+filecoin-pin	367	IPNI verification fails for SPs on Curio git_88428906 due to multiaddr format mismatch	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/filecoin-project/filecoin-pin/issues/367
+dealbot	382	Data storage checks failing for SPs on Curio git_88428906	🎉 Done	M4.1: mainnet ready	SgtPooki	https://github.com/FilOzone/dealbot/issues/382
+curio	1110	pdpv0: advertise multiaddrs in ecosystem-compatible way	🎉 Done	M4.1: mainnet ready	beck-8	https://github.com/filecoin-project/curio/issues/1110
+infra	93	Configure dealbot to use dedicated RPC endpoint for better reliability	🎉 Done	M4.1: mainnet ready	rjan90	https://github.com/FilOzone/infra/issues/93
+dealbot	411	Investigate staging Dealbot startup failure	🎉 Done	M4.1: mainnet ready	rvagg,silent-cipher	https://github.com/FilOzone/dealbot/issues/411

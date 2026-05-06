@@ -44,8 +44,8 @@ Exit codes: `0` success (including zero matching items → header-only TSV), `1`
 | Key | Required | Description |
 |-----|----------|-------------|
 | `projectUrl` | Yes | Org project URL: `https://github.com/orgs/ORG/projects/N` |
-| `query` | No* | Single project filter string (`q`). If both `query` and `queryParts` exist, **non-empty `query` wins**. |
-| `queryParts` | No* | Array of strings; joined with spaces to form `q` when `query` is not used (or is empty). **Every element must be a string.** |
+| `query` | No* | Single project filter string (`q`). Supports OR syntax (see below). If both `query` and `queryParts` exist, **non-empty `query` wins**. |
+| `queryParts` | No* | Array of strings; joined with spaces to form `q` when `query` is not used (or is empty). OR syntax applies after joining. **Every element must be a string.** |
 | `fields` | Yes | Non-empty array of column headers. Order = TSV column order. |
 | `outputFile` | No | `null` or omit → stdout; non-empty string → file path. **`""` is invalid.** |
 
@@ -89,10 +89,76 @@ Values come from the linked **issue or pull request** (`content`), not from cust
 
 You still get a **TSV header row** and **no data rows**.
 
+### OR syntax
+
+Combine multiple filter branches with `OR`. Terms before the first parenthesized group form a **shared prefix** applied to every branch. Each branch becomes a separate API query; results are union-merged with deduplication.
+
+```
+shared-prefix (branch-1) OR (branch-2) OR (branch-3)
+```
+
+- **Shared prefix**: terms before the first `(` — applied to every branch
+- **Branches**: each `(...)` group contains branch-specific terms
+- **OR**: uppercase keyword separating groups
+- **Backward compatible**: queries without `OR` or parentheses work unchanged
+
+**Example** — unassigned items from one milestone, assigned items from another (each branch has different conditions that can't be expressed in a single query):
+
+```json
+{
+  "query": "is:issue (milestone:\"M4.0: mainnet staged\" no:assignee) OR (milestone:\"M4.1: mainnet ready\" has:assignee)"
+}
+```
+
+This expands to two queries:
+1. `is:issue milestone:"M4.0: mainnet staged" no:assignee`
+2. `is:issue milestone:"M4.1: mainnet ready" has:assignee`
+
+Items appearing in both branches are deduplicated by ID.
+
+**Real-world use case** — all done issues plus recently updated issues (not suitable for golden files since the board changes, but the most common use):
+
+```json
+{
+  "query": "is:issue (status:\"🎉 Done\") OR (-last-updated:7days)"
+}
+```
+
+#### Limitations
+
+This is single-level OR expansion, not full boolean search. Each OR branch becomes a separate API query whose results are unioned. It does **not** support the nested boolean grouping that GitHub Issues search and Lucene/Elasticsearch offer.
+
+**Not supported:**
+
+```
+# Nested parentheses
+((milestone:"M4.0" OR milestone:"M4.1") AND status:"🎉 Done")
+→ Error: Nested parentheses are not supported
+
+# Filter terms after the last group
+(status:A) OR (status:B) is:issue
+→ Error: Filter terms after the last group are not allowed
+
+# OR without parenthesized groups
+is:issue OR is:pr
+→ Error: OR requires parenthesized groups
+
+# AND keyword (use the shared prefix instead)
+(milestone:"M4.0") AND (status:"🎉 Done")
+→ Not recognized — AND is not a keyword; write: status:"🎉 Done" (milestone:"M4.0")
+
+# OR inside a single group
+(milestone:"M4.0" OR milestone:"M4.1")
+→ Error: OR inside parentheses is not supported
+```
+
+The shared-prefix model covers the most common real-world cases (2–5 branches with shared context). For queries that need multi-dimensional boolean grouping, run separate exports.
+
 ### Examples
 
 - [examples/export.example1.json](examples/export.example1.json) — narrow filter, matches the live integration fixture.
 - [examples/export.example2.json](examples/export.example2.json) — broader columns (milestone, assignees, reviewers, etc.).
+- [examples/export.example3.json](examples/export.example3.json) — OR query with different conditions per branch.
 
 ## Implementation notes
 

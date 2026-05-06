@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
+from github_projects_client import expand_or_query
+
 from github_project_export.board_url import parse_org_project_url
 
 
@@ -43,6 +45,10 @@ def _require_non_empty_query(data: dict[str, Any]) -> str:
     q_chars = q.strip() if isinstance(q, str) else ""
 
     if q_chars:
+        try:
+            expand_or_query(q_chars)
+        except ValueError as e:
+            raise ConfigError(str(e)) from e
         return q_chars
 
     if qp is not None and len(qp) > 0:
@@ -51,6 +57,10 @@ def _require_non_empty_query(data: dict[str, Any]) -> str:
             raise ConfigError(
                 "'query' is empty and 'queryParts' produces an empty filter",
             )
+        try:
+            expand_or_query(joined)
+        except ValueError as e:
+            raise ConfigError(str(e)) from e
         return joined
 
     raise ConfigError(

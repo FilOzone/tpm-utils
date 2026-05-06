@@ -19,6 +19,8 @@ _PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"
 _FIXTURE_INPUT = _FIXTURES / "fixture_1_input.json"
 _FIXTURE_OUTPUT = _FIXTURES / "fixture_1_output.tsv"
+_FIXTURE_2_INPUT = _FIXTURES / "fixture_2_input.json"
+_FIXTURE_2_OUTPUT = _FIXTURES / "fixture_2_output.tsv"
 
 
 def _subprocess_env() -> dict[str, str]:
@@ -72,6 +74,42 @@ def test_export_example_matches_golden() -> None:
             "-m",
             "github_project_export.cli",
             str(_FIXTURE_INPUT),
+            "--quiet",
+        ],
+        cwd=_PACKAGE_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=_subprocess_env(),
+        check=False,
+    )
+
+    assert proc.returncode == 0, (
+        f"CLI failed (exit {proc.returncode})\nstderr:\n{proc.stderr}\nstdout:\n{proc.stdout}"
+    )
+    actual = _normalize_tsv(proc.stdout)
+    assert actual == expected, (
+        f"TSV mismatch (normalized by url column).\n"
+        f"--- expected ---\n{expected}\n--- actual ---\n{actual}\n--- stderr ---\n{proc.stderr}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    _needs_github_token(),
+    reason="GITHUB_TOKEN not set (or GH_TOKEN); e.g. GITHUB_TOKEN=$(gh auth token) uv run pytest",
+)
+def test_export_or_query_matches_golden() -> None:
+    """OR-query fixture: two milestones unioned, deduplicated, sorted by url."""
+    expected_raw = _FIXTURE_2_OUTPUT.read_text(encoding="utf-8")
+    expected = _normalize_tsv(expected_raw)
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "github_project_export.cli",
+            str(_FIXTURE_2_INPUT),
             "--quiet",
         ],
         cwd=_PACKAGE_ROOT,

@@ -17,9 +17,9 @@
 
 **Purpose**: No new project scaffolding needed — changes are to existing packages. This phase creates the new parser module and its tests.
 
-- [ ] T001 Create `expand_or_query()` parser function in `github-projects-client/github_projects_client/query.py` per contract in `specs/004-or-filter-syntax/contracts/query-parser.md`
-- [ ] T002 [P] Create unit tests for `expand_or_query()` in `github-projects-client/tests/test_query_unit.py` covering: passthrough (no OR), simple OR with prefix, OR without prefix, multi-branch OR, OR/parens inside quotes, and all error conditions (unmatched parens, nested parens, trailing terms, empty group, OR without parens, OR inside parens)
-- [ ] T003 Export `expand_or_query` from `github-projects-client/github_projects_client/__init__.py`
+- [X] T001 Create `expand_or_query()` parser function in `github-projects-client/github_projects_client/query.py` per contract in `specs/004-or-filter-syntax/contracts/query-parser.md`
+- [X] T002 [P] Create unit tests for `expand_or_query()` in `github-projects-client/tests/test_query_unit.py` covering: passthrough (no OR), simple OR with prefix, OR without prefix, multi-branch OR, OR/parens inside quotes, and all error conditions (unmatched parens, nested parens, trailing terms, empty group, OR without parens, OR inside parens)
+- [X] T003 Export `expand_or_query` from `github-projects-client/github_projects_client/__init__.py`
 
 **Checkpoint**: Parser is complete, unit tests pass. Run: `cd github-projects-client && uv run pytest tests/test_query_unit.py -v`
 
@@ -41,11 +41,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Modify `export_rows()` in `github-project-export/github_project_export/rest_export.py` to call `expand_or_query(query)`, loop `fetch_project_v2_items_rest()` per expanded query, and deduplicate results by `item["id"]` before mapping to rows
-- [ ] T005 [US1] Add OR syntax validation to `github-project-export/github_project_export/config_schema.py` — in `_require_non_empty_query()`, call `expand_or_query()` and catch `ValueError` as `ConfigError`
-- [ ] T006 [US1] Create integration test fixture `github-project-export/tests/fixtures/fixture_2_input.json` with an OR query against FilOzone project #14
-- [ ] T007 [US1] Create expected output `github-project-export/tests/fixtures/fixture_2_output.tsv` by running the OR query manually and capturing results
-- [ ] T008 [US1] Add golden-file test function in `github-project-export/tests/test_export_example_live.py` for the OR-query fixture
+- [X] T004 [US1] Modify `export_rows()` in `github-project-export/github_project_export/rest_export.py` to call `expand_or_query(query)`, loop `fetch_project_v2_items_rest()` per expanded query, and deduplicate results by `item["id"]` before mapping to rows
+- [X] T005 [US1] Add OR syntax validation to `github-project-export/github_project_export/config_schema.py` — in `_require_non_empty_query()`, call `expand_or_query()` and catch `ValueError` as `ConfigError`
+- [X] T006 [US1] Create integration test fixture `github-project-export/tests/fixtures/fixture_2_input.json` with an OR query against FilOzone project #14
+- [X] T007 [US1] Create expected output `github-project-export/tests/fixtures/fixture_2_output.tsv` by running the OR query manually and capturing results
+- [X] T008 [US1] Add golden-file test function in `github-project-export/tests/test_export_example_live.py` for the OR-query fixture
 
 **Checkpoint**: Export tool handles OR queries. Run: `cd github-project-export && GITHUB_TOKEN=$(gh auth token) uv run pytest -v`
 
@@ -59,8 +59,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Verify existing integration test passes unchanged — run `cd github-project-export && GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_export_example_live.py::test_export_example_matches_golden -v` and confirm byte-for-byte identical output
-- [ ] T010 [US2] Verify `github-projects-client` integration tests pass unchanged — run `cd github-projects-client && GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v`
+- [X] T009 [US2] Verify existing integration test passes unchanged — run `cd github-project-export && GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_export_example_live.py::test_export_example_matches_golden -v` and confirm byte-for-byte identical output
+- [X] T010 [US2] Verify `github-projects-client` integration tests pass unchanged — run `cd github-projects-client && GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v`
 
 **Checkpoint**: Zero regressions confirmed. All existing tests pass identically.
 
@@ -74,8 +74,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T011 [US3] Add error-case unit tests in `github-projects-client/tests/test_query_unit.py` for: OR at start/end, empty group, unmatched parens, trailing terms after last group (if not already covered by T002)
-- [ ] T012 [US3] Verify error messages propagate correctly through config loading — add test in `github-project-export/tests/` that loads a config with malformed OR and asserts `ConfigError` is raised with helpful message
+- [X] T011 [US3] Add error-case unit tests in `github-projects-client/tests/test_query_unit.py` for: OR at start/end, empty group, unmatched parens, trailing terms after last group (if not already covered by T002)
+- [X] T012 [US3] Verify error messages propagate correctly through config loading — add test in `github-project-export/tests/` that loads a config with malformed OR and asserts `ConfigError` is raised with helpful message
 
 **Checkpoint**: All malformed queries produce clear errors. Parser unit tests and config validation tests pass.
 
@@ -87,8 +87,8 @@
 
 ### Implementation
 
-- [ ] T013 Modify `list_items()` in `github-projects-client/github_projects_client/items.py` to call `expand_or_query(query)` — single query: current behavior; multiple queries: fetch all pages for all branches, deduplicate by `_node_id`, return with `has_more=False`
-- [ ] T014 [P] Add integration tests in `github-projects-client/tests/test_integration.py` — new `TestOrQuery` class with tests for OR union results and deduplication
+- [X] T013 Modify `list_items()` in `github-projects-client/github_projects_client/items.py` to call `expand_or_query(query)` — single query: current behavior; multiple queries: fetch all pages for all branches, deduplicate by `_node_id`, return with `has_more=False`
+- [X] T014 [P] Add integration tests in `github-projects-client/tests/test_integration.py` — new `TestOrQuery` class with tests for OR union results and deduplication
 
 **Checkpoint**: MCP server supports OR queries through `list_items()`. Run: `cd github-projects-client && GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py::TestOrQuery -v`
 
@@ -98,10 +98,10 @@
 
 **Purpose**: Documentation and final validation.
 
-- [ ] T015 [P] Update `github-project-export/README.md` with OR syntax documentation and examples
-- [ ] T016 [P] Add OR-query example config in `github-project-export/examples/export.example3.json`
-- [ ] T017 Run `specs/004-or-filter-syntax/quickstart.md` validation — manually execute each example and verify correct output
-- [ ] T018 Run full test suite across both packages to confirm no regressions
+- [X] T015 [P] Update `github-project-export/README.md` with OR syntax documentation and examples
+- [X] T016 [P] Add OR-query example config in `github-project-export/examples/export.example3.json`
+- [X] T017 Run `specs/004-or-filter-syntax/quickstart.md` validation — manually execute each example and verify correct output
+- [X] T018 Run full test suite across both packages to confirm no regressions
 
 ---
 

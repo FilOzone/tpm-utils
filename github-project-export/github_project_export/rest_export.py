@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 import requests
 
 from github_projects_client import (
+    expand_or_query,
     fetch_items_rest as fetch_project_v2_items_rest,
     list_field_ids_by_name as list_project_v2_field_ids_by_name,
 )
@@ -187,12 +188,32 @@ def export_rows(
     )
     columns, field_ids = build_columns(fields, board_map)
 
-    result = fetch_project_v2_items_rest(
-        session,
-        org=org,
-        project_number=project_number,
-        query=query,
-        field_ids=field_ids if field_ids else None,
-    )
+    queries = expand_or_query(query)
 
-    return [_item_to_row(it, columns) for it in result["items"]]
+    if len(queries) == 1:
+        result = fetch_project_v2_items_rest(
+            session,
+            org=org,
+            project_number=project_number,
+            query=queries[0],
+            field_ids=field_ids if field_ids else None,
+        )
+        raw_items = result["items"]
+    else:
+        raw_items: List[Dict[str, Any]] = []
+        seen_ids: set[int] = set()
+        for q in queries:
+            result = fetch_project_v2_items_rest(
+                session,
+                org=org,
+                project_number=project_number,
+                query=q,
+                field_ids=field_ids if field_ids else None,
+            )
+            for item in result["items"]:
+                item_id = item.get("id")
+                if item_id not in seen_ids:
+                    seen_ids.add(item_id)
+                    raw_items.append(item)
+
+    return [_item_to_row(it, columns) for it in raw_items]
