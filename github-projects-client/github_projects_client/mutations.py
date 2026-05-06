@@ -54,7 +54,10 @@ def _resolve_field_and_value(
     Returns a dict with project_id, field_id, mutation_value, or an error.
     """
     field_data = list_field_options(
-        session, org=org, project_number=project_number, field_name=field_name,
+        session,
+        org=org,
+        project_number=project_number,
+        field_name=field_name,
     )
     project_id = field_data["project_id"]
     fields = field_data.get("fields", {})
@@ -84,7 +87,9 @@ def _resolve_field_and_value(
 
     elif field_type == "iteration":
         iteration_id = None
-        for it in field_info.get("iterations", []) + field_info.get("completed_iterations", []):
+        for it in field_info.get("iterations", []) + field_info.get(
+            "completed_iterations", []
+        ):
             if it["title"].lower() == value.lower():
                 iteration_id = it["id"]
                 break
@@ -103,13 +108,19 @@ def _resolve_field_and_value(
         try:
             mutation_value = {"number": float(value)}
         except ValueError:
-            return {"success": False, "error": f"'{value}' is not a valid number for field '{field_name}'"}
+            return {
+                "success": False,
+                "error": f"'{value}' is not a valid number for field '{field_name}'",
+            }
 
     elif field_type in ("DATE",):
         mutation_value = {"date": value}
 
     else:
-        return {"success": False, "error": f"Unsupported field type: {field_type} for field '{field_name}'"}
+        return {
+            "success": False,
+            "error": f"Unsupported field type: {field_type} for field '{field_name}'",
+        }
 
     return {
         "success": True,
@@ -131,7 +142,10 @@ def _resolve_field_only(
     Used for clear operations where no value mapping is needed.
     """
     field_data = list_field_options(
-        session, org=org, project_number=project_number, field_name=field_name,
+        session,
+        org=org,
+        project_number=project_number,
+        field_name=field_name,
     )
     project_id = field_data["project_id"]
     fields = field_data.get("fields", {})
@@ -174,35 +188,45 @@ def _execute_clear_batch(
     try:
         graphql_query(session, query, variables)
         for item in batch:
-            results.append({
-                "item_ref": item["ref"],
-                "success": True,
-                "old_value": item["old_value"],
-                "new_value": "",
-                "field": field_name,
-            })
-    except Exception:
-        # Fall back to individual clears
-        for item in batch:
-            try:
-                graphql_query(session, CLEAR_FIELD_MUTATION, {
-                    "projectId": project_id,
-                    "itemId": item["node_id"],
-                    "fieldId": field_id,
-                })
-                results.append({
+            results.append(
+                {
                     "item_ref": item["ref"],
                     "success": True,
                     "old_value": item["old_value"],
                     "new_value": "",
                     "field": field_name,
-                })
+                }
+            )
+    except Exception:
+        # Fall back to individual clears
+        for item in batch:
+            try:
+                graphql_query(
+                    session,
+                    CLEAR_FIELD_MUTATION,
+                    {
+                        "projectId": project_id,
+                        "itemId": item["node_id"],
+                        "fieldId": field_id,
+                    },
+                )
+                results.append(
+                    {
+                        "item_ref": item["ref"],
+                        "success": True,
+                        "old_value": item["old_value"],
+                        "new_value": "",
+                        "field": field_name,
+                    }
+                )
             except Exception as item_exc:
-                results.append({
-                    "item_ref": item["ref"],
-                    "success": False,
-                    "error": str(item_exc),
-                })
+                results.append(
+                    {
+                        "item_ref": item["ref"],
+                        "success": False,
+                        "error": str(item_exc),
+                    }
+                )
 
 
 def set_field_value_bulk(
@@ -239,18 +263,26 @@ def set_field_value_bulk(
     if is_clear:
         # Clear mode: only need field info, no value resolution
         field_info = _resolve_field_only(
-            session, org=org, project_number=project_number, field_name=field_name,
+            session,
+            org=org,
+            project_number=project_number,
+            field_name=field_name,
         )
     else:
         # Set mode: resolve field + value mapping once
         field_info = _resolve_field_and_value(
-            session, org=org, project_number=project_number,
-            field_name=field_name, value=value,
+            session,
+            org=org,
+            project_number=project_number,
+            field_name=field_name,
+            value=value,
         )
 
     if not field_info.get("success"):
         for ref in item_refs:
-            results.append({"item_ref": ref, "success": False, "error": field_info["error"]})
+            results.append(
+                {"item_ref": ref, "success": False, "error": field_info["error"]}
+            )
         return {"success_count": 0, "failure_count": len(item_refs), "results": results}
 
     project_id = field_info["project_id"]
@@ -264,30 +296,49 @@ def set_field_value_bulk(
         if ref.startswith("PVTI_"):
             resolved_items.append({"ref": ref, "node_id": ref, "old_value": ""})
             continue
-        details = get_item(session, org=org, project_number=project_number, item_ref=ref)
+        details = get_item(
+            session, org=org, project_number=project_number, item_ref=ref
+        )
         if not details:
-            results.append({"item_ref": ref, "success": False, "error": f"Could not find item: {ref}"})
+            results.append(
+                {
+                    "item_ref": ref,
+                    "success": False,
+                    "error": f"Could not find item: {ref}",
+                }
+            )
             continue
         node_id = details.get("_node_id")
         if not node_id:
-            results.append({"item_ref": ref, "success": False, "error": f"No node ID for item: {ref}"})
+            results.append(
+                {
+                    "item_ref": ref,
+                    "success": False,
+                    "error": f"No node ID for item: {ref}",
+                }
+            )
             continue
         old_value = details.get(field_name, "")
         resolved_items.append({"ref": ref, "node_id": node_id, "old_value": old_value})
 
     # Execute mutations in batches
     for batch_start in range(0, len(resolved_items), _BATCH_SIZE):
-        batch = resolved_items[batch_start:batch_start + _BATCH_SIZE]
+        batch = resolved_items[batch_start : batch_start + _BATCH_SIZE]
 
         if is_clear:
             _execute_clear_batch(
-                session, project_id=project_id, field_id=field_id,
-                batch=batch, field_name=field_name, results=results,
+                session,
+                project_id=project_id,
+                field_id=field_id,
+                batch=batch,
+                field_name=field_name,
+                results=results,
             )
         else:
             # Build aliased update mutation query
             var_defs = ", ".join(
-                f"$input{i}: UpdateProjectV2ItemFieldValueInput!" for i in range(len(batch))
+                f"$input{i}: UpdateProjectV2ItemFieldValueInput!"
+                for i in range(len(batch))
             )
             mutation_bodies = "\n    ".join(
                 f"m{i}: updateProjectV2ItemFieldValue(input: $input{i}) {{ projectV2Item {{ id }} }}"
@@ -307,13 +358,15 @@ def set_field_value_bulk(
             try:
                 graphql_query(session, query, variables)
                 for item in batch:
-                    results.append({
-                        "item_ref": item["ref"],
-                        "success": True,
-                        "old_value": item["old_value"],
-                        "new_value": value,
-                        "field": field_name,
-                    })
+                    results.append(
+                        {
+                            "item_ref": item["ref"],
+                            "success": True,
+                            "old_value": item["old_value"],
+                            "new_value": value,
+                            "field": field_name,
+                        }
+                    )
             except Exception:
                 # Batch failed — fall back to individual mutations
                 for item in batch:
@@ -324,20 +377,26 @@ def set_field_value_bulk(
                             "fieldId": field_id,
                             "value": mutation_value,
                         }
-                        graphql_query(session, UPDATE_FIELD_MUTATION, {"input": single_input})
-                        results.append({
-                            "item_ref": item["ref"],
-                            "success": True,
-                            "old_value": item["old_value"],
-                            "new_value": value,
-                            "field": field_name,
-                        })
+                        graphql_query(
+                            session, UPDATE_FIELD_MUTATION, {"input": single_input}
+                        )
+                        results.append(
+                            {
+                                "item_ref": item["ref"],
+                                "success": True,
+                                "old_value": item["old_value"],
+                                "new_value": value,
+                                "field": field_name,
+                            }
+                        )
                     except Exception as item_exc:
-                        results.append({
-                            "item_ref": item["ref"],
-                            "success": False,
-                            "error": str(item_exc),
-                        })
+                        results.append(
+                            {
+                                "item_ref": item["ref"],
+                                "success": False,
+                                "error": str(item_exc),
+                            }
+                        )
 
     success_count = sum(1 for r in results if r.get("success"))
     failure_count = sum(1 for r in results if not r.get("success"))

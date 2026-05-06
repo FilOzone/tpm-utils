@@ -3,7 +3,7 @@ name = "foc-pr-report"
 version = "0.1.0"
 description = "Markdown report for FilOzone GitHub Project 14 (FOC) PR workload by person and status"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "requests>=2.31",
     "github-projects-client",

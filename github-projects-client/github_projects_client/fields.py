@@ -104,8 +104,7 @@ def list_field_options(
         if "options" in field:
             field_info["type"] = "single_select"
             field_info["options"] = [
-                {"id": opt["id"], "name": opt["name"]}
-                for opt in field["options"]
+                {"id": opt["id"], "name": opt["name"]} for opt in field["options"]
             ]
         elif "configuration" in field:
             field_info["type"] = "iteration"

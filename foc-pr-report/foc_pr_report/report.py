@@ -74,9 +74,7 @@ def aggregate_rows(items: List[Dict[str, Any]]) -> List[Row]:
 
         assignee_nodes = content.get("assignees", {}).get("nodes", [])
         assignee_logins = [
-            n.get("login")
-            for n in assignee_nodes
-            if n and n.get("login")
+            n.get("login") for n in assignee_nodes if n and n.get("login")
         ]
 
         # Reviewers: requested on the PR plus users who submitted a PR review (COMMENTED/APPROVED/…).
@@ -137,8 +135,12 @@ def render_markdown(rows: List[Row]) -> str:
         else:
             user_q = _filter_body(BASE_FILTER, login)
             state_q = _filter_body(BASE_FILTER, f'status:"{status}"', login)
-            assign_q = _filter_body(BASE_FILTER, f'status:"{status}"', f"assignee:{login}")
-            rev_q = _filter_body(BASE_FILTER, f'status:"{status}"', f"reviewers:{login}")
+            assign_q = _filter_body(
+                BASE_FILTER, f'status:"{status}"', f"assignee:{login}"
+            )
+            rev_q = _filter_body(
+                BASE_FILTER, f'status:"{status}"', f"reviewers:{login}"
+            )
             label = login
 
         assignee_cell = f"[{a_count}]({view2_url(assign_q)})"
@@ -229,7 +231,9 @@ def render_repo_status_markdown(
         sf = f'status:"{status}"'
         status_headers.append(f"[{status}]({view2_url(_filter_body(BASE_FILTER, sf))})")
     total_col_header = f"[Total]({view2_url(BASE_FILTER)})"
-    lines.append("| Repository | " + " | ".join(status_headers) + f" | {total_col_header} |")
+    lines.append(
+        "| Repository | " + " | ".join(status_headers) + f" | {total_col_header} |"
+    )
 
     col_count = len(statuses) + 2  # Repository + statuses + Total
     sep = ["---"] * col_count

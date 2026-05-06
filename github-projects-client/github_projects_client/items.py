@@ -10,13 +10,30 @@ from .api import fetch_items_rest, list_field_ids_by_name
 
 
 DEFAULT_FIELDS = [
-    "Repository", "Id", "url", "Title", "Status", "Kind",
-    "Milestone", "Assignees", "Cycle Theme", "Dev Days Estimate",
+    "Repository",
+    "Id",
+    "url",
+    "Title",
+    "Status",
+    "Kind",
+    "Milestone",
+    "Assignees",
+    "Cycle Theme",
+    "Dev Days Estimate",
 ]
 
 SYNTHETIC_FIELDS = {
-    "repository", "repo", "url", "id", "number", "kind", "type", "title", "assignees",
-    "node id", "node_id",
+    "repository",
+    "repo",
+    "url",
+    "id",
+    "number",
+    "kind",
+    "type",
+    "title",
+    "assignees",
+    "node id",
+    "node_id",
 }
 
 
@@ -80,7 +97,11 @@ def _extract_synthetic(content: Optional[Dict[str, Any]], key: str) -> str:
         url = content.get("url") or ""
         if "/repos/" in url:
             try:
-                return url.split("/repos/", 1)[1].split("/issues/", 1)[0].split("/pulls/", 1)[0]
+                return (
+                    url.split("/repos/", 1)[1]
+                    .split("/issues/", 1)[0]
+                    .split("/pulls/", 1)[0]
+                )
             except (IndexError, ValueError):
                 pass
         return ""
@@ -107,7 +128,11 @@ def _extract_synthetic(content: Optional[Dict[str, Any]], key: str) -> str:
     if key_lower == "assignees":
         assignees = content.get("assignees") or []
         if isinstance(assignees, list):
-            logins = [a.get("login") for a in assignees if isinstance(a, dict) and a.get("login")]
+            logins = [
+                a.get("login")
+                for a in assignees
+                if isinstance(a, dict) and a.get("login")
+            ]
             return ", ".join(logins)
         return ""
     return ""
@@ -180,7 +205,9 @@ def list_items(
         "debug": dict with query details
     """
     field_map = list_field_ids_by_name(
-        session, org=org, project_number=project_number,
+        session,
+        org=org,
+        project_number=project_number,
     )
 
     if fields is None:
@@ -237,7 +264,9 @@ def list_fields(
 ) -> Dict[str, int]:
     """List all project field names and their REST numeric IDs."""
     return list_field_ids_by_name(
-        session, org=org, project_number=project_number,
+        session,
+        org=org,
+        project_number=project_number,
     )
 
 
@@ -288,11 +317,24 @@ def get_item(
     else:
         query = str(number)
 
-    all_fields = ["Repository", "Id", "url", "Title", "Status", "Kind",
-                  "Milestone", "Assignees", "Reviewers", "Cycle Theme",
-                  "Dev Days Estimate", "Cycle"]
+    all_fields = [
+        "Repository",
+        "Id",
+        "url",
+        "Title",
+        "Status",
+        "Kind",
+        "Milestone",
+        "Assignees",
+        "Reviewers",
+        "Cycle Theme",
+        "Dev Days Estimate",
+        "Cycle",
+    ]
     field_map = list_field_ids_by_name(
-        session, org=org, project_number=project_number,
+        session,
+        org=org,
+        project_number=project_number,
     )
     for name in field_map:
         if name not in all_fields:

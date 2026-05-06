@@ -22,13 +22,13 @@ import subprocess
 import pytest
 import requests
 
-pytestmark = pytest.mark.integration
-
 from foc_pr_report.pr_enrichment import (
     fetch_project_board_items_rest_filtered,
     field_values_by_name,
 )
 from foc_pr_report.report import BASE_FILTER, aggregate_rows, render_full_markdown
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="session")
@@ -38,16 +38,19 @@ def session() -> requests.Session:
     if not token:
         try:
             token = subprocess.check_output(
-                ["gh", "auth", "token"], text=True,
+                ["gh", "auth", "token"],
+                text=True,
             ).strip()
         except (subprocess.CalledProcessError, FileNotFoundError):
             pytest.skip("No GITHUB_TOKEN and gh CLI unavailable")
 
     s = requests.Session()
-    s.headers.update({
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    })
+    s.headers.update(
+        {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+    )
     return s
 
 
@@ -56,7 +59,9 @@ class TestPRReportPipeline:
 
     def test_fetch_and_render_produces_markdown(self, session: requests.Session):
         items = fetch_project_board_items_rest_filtered(
-            session, filter_query=BASE_FILTER, verbose=False,
+            session,
+            filter_query=BASE_FILTER,
+            verbose=False,
         )
         assert len(items) > 0, "Expected at least one PR on the board"
 
@@ -66,7 +71,11 @@ class TestPRReportPipeline:
         assert "content" in first
 
         # Verify field_values_by_name works on the fetched items
-        pr_items = [it for it in items if (it.get("content") or {}).get("__typename") == "PullRequest"]
+        pr_items = [
+            it
+            for it in items
+            if (it.get("content") or {}).get("__typename") == "PullRequest"
+        ]
         assert len(pr_items) > 0
         fv = field_values_by_name(pr_items[0])
         assert "Status" in fv

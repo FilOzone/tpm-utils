@@ -3,7 +3,7 @@ name = "github-project-export"
 version = "0.1.0"
 description = "Export GitHub Organization Project v2 board items to TSV via JSON config"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "requests>=2.31",
     "github-projects-client",
