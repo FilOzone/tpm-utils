@@ -84,7 +84,11 @@ class TestFormatCompact:
     def test_columns_are_union_of_all_keys(self):
         out = _parse(_format_compact(SAMPLE_ITEMS, has_more=False, next_cursor=None))
         assert set(out["columns"]) == {
-            "Repository", "Title", "Status", "Node ID", "Assignees",
+            "Repository",
+            "Title",
+            "Status",
+            "Node ID",
+            "Assignees",
         }
 
     def test_column_order_follows_first_seen(self):
@@ -116,9 +120,7 @@ class TestFormatCompact:
         assert second_row["Assignees"] == ""
 
     def test_pagination_fields(self):
-        out = _parse(
-            _format_compact(SAMPLE_ITEMS, has_more=True, next_cursor="cur_99")
-        )
+        out = _parse(_format_compact(SAMPLE_ITEMS, has_more=True, next_cursor="cur_99"))
         assert out["has_more"] is True
         assert out["next_cursor"] == "cur_99"
 
@@ -139,8 +141,7 @@ class TestFormatCompact:
         cols = out["columns"]
         # Simulate: jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]'
         reconstructed = [
-            {col: val for col, val in zip(cols, row)}
-            for row in out["rows"]
+            {col: val for col, val in zip(cols, row)} for row in out["rows"]
         ]
         # First and third items should match exactly
         assert reconstructed[0] == SAMPLE_ITEMS[0]
