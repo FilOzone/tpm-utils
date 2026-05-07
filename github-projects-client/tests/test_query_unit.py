@@ -154,9 +154,25 @@ class TestErrors:
             expand_or_query("(a OR b)")
 
     def test_or_at_start_without_parens(self):
-        with pytest.raises(ValueError, match="OR requires parenthesized groups"):
+        with pytest.raises(
+            ValueError, match="OR must be followed by a parenthesized group"
+        ):
             expand_or_query("OR something")
 
     def test_or_at_end_without_parens(self):
         with pytest.raises(ValueError, match="OR requires parenthesized groups"):
             expand_or_query("something OR")
+
+    def test_trailing_or_after_group(self):
+        with pytest.raises(
+            ValueError, match="OR must be followed by a parenthesized group"
+        ):
+            expand_or_query("(a) OR")
+
+    def test_consecutive_groups_without_or(self):
+        with pytest.raises(ValueError, match="Expected OR between groups"):
+            expand_or_query("(a) (b)")
+
+    def test_unmatched_quote(self):
+        with pytest.raises(ValueError, match="Unmatched quote"):
+            expand_or_query('is:issue title:"unclosed')

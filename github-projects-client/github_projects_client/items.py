@@ -257,7 +257,7 @@ def list_items(
                 max_pages=None,
             )
             for item in fetch_result["items"]:
-                node_id = item.get("node_id") or item.get("id") or ""
+                node_id = _extract_node_id(item)
                 if node_id not in seen_ids:
                     seen_ids.add(node_id)
                     raw_items.append(item)

@@ -549,7 +549,8 @@ class TestOrQuery:
         )
         assert len(result["items"]) > 0
         milestones = {item.get("Milestone", "") for item in result["items"]}
-        assert "M4.2: mainnet GA" in milestones or "M4.1: mainnet ready" in milestones
+        assert "M4.0: mainnet staged" in milestones, "Expected items from M4.0 branch"
+        assert "M4.1: mainnet ready" in milestones, "Expected items from M4.1 branch"
         assert result["has_more"] is False
         assert result["next_cursor"] is None
 

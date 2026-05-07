@@ -23,6 +23,8 @@ def expand_or_query(query: str) -> list[str]:
     paren_depth = 0
     found_parens = False
     found_or = False
+    expect_group = False  # True after OR — next token must be '('
+    expect_or = False  # True after ')' — next token must be OR or end
     i = 0
     n = len(query)
 
@@ -45,8 +47,13 @@ def expand_or_query(query: str) -> list[str]:
         if ch == "(":
             if paren_depth == 1:
                 raise ValueError("Nested parentheses are not supported")
+            if expect_or:
+                raise ValueError(
+                    "Expected OR between groups; consecutive groups require OR"
+                )
             paren_depth = 1
             found_parens = True
+            expect_group = False
             # Everything collected before first group (and not after a group) is prefix
             if not groups and not found_or:
                 token = "".join(current).strip()
@@ -74,6 +81,7 @@ def expand_or_query(query: str) -> list[str]:
                 raise ValueError("Empty group")
             groups.append(group_content)
             current = []
+            expect_or = True
             i += 1
             continue
 
@@ -84,6 +92,8 @@ def expand_or_query(query: str) -> list[str]:
             after_ok = (i + 2 >= n) or query[i + 2] in (" ", "\t")
             if before_ok and after_ok:
                 found_or = True
+                expect_or = False
+                expect_group = True
                 token = "".join(current).strip()
                 if token:
                     # Text before OR that's not in a group — means OR without parens
@@ -108,10 +118,13 @@ def expand_or_query(query: str) -> list[str]:
 
     # Post-loop checks
     if in_quotes:
-        raise ValueError("Unmatched opening parenthesis")
+        raise ValueError("Unmatched quote")
 
     if paren_depth != 0:
         raise ValueError("Unmatched opening parenthesis")
+
+    if expect_group:
+        raise ValueError("OR must be followed by a parenthesized group")
 
     # No parens and no OR found — passthrough
     if not found_parens and not found_or:
