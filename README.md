@@ -144,7 +144,8 @@ This runs integration tests across `github-projects-client`, `filozzy-mcp`, and 
    cd tpm-utils
    ```
 
-2. **Enable the pre-commit lint hook** (runs the same `ruff` checks as CI):
+2. **Enable the pre-commit lint hook** (runs the same `ruff` checks as CI).
+   Requires [`uv`](https://docs.astral.sh/uv/getting-started/installation/) (provides `uvx`).
    ```bash
    git config core.hooksPath .githooks
    ```

@@ -4,6 +4,13 @@
 
 set -euo pipefail
 
+if ! command -v uvx &> /dev/null; then
+  echo "Error: 'uvx' is not installed or not on PATH."
+  echo "Install it via: curl -LsSf https://astral.sh/uv/install.sh | sh"
+  echo "See https://docs.astral.sh/uv/getting-started/installation/ for more options."
+  exit 1
+fi
+
 echo "Running ruff lint..."
 uvx ruff check .
 
