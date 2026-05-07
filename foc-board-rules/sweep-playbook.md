@@ -131,6 +131,9 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 2. Cross-reference linked PRs with board data to check their status — only move the issue to "Issue awaiting PR merge" if at least one linked PR is In Progress or later (not in Todo/Triage)
 3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008)
 
+**How to discover unlinked PRs (per R-SL-008):**
+After processing formal linked PRs, check for In Progress issues that have **no** linked PRs — these may have cross-referencing PRs that weren't formally linked. See R-SL-008 "Discovering unlinked PRs" for the procedure. Only fetch timeline data for this targeted set (typically 5-15 issues), not all issues — the GraphQL `timelineItems` query returns verbose data and shouldn't be run broadly. Flag findings for human rather than auto-transitioning.
+
 **How to report stale items (per R-SL-009):**
 1. Exclude zOrganizing Items and "Issue awaiting PR merge" items
 2. For each candidate, fetch GitHub `updatedAt` and recent comments — if GitHub shows recent activity, the item is not stale (board fields just haven't been touched)
