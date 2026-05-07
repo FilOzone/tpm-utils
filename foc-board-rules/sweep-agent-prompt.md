@@ -15,9 +15,11 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
    - `field-completeness.md` — Rules R-FC-001 through R-FC-010
 
-2. **Check the current cycle**: Run `list_board_field_options("Cycle")` to find the current active iteration.
+2. **Create the sweep workspace** (see Stage 0 in `sweep-playbook.md`): Run `mkdir /tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)` and store the path as `$SWEEP`. All working files go here.
 
-3. **Note today's date** for time-based queries (staleness checks, recently-done window).
+3. **Check the current cycle**: Run `list_board_field_options("Cycle")` to find the current active iteration.
+
+4. **Note today's date** for time-based queries (staleness checks, recently-done window).
 
 ## Required tools
 
@@ -62,5 +64,7 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 6. **zOrganizing Items are excluded** from most field completeness rules. Don't try to assign them or set their fields.
 
-7. **Use jq to join board and Phase 1 data — don't reason through raw JSON.** The playbook's "Cross-referencing board data with GitHub metadata" section describes the approach. Fetch board PRs, fetch Phase 1 per repo, then use `jq` to filter Phase 1 to board-only PRs and produce per-rule action lists (e.g., draft PRs in non-draft statuses, non-draft non-bot in Triage, CHANGES_REQUESTED in Awaiting Review). Doing this join manually in your reasoning is slow, error-prone at scale, and burns context. Produce structured action lists programmatically, then only read individual items that need Phase 2 judgment. (Added after a sweep where manual cross-referencing made Stage 1 unnecessarily slow.)
+7. **Use `format: "compact"`, Write to `$SWEEP/` immediately, and check pagination.** When calling `list_board_items`, pass `format: "compact"` to get columnar JSON (field names once, rows as arrays — ~40-60% fewer tokens than `format: "json"`). **Immediately after receiving each tool result, use the Write tool** (not Bash) **to save the raw JSON string to your `$SWEEP/` directory** (e.g., `$SWEEP/board_prs.json`). The tool result is in your conversation context, not in a shell variable — you cannot `echo` it to a file. The Write tool is the only reliable way to get it to disk. Writing to the sweep workspace (created in Stage 0) ensures all files are new, avoiding the Write tool's read-first requirement for existing files. Convert to objects for `jq` joins with: `jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]'`. **After writing, check `jq -e '.has_more'` on the file** — if true, fetch the next page with the returned `next_cursor` and merge. Use `per_page: 100` to minimize pages. See the playbook's "Cross-referencing board data with GitHub metadata" section for the full pattern.
+
+8. **Use jq to join board and Phase 1 data — don't reason through raw JSON.** Fetch board PRs (to disk, per pitfall 7), fetch Phase 1 per repo, then use `jq` to filter Phase 1 to board-only PRs and produce per-rule action lists (e.g., draft PRs in non-draft statuses, non-draft non-bot in Triage, CHANGES_REQUESTED in Awaiting Review). Doing this join manually in your reasoning is slow, error-prone at scale, and burns context. Produce structured action lists programmatically, then only read individual items that need Phase 2 judgment.
 

@@ -4,6 +4,18 @@ Prescribed stage-by-stage workflow for a full board sweep. Each stage uses targe
 
 Work through stages in order. Complete all actions and reporting for one stage before moving to the next.
 
+## Stage 0: Create sweep workspace
+
+Before any queries, create a unique temp directory for this sweep's working files:
+
+```bash
+mkdir /tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)
+```
+
+Store the path (e.g., `/tmp/foc-board-sweep@2026-05-07T14:30:00Z`) and use it for all file writes throughout the sweep. This keeps artifacts organized per run, avoids collisions with prior sweeps, and — critically — ensures every Write tool call targets a new file (the Write tool requires a prior Read for existing files, but new files in a fresh directory just work).
+
+All file path examples in this playbook use `$SWEEP/` as shorthand for this directory.
+
 ## Stage 1: Open PRs
 
 **Goal:** Apply PR hygiene, status lifecycle, and field completeness rules to all open PRs.
@@ -39,7 +51,41 @@ Work through stages in order. Complete all actions and reporting for one stage b
 
 The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls.
 
-**`list_board_items` output is JSONL.** Each line after the "Found N items:" header is a valid JSON object. To build a JSON array for `jq` joins: `echo "$RESULT" | tail -n +2 | grep '^{' | jq -s '.'`. Do NOT hand-transcribe board items into JSON — parse the output directly. Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
+**Use `format: "compact"` and immediately Write to disk.** Pass `format: "compact"` to `list_board_items` to get columnar JSON — field names appear once, rows are arrays of values:
+
+```json
+{"columns": ["Repository", "Title", "Status", ...],
+ "rows": [["curio", "Fix X", "⌨️ In Progress", ...], ...],
+ "total_in_page": 62}
+```
+
+This is ~40-60% smaller than `format: "json"` (which repeats field names per item), meaning fewer tokens through your context. **Immediately after receiving the tool result, use the Write tool to save the raw JSON string to a file in your `$SWEEP/` directory** (e.g., `$SWEEP/board_prs.json`). Do NOT try to echo/cat the result via Bash — the tool output is in your conversation context, not in a shell variable. The Write tool is the only reliable way to transfer it to disk.
+
+To convert back to an array of objects for `jq` joins:
+
+```bash
+jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]' $SWEEP/board_prs.json > $SWEEP/board_prs_objects.json
+```
+
+**Why this matters:** Without writing to disk first, the agent falls into a trap: it has the JSON in context, tries to reconstruct it in a bash heredoc, and wastes time hand-copying 62+ items. The Write tool is instant and exact.
+
+**Pagination: always check `has_more`.** After writing to disk, check for more pages:
+
+```bash
+jq -e '.has_more' $SWEEP/board_prs.json  # exits 0 if true, 1 if false/missing
+```
+
+If true, fetch the next page with the returned `next_cursor`, Write that result to a second file, then merge rows:
+
+```bash
+jq -s '{"columns": .[0].columns, "rows": [.[].rows[]]}' $SWEEP/board_prs.json $SWEEP/board_prs_p2.json > $SWEEP/board_prs_all.json
+```
+
+**Tip:** Use `per_page: 100` (the maximum) to reduce the number of pages. Most board queries fit in 1-2 pages.
+
+Without `format: "json"`, the default output is human-readable JSONL (one JSON object per line after a "Found N items:" header). This is fine for small result sets displayed in conversation, but for programmatic use always prefer `format: "json"`.
+
+Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
 
 After fetching both datasets:
 

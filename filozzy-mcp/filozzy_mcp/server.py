@@ -85,6 +85,67 @@ def _build_session() -> requests.Session:
     return session
 
 
+def _build_display_items(items: list[dict]) -> list[dict]:
+    """Strip internal fields and empty values from items for output."""
+    return [
+        {
+            k: v
+            for k, v in item.items()
+            if not k.startswith("_") and v not in (None, "")
+        }
+        for item in items
+    ]
+
+
+def _format_json(
+    display_items: list[dict],
+    has_more: bool,
+    next_cursor: Optional[str],
+) -> str:
+    """Return a JSON object with items array and pagination metadata."""
+    payload: dict = {"items": display_items, "total_in_page": len(display_items)}
+    if has_more:
+        payload["has_more"] = True
+        payload["next_cursor"] = next_cursor
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _format_compact(
+    display_items: list[dict],
+    has_more: bool,
+    next_cursor: Optional[str],
+) -> str:
+    """Return columnar JSON: column names once, then rows as arrays.
+
+    Much more token-efficient than ``_format_json`` for large result sets
+    because field names appear once instead of once-per-item.  The output
+    is still valid JSON and can be converted back to objects with jq::
+
+        jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]'
+    """
+    # Build a stable column order from the union of all items' keys,
+    # preserving first-seen order (which follows the requested fields).
+    columns: list[str] = []
+    seen: set[str] = set()
+    for item in display_items:
+        for key in item:
+            if key not in seen:
+                columns.append(key)
+                seen.add(key)
+
+    rows = [[item.get(col, "") for col in columns] for item in display_items]
+
+    payload: dict = {
+        "columns": columns,
+        "rows": rows,
+        "total_in_page": len(display_items),
+    }
+    if has_more:
+        payload["has_more"] = True
+        payload["next_cursor"] = next_cursor
+    return json.dumps(payload, ensure_ascii=False)
+
+
 @mcp.tool()
 def list_board_items(
     query: str = '-status:"🎉 Done"',
@@ -92,6 +153,7 @@ def list_board_items(
     per_page: int = 50,
     cursor: Optional[str] = None,
     verbose: bool = False,
+    format: Optional[str] = None,
 ) -> str:
     """List project board items, filtered via the `query` parameter.
 
@@ -130,6 +192,22 @@ def list_board_items(
                 request are used automatically.
         verbose: If true, include debug info showing the raw REST query,
                  endpoint, requested field IDs, and item counts.
+        format: Output format. Default (None) returns human-readable JSONL
+                with a "Found N items:" header line — designed for LLM
+                readability in conversation.
+                "json" returns a single JSON object:
+                  {"items": [...], "total_in_page": N}
+                  {"items": [...], "total_in_page": N, "has_more": true, "next_cursor": "..."}
+                "compact" returns columnar JSON — field names once, rows as arrays:
+                  {"columns": ["Repository", "Title", ...],
+                   "rows": [["curio", "Fix X", ...], ...],
+                   "total_in_page": N}
+                  Much more token-efficient than "json" for large result sets
+                  (~40-60% smaller) because field names appear once instead of
+                  once-per-item. Convert back to objects with jq:
+                    jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]'
+                  **Recommended for sweep automation** — use this when writing
+                  results to disk for programmatic processing.
 
     Query syntax reference (passed as the REST API `q` parameter):
 
@@ -277,20 +355,20 @@ def list_board_items(
     next_cursor = result["next_cursor"]
     has_more = result["has_more"]
 
+    display_items = _build_display_items(items) if items else []
+
+    if format == "json":
+        return _format_json(display_items, has_more, next_cursor)
+    if format == "compact":
+        return _format_compact(display_items, has_more, next_cursor)
+
     if not items:
         msg = f"No items found matching query: {query}"
         if verbose:
             msg += f"\n\n--- Debug ---\n{json.dumps(debug, indent=2)}"
         return msg
 
-    lines = []
-    for item in items:
-        display = {
-            k: v
-            for k, v in item.items()
-            if not k.startswith("_") and v not in (None, "")
-        }
-        lines.append(json.dumps(display, ensure_ascii=False))
+    lines = [json.dumps(d, ensure_ascii=False) for d in display_items]
 
     header = f"Found {len(items)} items"
     if has_more:
@@ -315,6 +393,7 @@ def list_board_view_items(
     per_page: int = 50,
     cursor: Optional[str] = None,
     verbose: bool = False,
+    format: Optional[str] = None,
 ) -> str:
     """List project items for a GitHub project view URL.
 
@@ -335,6 +414,9 @@ def list_board_view_items(
         per_page: Number of items per page (default: 50, max: 100).
         cursor: Opaque cursor from a previous response to fetch the next page.
         verbose: If true, include resolved view/filter debug details.
+        format: Output format. Default (None) returns human-readable JSONL.
+                "json" returns a single JSON object with an "items" array
+                and pagination metadata (see list_board_items for details).
     """
     session = _build_session()
     resolved = resolve_view_url(session, view_url=view_url)
@@ -366,6 +448,11 @@ def list_board_view_items(
     next_cursor = result["next_cursor"]
     has_more = result["has_more"]
 
+    display_items = _build_display_items(items) if items else []
+
+    if format == "json":
+        return _format_json(display_items, has_more, next_cursor)
+
     if not items:
         msg = f"No items found for view URL: {view_url}"
         if order_warning:
@@ -379,14 +466,7 @@ def list_board_view_items(
             )
         return msg
 
-    lines = []
-    for item in items:
-        display = {
-            k: v
-            for k, v in item.items()
-            if not k.startswith("_") and v not in (None, "")
-        }
-        lines.append(json.dumps(display, ensure_ascii=False))
+    lines = [json.dumps(d, ensure_ascii=False) for d in display_items]
 
     header = f"Found {len(items)} items for view #{resolved['view_number']} ({resolved['view_name']})"
     if has_more:
