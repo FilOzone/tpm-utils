@@ -156,7 +156,7 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 **Queries:**
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee` (unassigned active items)
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" updated:<YYYY-MM-DD` (stale active items, where date is 2 weeks ago; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale)
-- `is:issue -status:"🎉 Done" -status:"⌚️ Issue awaiting PR merge"` with "Linked pull requests" field (issues with linked PRs that might need to move to "Issue awaiting PR merge" — but only if the linked PR is In Progress or later, per R-SL-008)
+- `is:issue -status:"🎉 Done" -status:"⌚️ Issue awaiting PR merge" has:linked-pull-requests` with "Linked pull requests" field (R-SL-008 — issues with formally linked PRs that might need to move to "Issue awaiting PR merge"). The `has:linked-pull-requests` filter keeps this set small — typically 5-10 items instead of 40+.
 - `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle — inherit from linked PR per R-SL-008, not just R-FC-009)
 
 **Rules applied:**
@@ -173,12 +173,12 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 4. If uncertain, propose with justification and flag for human confirmation
 
 **How to check for linked PRs (per R-SL-008):**
-1. Include "Linked pull requests" in the `list_board_items` fields
-2. Cross-reference linked PRs with board data to check their status — only move the issue to "Issue awaiting PR merge" if at least one linked PR is In Progress or later (not in Todo/Triage)
-3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008)
+1. The `has:linked-pull-requests` query above returns only issues with formally linked PRs — typically 5-10 items.
+2. Cross-reference linked PRs with board data to check their status — only move the issue to "Issue awaiting PR merge" if at least one linked PR is In Progress or later (not in Todo/Triage).
+3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008).
 
 **How to discover unlinked PRs (per R-SL-008):**
-After processing formal linked PRs, check for In Progress issues that have **no** linked PRs — these may have cross-referencing PRs that weren't formally linked. See R-SL-008 "Discovering unlinked PRs" for the procedure. Only fetch timeline data for this targeted set (typically 5-15 issues), not all issues — the GraphQL `timelineItems` query returns verbose data and shouldn't be run broadly. Flag findings for human rather than auto-transitioning.
+After processing formal linked PRs, do a targeted check for In Progress issues that have **no** formal linked PRs — these may have cross-referencing PRs that weren't formally linked. Query the board for `is:issue status:"⌨️ In Progress" no:linked-pull-requests`, exclude zOrganizing Items, then batch-fetch `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12) for **only this set**. This is an expensive query — do not run it broadly. See R-SL-008 "Discovering unlinked PRs" for the full procedure. Flag findings for human rather than auto-transitioning.
 
 **How to report stale items (per R-SL-009):**
 1. Exclude zOrganizing Items and "Issue awaiting PR merge" items
