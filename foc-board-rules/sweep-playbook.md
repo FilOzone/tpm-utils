@@ -83,7 +83,7 @@ jq -s '{"columns": .[0].columns, "rows": [.[].rows[]]}' $SWEEP/board_prs.json $S
 
 **Tip:** Use `per_page: 100` (the maximum) to reduce the number of pages. Most board queries fit in 1-2 pages.
 
-Without `format: "json"`, the default output is human-readable JSONL (one JSON object per line after a "Found N items:" header). This is fine for small result sets displayed in conversation, but for programmatic use always prefer `format: "json"`.
+Without a `format` parameter, the default output is human-readable JSONL (one JSON object per line after a "Found N items:" header). This is fine for small result sets displayed in conversation, but for programmatic use prefer `format: "compact"` (fewer tokens) or `format: "json"` (one object per item).
 
 Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
 
@@ -92,18 +92,20 @@ After fetching both datasets:
 1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
 
 2. **Produce action lists per rule.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations:
-   - R-PR-005: `select(.isDraft and (.board_status | IN("Triage","Awaiting review","Approved","Issue awaiting PR merge")))`
-   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.board_status | IN("Triage","In Progress")))`
-   - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("Awaiting review","Approved")))`
+   - R-PR-005: `select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))`
+   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.board_status | IN("📌 Triage","⌨️ In Progress")))`
+   - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
 
 3. **Treat `reviewDecision: ""` as ambiguous.** Empty means GitHub produced no formal verdict — not that no reviews exist. Always Phase 2 before changing status on these PRs. See general behavior rule 6.
 
 Example — build a joined dataset in one bash call:
 ```bash
-# After fetching board PRs into $BOARD_ITEMS and Phase 1 per-repo into files:
-for repo_file in /tmp/phase1_*.json; do
+# After fetching board PRs (format: "compact") and Writing to $SWEEP/board_prs.json,
+# and Phase 1 per-repo results to $SWEEP/phase1_*.json:
+BOARD_JSON=$(jq '[.columns as $c | .rows[] | [., $c] | transpose | map({(.[1]): .[0]}) | add]' "$SWEEP/board_prs.json")
+for repo_file in "$SWEEP"/phase1_*.json; do
   repo=$(basename "$repo_file" .json | sed 's/phase1_//')
-  jq --argjson board "$BOARD_ITEMS" --arg repo "$repo" '
+  jq --argjson board "$BOARD_JSON" --arg repo "$repo" '
     [.[] | select(.number as $n | $board | any(.repo == $repo and .number == $n))]
   ' "$repo_file"
 done

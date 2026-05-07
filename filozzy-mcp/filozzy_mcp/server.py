@@ -351,6 +351,12 @@ def list_board_items(
     next_cursor = result["next_cursor"]
     has_more = result["has_more"]
 
+    _VALID_FORMATS = {None, "json", "compact"}
+    if format not in _VALID_FORMATS:
+        raise ValueError(
+            f"Unknown format {format!r}. Must be one of: \"json\", \"compact\", or omitted for default JSONL."
+        )
+
     display_items = _build_display_items(items) if items else []
 
     if format == "json":
