@@ -21,7 +21,7 @@ Rules for ensuring board items have the right fields populated based on their st
 **Exclude:** Items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (assignees can't be set).
 **Action:** Determine the assignee using this priority order:
 1. **PRs:** Assign to the PR author (per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip if the author is a bot.
-2. **Issues with linked PRs:** Assign to the assignee of the linked PR. Use `get_board_item` to find "Linked pull requests", then look up the PR's assignee.
+2. **Issues with linked PRs:** Assign to the assignee of the linked PR. Fetch the item via `GET .../items/{ref}` to find "Linked pull requests", then look up the PR's assignee.
 3. **Issues without linked PRs:** Investigate the issue's comment stream and description for who is doing the work. Look for patterns like: who opened it, who is actively commenting with progress updates, who was mentioned as the DRI, who posted the closing comment.
 4. **If still uncertain:** Propose an assignee with justification and flag for human confirmation. Do not leave it blank — always make a best-effort proposal.
 
@@ -36,7 +36,7 @@ Rules for ensuring board items have the right fields populated based on their st
 ## R-FC-003: All open issues should have a Milestone
 
 **When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (milestones can't be set).
-**Action:** First, check if the issue has a parent issue (via `get_board_item` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
+**Action:** First, check if the issue has a parent issue (via `GET .../items/{ref}` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
 **Why:** Every real issue should be tied to a delivery milestone so it's tracked against a timeline. Issues without milestones fall through the cracks during planning. Even Triage items benefit from early milestone assignment — it helps prioritize what to triage first.
 
@@ -87,14 +87,14 @@ If no reasonable inference can be made, flag for human review — do not invent 
 ## R-FC-006: In-flight PRs without a cycle should be in the current cycle
 
 **When:** A PR on the board has no Cycle set and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", or "✔️ Approved by reviewer". Also applies to **dependabot and release PRs in "🐱 Todo"** — these are known mechanical work items that will get done in the current cycle, not speculative backlog.
-**Action:** Set the Cycle to the current active cycle. Use `list_board_field_options("Cycle")` to find the current iteration.
+**Action:** Set the Cycle to the current active cycle. Use `gh project field-list` (with the org and project number from `get_board_context`) to find the current iteration.
 **Scope:** Does **not** apply to non-bot Todo PRs or Triage PRs. Todo PRs from humans — especially those with future milestones (MX, M4.5) — are backlog items. Forcing them into the current cycle overstates what's actually being worked on. They'll get a cycle when they move to In Progress.
 **Why:** PRs actively being worked on or reviewed should be visible in cycle planning. Dependabot and release PRs in Todo are different from human-authored Todo PRs — they represent known, bounded work that belongs in the current cycle for tracking purposes.
 
 ## R-FC-009: In-flight items in active milestones should have a cycle
 
 **When:** An item (PR or issue) has a milestone that is currently active, has no Cycle set, and is **actively in flight** — meaning its status is "⌨️ In Progress", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge".
-**Action:** Set the Cycle to the current active cycle. Use `list_board_field_options("Cycle")` to find the current iteration.
+**Action:** Set the Cycle to the current active cycle. Use `gh project field-list` (with the org and project number from `get_board_context`) to find the current iteration.
 **Scope:** Does **not** apply to items in "📌 Triage" or "🐱 Todo" — those are backlog items planned for the milestone but not yet started. Adding them to the current cycle would overstate the cycle's scope. They'll get a cycle when work begins.
 
 **Active milestones** (update this list as milestones are retired/created):

@@ -6,15 +6,23 @@ Work through stages in order. Complete all actions and reporting for one stage b
 
 ## Stage 0: Create sweep workspace
 
-Before any queries, create a unique temp directory for this sweep's working files:
+Before any queries, set up the sweep workspace and discover the board API:
+
+1. **Call `get_board_context`** (FilOzzy MCP) to get the board's org, project number, and API base URL.
+2. **Set shell variables** from the response:
 
 ```bash
-mkdir /tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)
+SWEEP=/tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)
+mkdir "$SWEEP"
+# Values from get_board_context — example, not hardcoded:
+API=<API Base URL>/orgs/<org>/projects/<project_number>
 ```
 
-Store the path (e.g., `/tmp/foc-board-sweep@2026-05-07T14:30:00Z`) and use it for all file writes throughout the sweep. This keeps artifacts organized per run, avoids collisions with prior sweeps, and — critically — ensures every Write tool call targets a new file (the Write tool requires a prior Read for existing files, but new files in a fresh directory just work).
+3. **Verify the server is running:** `curl -sf "$API/fields" -H "Authorization: Bearer $GITHUB_TOKEN" > /dev/null`. The full API spec is at `<API Base URL>/openapi.json`.
 
-All file path examples in this playbook use `$SWEEP/` as shorthand for this directory.
+`$SWEEP` holds all working files for this run (avoids collisions with prior sweeps). `$API` is the board REST API prefix — all board queries and mutations go through it via `curl`.
+
+All examples in this playbook use `$SWEEP/` as shorthand for this directory and `$API` for the REST API prefix. All `curl` calls require `-H "Authorization: Bearer $GITHUB_TOKEN"` (omitted from examples for brevity — set up an alias or shell function).
 
 ## Stage 1: Open PRs
 
@@ -51,41 +59,44 @@ All file path examples in this playbook use `$SWEEP/` as shorthand for this dire
 
 The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls.
 
-**Use `format: "compact"` and immediately Write to disk.** Pass `format: "compact"` to `list_board_items` to get columnar JSON — field names appear once, rows are arrays of values:
+**Fetch board data directly to disk via `curl`.** Board queries go through the REST API — data lands on disk without entering LLM context:
+
+```bash
+curl -s "$API/items?query=is:pr+-status:%22🎉+Done%22&fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle+Theme,Node+ID&per_page=100" \
+  > "$SWEEP/board_prs.json"
+```
+
+The response is standard JSON with an `items` array:
 
 ```json
-{"columns": ["Repository", "Title", "Status", ...],
- "rows": [["curio", "Fix X", "⌨️ In Progress", ...], ...],
- "total_in_page": 62}
+{
+  "items": [{"Repository": "FilOzone/dealbot", "Id": "458", "Title": "Fix X", "Status": "⌨️ In Progress", ...}],
+  "total_in_page": 62,
+  "has_more": true,
+  "next_cursor": "opaque_string"
+}
 ```
 
-This is ~40-60% smaller than `format: "json"` (which repeats field names per item), meaning fewer tokens through your context. **Immediately after receiving the tool result, use the Write tool to save the raw JSON string to a file in your `$SWEEP/` directory** (e.g., `$SWEEP/board_prs.json`). Do NOT try to echo/cat the result via Bash — the tool output is in your conversation context, not in a shell variable. The Write tool is the only reliable way to transfer it to disk.
+Process with `jq` as usual: `jq '.items[]' "$SWEEP/board_prs.json"`.
 
-To convert back to an array of objects for `jq` joins:
+**Pagination: always check `has_more`.** After fetching, check for more pages:
 
 ```bash
-jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]' $SWEEP/board_prs.json > $SWEEP/board_prs_objects.json
+jq -e '.has_more' "$SWEEP/board_prs.json"  # exits 0 if true, 1 if false/missing
 ```
 
-**Why this matters:** Without writing to disk first, the agent falls into a trap: it has the JSON in context, tries to reconstruct it in a bash heredoc, and wastes time hand-copying 62+ items. The Write tool is instant and exact.
-
-**Pagination: always check `has_more`.** After writing to disk, check for more pages:
+If true, fetch the next page with the returned `next_cursor` and merge:
 
 ```bash
-jq -e '.has_more' $SWEEP/board_prs.json  # exits 0 if true, 1 if false/missing
+CURSOR=$(jq -r '.next_cursor' "$SWEEP/board_prs.json")
+curl -s "$API/items?query=is:pr+-status:%22🎉+Done%22&fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle+Theme,Node+ID&per_page=100&cursor=$CURSOR" \
+  > "$SWEEP/board_prs_p2.json"
+jq -s '{"items": [.[].items[]]}' "$SWEEP/board_prs.json" "$SWEEP/board_prs_p2.json" > "$SWEEP/board_prs_all.json"
 ```
 
-If true, fetch the next page with the returned `next_cursor`, Write that result to a second file, then merge rows:
+**Tip:** Use `per_page=100` (the maximum) to reduce the number of pages. Most board queries fit in 1-2 pages.
 
-```bash
-jq -s '{"columns": .[0].columns, "rows": [.[].rows[]]}' $SWEEP/board_prs.json $SWEEP/board_prs_p2.json > $SWEEP/board_prs_all.json
-```
-
-**Tip:** Use `per_page: 100` (the maximum) to reduce the number of pages. Most board queries fit in 1-2 pages.
-
-Without a `format` parameter, the default output is human-readable JSONL (one JSON object per line after a "Found N items:" header). This is fine for small result sets displayed in conversation, but for programmatic use prefer `format: "compact"` (fewer tokens) or `format: "json"` (one object per item).
-
-Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
+Include `Node ID` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed to the bulk mutation endpoint to skip per-item re-resolution.
 
 After fetching both datasets:
 
@@ -103,9 +114,9 @@ After fetching both datasets:
 
 Example — build a joined dataset in one bash call:
 ```bash
-# After fetching board PRs (format: "compact") and Writing to $SWEEP/board_prs.json,
+# After fetching board PRs to $SWEEP/board_prs.json via curl,
 # and Phase 1 per-repo results to $SWEEP/phase1_*.json:
-BOARD_JSON=$(jq '[.columns as $c | .rows[] | [., $c] | transpose | map({(.[1]): .[0]}) | add]' "$SWEEP/board_prs.json")
+BOARD_JSON=$(jq '[.items[] | {repo: (.Repository | split("/") | last), number: (.Id | tonumber)}]' "$SWEEP/board_prs.json")
 for repo_file in "$SWEEP"/phase1_*.json; do
   repo=$(basename "$repo_file" .json | sed 's/phase1_//')
   jq --argjson board "$BOARD_JSON" --arg repo "$repo" '
