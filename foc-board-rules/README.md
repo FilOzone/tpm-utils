@@ -25,7 +25,7 @@ When applying rules (whether by LLM or human):
    - R-PR-002/003/004: `author` → bot/release detection
    - R-PR-005: `isDraft`
    - R-PR-007: `reviewRequests` → identifies Phase 2 candidates (empty `reviewRequests` is ambiguous — pending requests are consumed when a review is submitted, so empty ≠ "no engagement")
-   - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2. **Caveat:** `reviewDecision: ""` (empty) is ambiguous — it does NOT mean "no reviews". COMMENTED reviews, approvals from non-CODEOWNERS, and reviews that don't satisfy branch protection all leave `reviewDecision` empty. Never treat empty as "no engagement" — always Phase 2 these PRs if a status change is under consideration.
+   - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2. **Caveat:** `reviewDecision: ""` (empty) is ambiguous — it does NOT mean "no reviews". COMMENTED reviews, approvals from non-CODEOWNERS, and reviews that don't satisfy branch protection all leave `reviewDecision` empty. Never treat empty as "no engagement" — but **only Phase 2 if a status change is actually under consideration**. A PR already in Awaiting Review with pending `reviewRequests` and no competing rule trigger (R-SL-001, R-SL-007) is correctly placed — skip Phase 2.
 
    **Phase 2 — targeted per-PR deep dive.** For specific PRs identified by cross-referencing Phase 1 data with board status, run `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests`. Phase 2 candidates:
    - **R-PR-006 (status determination):** Non-draft, non-bot PRs in Triage or In Progress — need `reviews` and `commits` to compare last human review timestamp vs last commit timestamp. **This includes PRs with `reviewDecision: ""`** — empty does NOT mean "no reviews"; it means GitHub hasn't produced a formal verdict (e.g., reviews exist but don't satisfy branch protection rules, or only COMMENTED reviews were submitted). Always Phase 2 before changing status on these PRs.
@@ -43,7 +43,7 @@ When applying rules (whether by LLM or human):
 
    **Avoid: `gh search prs`** — The search index has lag and a 200-result limit that can silently truncate results.
 
-7. **Use bulk operations when possible.** When applying the same field+value to multiple items, use the bulk mutation endpoint (`PUT .../fields/{field_name}/bulk`) instead of individual per-item PUT calls. This is common when applying a rule that affects many items the same way (e.g., setting Cycle Theme on several PRs from the same repo, or moving multiple dependabot PRs from Triage to Todo). Even two items is worth batching — it saves a round-trip and resolves field info only once.
+7. **Use bulk operations when possible.** When applying the same field+value to multiple items, use the mutation endpoint (`PUT .../items/field/{field_name}`) with multiple `item_refs` instead of separate calls. This is common when applying a rule that affects many items the same way (e.g., setting Cycle Theme on several PRs from the same repo, or moving multiple dependabot PRs from Triage to Todo). Even two items is worth batching — it saves a round-trip and resolves field info only once.
 
 8. **Flag unfamiliar Cycle Theme values.** You don't need to proactively audit all Cycle Theme values, but if while processing an item you encounter a Cycle Theme that isn't in the established values list (R-FC-004), flag it. It may be a misspelling or an unauthorized new value.
 

@@ -15,21 +15,17 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
    - `field-completeness.md` — Rules R-FC-001 through R-FC-010
 
-2. **Discover the board API** (see Stage 0 in `sweep-playbook.md`): Call `get_board_context` to get the org, project number, and API base URL. Set `$API` from the response.
+2. **Run Stage 0** from `sweep-playbook.md` — this sets up `$GITHUB_TOKEN`, `$API`, `$SWEEP`, discovers the current cycle, and verifies the server is running.
 
-3. **Create the sweep workspace**: Run `mkdir /tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)` and store the path as `$SWEEP`. All working files go here.
-
-4. **Check the current cycle**: Use `gh project field-list` (with the org and project number from step 2) to find the current active iteration in the Cycle field.
-
-5. **Note today's date** for time-based queries (staleness checks, recently-done window).
+3. **Note today's date** for time-based queries (staleness checks, recently-done window).
 
 ## Required tools
 
 The sweep agent **must** have access to the following. If any are missing, stop and ask the human to configure them before proceeding.
 
 - **FilOzzy MCP server** (`filozzy` tools): Coordinator that provides board identity, API base URL, and endpoint documentation via `get_board_context`. Call this first to discover the REST API server address. Does NOT make GitHub API calls itself.
-- **Board REST API server**: All board queries and mutations go through this server via `curl`. The base URL and OpenAPI spec link come from `get_board_context`. Verify it's running during Stage 0 setup.
-- **`gh` CLI** (via Bash): Required for issue/PR metadata (review state, draft status, labels), issue/PR mutations (assignees, milestones, reviewers), GraphQL queries, and field option discovery (`gh project field-list`).
+- **Board REST API server**: All board queries and mutations go through this server via `curl`. The base URL and OpenAPI spec link come from `get_board_context`. Verify it's running during Stage 0 setup — if not, start it from `github-projects-client/` (see Stage 0 in `sweep-playbook.md`).
+- **`gh` CLI** (via Bash): Required for issue/PR metadata (review state, draft status, labels), issue/PR mutations (assignees, milestones, reviewers), GraphQL queries (including cycle iteration discovery), and `GITHUB_TOKEN` export (`gh auth token`).
 - **Bash**: Running `curl`, `gh`, `jq`, and other shell operations.
 
 ## How to work
@@ -67,7 +63,9 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 6. **zOrganizing Items are excluded** from most field completeness rules. Don't try to assign them or set their fields.
 
-7. **Fetch board data to disk via `curl` and check pagination.** All board queries go through the REST API — data lands directly on disk, never in LLM context: `curl -s "$API/items?query=...&per_page=100" > "$SWEEP/board_prs.json"`. **After fetching, check `jq -e '.has_more'` on the file** — if true, fetch the next page with the returned `next_cursor` and merge with `jq -s '{"items": [.[].items[]]}'`. See the playbook's "Cross-referencing board data with GitHub metadata" section for the full pattern.
+7. **Each Bash tool call is a fresh shell.** `export`, `PATH`, and shell functions don't persist between calls. Follow the playbook's Stage 0 calling convention exactly — it handles this.
 
-8. **Use jq to join board and Phase 1 data — don't reason through raw JSON.** Fetch board PRs (to disk via curl, per pitfall 7), fetch Phase 1 per repo, then use `jq` to filter Phase 1 to board-only PRs and produce per-rule action lists (e.g., draft PRs in non-draft statuses, non-draft non-bot in Triage, CHANGES_REQUESTED in Awaiting Review). Doing this join manually in your reasoning is slow, error-prone at scale, and burns context. Produce structured action lists programmatically, then only read individual items that need Phase 2 judgment.
+8. **Don't use `jq -e` in parallel batches.** `jq -e '.has_more'` returns exit code 1 when false, which cancels sibling parallel commands. Use `jq -r` instead. See the playbook's pagination section.
+
+9. **Use jq to bucket and filter — don't dump item lists into context.** Instead of piping N items and reasoning through them, use jq to produce compact summaries on disk (e.g., `{bots: [...numbers], actionable: [...{repo, number, author}]}`). Only read individual items into context when Phase 2 judgment is needed.
 

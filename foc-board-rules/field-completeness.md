@@ -18,12 +18,14 @@ Rules for ensuring board items have the right fields populated based on their st
 ## R-FC-001: In-flight and done items must have an assignee
 
 **When:** An [active item](status-lifecycle.md#terminology) or recently-done item (per R-FC-008) has no assignee.
-**Exclude:** Items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (assignees can't be set).
+**Exclude:** Items with Cycle Theme "zOrganizing Item" (meta/tracking items), [external items](status-lifecycle.md#terminology) (assignees can't be set), and bot-created Done items (automated reports/releases with no human DRI — unassigned is fine).
 **Action:** Determine the assignee using this priority order:
 1. **PRs:** Assign to the PR author (per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip if the author is a bot.
 2. **Issues with linked PRs:** Assign to the assignee of the linked PR. Fetch the item via `GET .../items/{ref}` to find "Linked pull requests", then look up the PR's assignee.
 3. **Issues without linked PRs:** Investigate the issue's comment stream and description for who is doing the work. Look for patterns like: who opened it, who is actively commenting with progress updates, who was mentioned as the DRI, who posted the closing comment.
 4. **If still uncertain:** Propose an assignee with justification and flag for human confirmation. Do not leave it blank — always make a best-effort proposal.
+
+**After assigning, verify it persisted.** The GitHub API silently succeeds even when the user lacks sufficient repo permissions (write/triage). If the inferred assignee is a contributor without write access (common on blessed-org repos), the assignment won't stick. Flag for human — the user may need elevated access or a different assignee.
 
 **Why:** Every item that has progressed beyond Triage should have someone accountable. Unassigned in-flight items are a planning gap, and unassigned done items get missed in workload reporting.
 

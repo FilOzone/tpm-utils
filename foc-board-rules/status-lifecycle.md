@@ -63,6 +63,7 @@ Rules governing how items should transition through board statuses.
 ## R-SL-007: PRs with changes requested should move back to In Progress
 
 **When:** A PR has status "🔎 Awaiting review" or "✔️ Approved by reviewer" and receives a "changes requested" review from a user **with write/maintain/admin access to the repo**.
+**Skip if:** The author has pushed commits after the most recent changes-requested review. This means the author has likely addressed the feedback and the PR is awaiting re-review — consistent with R-PR-006 case 3 (lastCommit > lastReview → Awaiting Review). Only move to In Progress when the changes-requested review is the most recent activity.
 **Action:** Set Status to `⌨️ In Progress`.
 **Why:** A reviewer with merge authority requesting changes means the PR needs rework before it can proceed. The board should reflect that it's back in active development, not waiting for review. This is the counterpart to R-SL-001 — just as an approval advances the status, a changes-requested pushes it back. Only objections from reviewers with merge authority trigger this; a "changes requested" from a read-only reviewer doesn't warrant a status change since it doesn't block the PR.
 

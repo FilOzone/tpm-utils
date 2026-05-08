@@ -12,17 +12,101 @@ Before any queries, set up the sweep workspace and discover the board API:
 2. **Set shell variables** from the response:
 
 ```bash
-SWEEP=/tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)
-mkdir "$SWEEP"
+SWEEP=/tmp/foc-board-sweep_$(date -u +%Y-%m-%dT%H:%M:%SZ)
+mkdir -p "$SWEEP/bin"
+
+# Persist non-sensitive env so scripts and future shell invocations can source it.
+# GITHUB_TOKEN is NOT written to disk — scripts resolve it at runtime via `gh auth token`.
 # Values from get_board_context — example, not hardcoded:
-API=<API Base URL>/orgs/<org>/projects/<project_number>
+cat > "$SWEEP/env.sh" << EOF
+export SWEEP="$SWEEP"
+export API=<API Base URL>/orgs/<org>/projects/<project_number>
+export PATH="$SWEEP/bin:\$PATH"
+EOF
+source "$SWEEP/env.sh"
 ```
 
-3. **Verify the server is running:** `curl -sf "$API/fields" -H "Authorization: Bearer $GITHUB_TOKEN" > /dev/null`. The full API spec is at `<API Base URL>/openapi.json`.
+3. **Create helper scripts** for board API calls. These are executable scripts in `$SWEEP/bin/` that source `env.sh` themselves, so they work in any shell invocation:
+
+```bash
+cat > "$SWEEP/bin/foc_gh_get" << 'SCRIPT'
+#!/usr/bin/env bash
+source "$(dirname "$0")/../env.sh"
+TOKEN=${GITHUB_TOKEN:-$(gh auth token)}
+# GET with auto --data-urlencode for each arg (handles emoji, spaces, etc.)
+endpoint="$1"; shift
+args=()
+for param in "$@"; do
+  args+=(--data-urlencode "$param")
+done
+curl -s -G "$API/$endpoint" \
+  -H "Authorization: Bearer $TOKEN" \
+  "${args[@]}"
+SCRIPT
+
+cat > "$SWEEP/bin/foc_gh_put" << 'SCRIPT'
+#!/usr/bin/env bash
+source "$(dirname "$0")/../env.sh"
+TOKEN=${GITHUB_TOKEN:-$(gh auth token)}
+# PUT with JSON body
+curl -s -X PUT "$API/$1" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$2"
+SCRIPT
+
+chmod +x "$SWEEP/bin/foc_gh_get" "$SWEEP/bin/foc_gh_put"
+```
+
+**Calling the scripts:** Each Bash tool invocation is a fresh shell — `export`, `PATH`, and shell functions all reset. The scripts persist on disk but PATH won't be set, so **always call them with the absolute path** using `$SWEEP`:
+
+```bash
+# At the start of every Bash tool call, set SWEEP (paste the actual path):
+SWEEP=/tmp/foc-board-sweep_2026-05-08T...
+# Then call scripts with full path:
+"$SWEEP/bin/foc_gh_get" items 'query=...' > "$SWEEP/output.json"
+```
+
+The scripts source `env.sh` internally so `$API` and `$GITHUB_TOKEN` are handled automatically — you only need `$SWEEP` itself.
+
+4. **Verify the server is running:** Check the port first, then start only if needed. Use dev mode (auto-reloads on code changes):
+
+```bash
+# Check if already running
+curl -sf "http://127.0.0.1:8080/openapi.json" > /dev/null && echo "Server already running" || {
+  cd <repo-root>/github-projects-client
+  .venv/bin/github-projects-api-dev &
+  sleep 2
+}
+# Verify
+"$SWEEP/bin/foc_gh_get" fields > /dev/null
+```
+
+The full API spec is at `<API Base URL>/openapi.json`.
+
+5. **Discover the current cycle** using GraphQL (note: `gh project field-list` shows the Cycle field exists but does **not** list iteration values):
+
+```bash
+gh api graphql -f query='{
+  organization(login: "<org>") {
+    projectV2(number: <project_number>) {
+      field(name: "Cycle") {
+        ... on ProjectV2IterationField {
+          configuration {
+            iterations { id title startDate duration }
+          }
+        }
+      }
+    }
+  }
+}' --jq '.data.organization.projectV2.field.configuration.iterations'
+```
+
+The first iteration in the list whose date range contains today is the current cycle.
 
 `$SWEEP` holds all working files for this run (avoids collisions with prior sweeps). `$API` is the board REST API prefix — all board queries and mutations go through it via `curl`.
 
-All examples in this playbook use `$SWEEP/` as shorthand for this directory and `$API` for the REST API prefix. All `curl` calls require `-H "Authorization: Bearer $GITHUB_TOKEN"` (omitted from examples for brevity — set up an alias or shell function).
+All examples in this playbook use `$SWEEP/` as shorthand for this directory. Board API calls use `"$SWEEP/bin/foc_gh_get"` and `"$SWEEP/bin/foc_gh_put"` (scripts created in step 3). **Always use the full path** — each Bash tool call is a fresh shell, so `PATH` and `export` don't persist. Set `SWEEP=<path>` at the start of each Bash call (the scripts handle `$API` and `$GITHUB_TOKEN` internally via `env.sh`).
 
 ## Stage 1: Open PRs
 
@@ -62,9 +146,14 @@ The main bottleneck in Stage 1 is joining board query results (65+ items) with G
 **Fetch board data directly to disk via `curl`.** Board queries go through the REST API — data lands on disk without entering LLM context:
 
 ```bash
-curl -s "$API/items?query=is:pr+-status:%22🎉+Done%22&fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle+Theme,Node+ID&per_page=100" \
+"$SWEEP/bin/foc_gh_get" items \
+  'query=is:pr -status:"🎉 Done"' \
+  'fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle Theme,Node ID' \
+  'per_page=100' \
   > "$SWEEP/board_prs.json"
 ```
+
+`foc_gh_get` wraps each argument in `--data-urlencode` automatically — no manual percent-encoding of emoji statuses or field names with spaces.
 
 The response is standard JSON with an `items` array:
 
@@ -82,14 +171,18 @@ Process with `jq` as usual: `jq '.items[]' "$SWEEP/board_prs.json"`.
 **Pagination: always check `has_more`.** After fetching, check for more pages:
 
 ```bash
-jq -e '.has_more' "$SWEEP/board_prs.json"  # exits 0 if true, 1 if false/missing
+jq -r '.has_more' "$SWEEP/board_prs.json"  # prints "true" or "false" — do NOT use jq -e in parallel batches (exit code 1 cancels siblings)
 ```
 
 If true, fetch the next page with the returned `next_cursor` and merge:
 
 ```bash
 CURSOR=$(jq -r '.next_cursor' "$SWEEP/board_prs.json")
-curl -s "$API/items?query=is:pr+-status:%22🎉+Done%22&fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle+Theme,Node+ID&per_page=100&cursor=$CURSOR" \
+"$SWEEP/bin/foc_gh_get" items \
+  'query=is:pr -status:"🎉 Done"' \
+  'fields=Repository,Id,url,Title,Status,Kind,Assignees,Cycle Theme,Node ID' \
+  'per_page=100' \
+  "cursor=$CURSOR" \
   > "$SWEEP/board_prs_p2.json"
 jq -s '{"items": [.[].items[]]}' "$SWEEP/board_prs.json" "$SWEEP/board_prs_p2.json" > "$SWEEP/board_prs_all.json"
 ```
@@ -102,15 +195,19 @@ After fetching both datasets:
 
 1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
 
-2. **Produce action lists per rule.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations:
+2. **Produce action lists per rule — to disk, not context.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations and **write results to files** (e.g., `> "$SWEEP/actions_pr005.json"`). Include all automatable rules in a single pass — don't make follow-up queries for rules you could have checked here:
+   - R-PR-002/003: `select(.author.is_bot and (.author.login == "dependabot[bot]"))` — dependabot PRs needing Cycle Theme and/or Triage → Todo
+   - R-PR-004: `select(.title | test("^chore\\("; "i")) and (.board_status == "📌 Triage")` — release PRs in Triage → Todo
    - R-PR-005: `select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))`
    - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.board_status | IN("📌 Triage","⌨️ In Progress")))`
    - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
    - R-PR-007 Phase 2 candidates: `select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))` — empty `reviewRequests` is ambiguous (pending requests are consumed when a review is submitted), so always Phase 2 before flagging
+   
+   Read action list files only to confirm counts and spot-check — don't dump full item lists into context. Use jq to bucket items (e.g., `{actionable: [...], skip: [...]}`) and only read actionable items.
 
-3. **Treat `reviewDecision: ""` as ambiguous.** Empty means GitHub produced no formal verdict — not that no reviews exist. Always Phase 2 before changing status on these PRs. See general behavior rule 6.
+3. **Treat `reviewDecision: ""` as ambiguous — but only Phase 2 if a status change is under consideration.** Empty means GitHub produced no formal verdict — not that no reviews exist. But if the PR is already in the correct status and no rule is proposing to move it, Phase 2 is wasted work. For example, a PR in Awaiting Review with pending `reviewRequests` and empty `reviewDecision` is already in the right place — skip it. Only Phase 2 PRs where you'd actually change the status based on the result. See general behavior rule 6.
 
-4. **Batch all Phase 2 candidates, then fetch in parallel.** Collect the union of Phase 2 candidates from step 2 (R-PR-006, R-PR-007, and any `reviewDecision: ""` PRs from step 3) into a single list. Then run all `gh pr view` calls in parallel — don't process one rule's candidates, then discover the next rule needs Phase 2 on overlapping PRs. One parallel batch of `gh pr view` calls is faster than sequential per-rule fetches, and avoids duplicate lookups when the same PR is a candidate for multiple rules.
+4. **Batch all Phase 2 candidates, then fetch in parallel.** Collect the union of Phase 2 candidates from step 2 (R-PR-006, R-PR-007, and any `reviewDecision: ""` PRs from step 3 **that need a status change**) into a single list. Then run all `gh pr view` calls in parallel — don't process one rule's candidates, then discover the next rule needs Phase 2 on overlapping PRs. One parallel batch of `gh pr view` calls is faster than sequential per-rule fetches, and avoids duplicate lookups when the same PR is a candidate for multiple rules.
 
 Example — build a joined dataset in one bash call:
 ```bash
