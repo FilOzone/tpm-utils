@@ -40,6 +40,18 @@ The fundamental problem: **data must pass through the LLM context as a waypoint 
 
 **Estimated impact:** Would eliminate ~30K+ tokens of I/O per sweep (conservative — just the main PR query round-trip; more with all board queries). Also eliminates the Write-tool workarounds currently documented in the sweep playbook (Stage 0 workspace, "immediately Write to disk" instructions, pagination merge steps).
 
+## Remove `format=compact` from the REST API
+
+The compact columnar format (`format=compact`) was designed for MCP responses that land in LLM context, where token count matters. With the REST API, data goes to disk via curl and gets processed by jq — standard JSON is easier to work with (`jq '.items[]'` vs the columnar reconstruction dance) and disk space isn't a constraint. If no consumer depends on it, remove it from the API and the underlying `formats.py` module.
+
+**Triggered by:** Reviewing the value of each feature against GitHub's own tooling (project tenet). The compact format was a context-window optimization that no longer applies when data bypasses LLM context entirely.
+
+## Remove `GET /fields/{name}/options` endpoint
+
+`gh project field-list --format json` returns field names and option names cleanly. The `/fields/{name}/options` endpoint doesn't provide unique value over GitHub's own tooling. Per the [project tenet](../github-projects-client/README.md#project-tenet-prefer-github-supported-tools), it should be retired.
+
+**Triggered by:** Comparing the endpoint against `gh project field-list` output — both return the same information, and the `gh` version is already available to any agent with CLI access.
+
 ## Expose built-in item properties in list_board_items
 
 The board REST API returns built-in properties like `updated_at` and `creator` on each item, but `list_board_items` only surfaces custom project fields (Status, Cycle Theme, etc.) and a few display fields (Repository, Id, Title). Expose `updated_at` and `creator` as requestable fields so reports like R-FC-010 (Dev Days Estimate gaps) can include "last updated" and "created by" without supplemental GitHub API calls.

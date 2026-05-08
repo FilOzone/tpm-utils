@@ -16,9 +16,9 @@
 
 **Purpose**: Create the server subpackage structure and configure dependencies
 
-- [ ] T001 Create server subpackage directory structure: `github_projects_client/server/`, `github_projects_client/server/routes/`, and `__init__.py` files
-- [ ] T002 Update `github-projects-client/pyproject.toml`: add `fastapi` and `uvicorn[standard]` dependencies, add `github-projects-api` entry point under `[project.scripts]`
-- [ ] T003 Create FastAPI app skeleton in `github_projects_client/server/app.py`: app factory with metadata (title, description, version), route registration, uvicorn startup with HOST/PORT from environment
+- [X] T001 Create server subpackage directory structure: `github_projects_client/server/`, `github_projects_client/server/routes/`, and `__init__.py` files
+- [X] T002 Update `github-projects-client/pyproject.toml`: add `fastapi` and `uvicorn[standard]` dependencies, add `github-projects-api` entry point under `[project.scripts]`
+- [X] T003 Create FastAPI app skeleton in `github_projects_client/server/app.py`: app factory with metadata (title, description, version), route registration, uvicorn startup with HOST/PORT from environment
 
 ---
 
@@ -28,10 +28,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Implement bearer token extraction as FastAPI dependency in `github_projects_client/server/auth.py`: create `get_token()` dependency using `Depends()` that extracts `Authorization: Bearer <token>` header, raises `HTTPException(401)` if missing
-- [ ] T005 [P] Implement Pydantic request/response models in `github_projects_client/server/models.py`: define models for all request bodies and response shapes per contracts/rest-api.md (ItemsResponse, CompactItemsResponse, MutationResponse, BulkMutationResponse, ErrorResponse, AuditLogEntry, etc.) — these drive the auto-generated OpenAPI schema
-- [ ] T006 [P] Implement compact format helper in `github_projects_client/server/formats.py`: port `_format_compact`, `_build_display_items` from `filozzy-mcp/filozzy_mcp/server.py` (standard JSON responses are handled by FastAPI's Pydantic serialization; only the columnar compact format needs custom logic)
-- [ ] T007 Implement error handlers in `github_projects_client/server/app.py`: register FastAPI exception handlers to map GitHub API errors (401, 404, rate limit) to consistent error JSON shape (`{"error": "...", "message": "...", "details": {}}`) per contracts/rest-api.md; include route registration via `app.include_router()`
+- [X] T004 [P] Implement bearer token extraction as FastAPI dependency in `github_projects_client/server/auth.py`: create `get_token()` dependency using `Depends()` that extracts `Authorization: Bearer <token>` header, raises `HTTPException(401)` if missing
+- [X] T005 [P] Implement Pydantic request/response models in `github_projects_client/server/models.py`: define models for all request bodies and response shapes per contracts/rest-api.md (ItemsResponse, CompactItemsResponse, MutationResponse, BulkMutationResponse, ErrorResponse, AuditLogEntry, etc.) — these drive the auto-generated OpenAPI schema
+- [X] T006 [P] Implement compact format helper in `github_projects_client/server/formats.py`: port `_format_compact`, `_build_display_items` from `filozzy-mcp/filozzy_mcp/server.py` (standard JSON responses are handled by FastAPI's Pydantic serialization; only the columnar compact format needs custom logic)
+- [X] T007 Implement error handlers in `github_projects_client/server/app.py`: register FastAPI exception handlers to map GitHub API errors (401, 404, rate limit) to consistent error JSON shape (`{"error": "...", "message": "...", "details": {}}`) per contracts/rest-api.md; include route registration via `app.include_router()`
 
 **Checkpoint**: Server starts, `GET /openapi.json` returns the auto-generated OpenAPI spec, `GET /docs` renders Swagger UI, returns 401 for unauthenticated requests, returns 404 for undefined routes with proper error JSON
 
@@ -45,10 +45,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `GET /orgs/{org}/projects/{project_number}/items` in `github_projects_client/server/routes/items.py`: FastAPI route with `Query()` params (query, fields, format, per_page, cursor), `Depends(get_token)` for auth; build `requests.Session` from token; call `list_items()`; return Pydantic response model or compact format via formats.py
-- [ ] T009 [P] [US1] Implement `GET /orgs/{org}/projects/{project_number}/items/{item_ref}` in `github_projects_client/server/routes/items.py`: `Path()` param for item_ref (auto URL-decoded); call `get_item()`; return item dict or raise `HTTPException(404)`
-- [ ] T010 [US1] Implement `GET /orgs/{org}/projects/{project_number}/items/view` in `github_projects_client/server/routes/items.py`: `Query()` param for view_url; call `resolve_view_url()` then `list_items()`; return formatted response
-- [ ] T011 [US1] Create `APIRouter` in `github_projects_client/server/routes/items.py` and include it in app.py via `app.include_router()`
+- [X] T008 [US1] Implement `GET /orgs/{org}/projects/{project_number}/items` in `github_projects_client/server/routes/items.py`: FastAPI route with `Query()` params (query, fields, format, per_page, cursor), `Depends(get_token)` for auth; build `requests.Session` from token; call `list_items()`; return Pydantic response model or compact format via formats.py
+- [X] T009 [P] [US1] Implement `GET /orgs/{org}/projects/{project_number}/items/{item_ref}` in `github_projects_client/server/routes/items.py`: `Path()` param for item_ref (auto URL-decoded); call `get_item()`; return item dict or raise `HTTPException(404)`
+- [X] T010 [US1] Implement `GET /orgs/{org}/projects/{project_number}/items/view` in `github_projects_client/server/routes/items.py`: `Query()` param for view_url; call `resolve_view_url()` then `list_items()`; return formatted response
+- [X] T011 [US1] Create `APIRouter` in `github_projects_client/server/routes/items.py` and include it in app.py via `app.include_router()`
 
 **Checkpoint**: `curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/orgs/FilOzone/projects/14/items?format=compact" > board.json` works end-to-end. Pagination works. View URL resolution works.
 
@@ -62,11 +62,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Move and enhance audit log: copy `filozzy-mcp/filozzy_mcp/action_log.py` to `github_projects_client/audit_log.py`, add `caller` and `endpoint` fields to log entries, add `read_recent_entries()` function, configure log path via `ACTION_LOG_PATH` environment variable
-- [ ] T013 [US2] Implement `PUT /orgs/{org}/projects/{project_number}/items/{item_ref}/fields/{field_name}` in `github_projects_client/server/routes/mutations.py`: parse JSON body for `value`; call `set_field_value()`; write audit log entry with caller identity (from bearer token); return success/failure response per contract
-- [ ] T014 [US2] Implement `PUT /orgs/{org}/projects/{project_number}/fields/{field_name}/bulk` in `github_projects_client/server/routes/mutations.py`: parse JSON body for `item_refs` and `value`; call `set_field_value_bulk()`; write audit log entry per mutation; return per-item results with success/failure counts
-- [ ] T015 [US2] Implement `GET /orgs/{org}/projects/{project_number}/audit-log` in `github_projects_client/server/routes/mutations.py`: accept `count` query param; call `read_recent_entries()`; return entries array
-- [ ] T016 [US2] Register mutation routes in `github_projects_client/server/routes/__init__.py`
+- [X] T012 [US2] Move and enhance audit log: copy `filozzy-mcp/filozzy_mcp/action_log.py` to `github_projects_client/audit_log.py`, add `caller` and `endpoint` fields to log entries, add `read_recent_entries()` function, configure log path via `ACTION_LOG_PATH` environment variable
+- [X] T013 [US2] Implement `PUT /orgs/{org}/projects/{project_number}/items/{item_ref}/fields/{field_name}` in `github_projects_client/server/routes/mutations.py`: parse JSON body for `value`; call `set_field_value()`; write audit log entry with caller identity (from bearer token); return success/failure response per contract
+- [X] T014 [US2] Implement `PUT /orgs/{org}/projects/{project_number}/fields/{field_name}/bulk` in `github_projects_client/server/routes/mutations.py`: parse JSON body for `item_refs` and `value`; call `set_field_value_bulk()`; write audit log entry per mutation; return per-item results with success/failure counts
+- [X] T015 [US2] Implement `GET /orgs/{org}/projects/{project_number}/audit-log` in `github_projects_client/server/routes/mutations.py`: accept `count` query param; call `read_recent_entries()`; return entries array
+- [X] T016 [US2] Register mutation routes in `github_projects_client/server/routes/__init__.py`
 
 **Checkpoint**: `curl -X PUT -H "Authorization: Bearer $TOKEN" -d '{"value":"⌨️ In Progress"}' "http://localhost:8080/orgs/FilOzone/projects/14/items/dealbot%23458/fields/Status"` updates the field and produces an audit log entry. Bulk updates work. Audit log endpoint returns recent entries.
 
@@ -80,9 +80,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T017 [P] [US4] Implement `GET /orgs/{org}/projects/{project_number}/fields` in `github_projects_client/server/routes/fields.py`: call `list_fields()`; return structured JSON with name, id, type per field (per contract)
-- [ ] T018 [US4] Implement `GET /orgs/{org}/projects/{project_number}/fields/{field_name}/options` in `github_projects_client/server/routes/fields.py`: call `list_field_options()`; return structured JSON differentiated by field type (single_select vs iteration) per contract
-- [ ] T019 [US4] Register fields routes in `github_projects_client/server/routes/__init__.py`
+- [X] T017 [P] [US4] Implement `GET /orgs/{org}/projects/{project_number}/fields` in `github_projects_client/server/routes/fields.py`: call `list_fields()`; return structured JSON with name, id, type per field (per contract)
+- [X] T018 [US4] Implement `GET /orgs/{org}/projects/{project_number}/fields/{field_name}/options` in `github_projects_client/server/routes/fields.py`: call `list_field_options()`; return structured JSON differentiated by field type (single_select vs iteration) per contract
+- [X] T019 [US4] Register fields routes in `github_projects_client/server/routes/__init__.py`
 
 **Checkpoint**: `curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/orgs/FilOzone/projects/14/fields"` returns all board fields. Field options endpoint returns valid options for Status, Cycle Theme, etc.
 
@@ -96,13 +96,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Create `get_board_context` tool in `filozzy-mcp/filozzy_mcp/server.py`: return board name, org, project number, API base URL (from `API_BASE_URL` env var), link to OpenAPI spec (`{API_BASE_URL}/openapi.json`), endpoint catalog with descriptions and example curl commands, query syntax reference
-- [ ] T021 [US3] Remove all GitHub API tools from `filozzy-mcp/filozzy_mcp/server.py`: remove `list_board_items`, `list_board_view_items`, `get_board_item`, `list_board_fields`, `list_board_field_options`, `set_board_item_field`, `bulk_set_board_item_field`, `get_action_log`
-- [ ] T022 [US3] Remove GitHub API dependencies from `filozzy-mcp/filozzy_mcp/server.py`: remove `_build_session()`, all `requests.Session` usage, all `github_projects_client` imports, all `action_log` imports
-- [ ] T023 [US3] Remove `GITHUB_TOKEN` from MCP environment config: update `filozzy-mcp/filozzy_mcp/server.py` to not require `GITHUB_TOKEN`, add `API_BASE_URL` to configuration
-- [ ] T024 [US3] Delete `filozzy-mcp/filozzy_mcp/action_log.py` (moved to `github_projects_client/audit_log.py` in T012)
-- [ ] T025 [US3] Update `filozzy-mcp/pyproject.toml`: remove `github-projects-client` and `requests` from dependencies (no longer needed)
-- [ ] T026 [US3] Update `filozzy-mcp/tests/`: remove or update `test_format.py` (formatting moved to API), update `test_integration.py` to test coordinator tool instead of data tools
+- [X] T020 [US3] Create `get_board_context` tool in `filozzy-mcp/filozzy_mcp/server.py`: return board name, org, project number, API base URL (from `API_BASE_URL` env var), link to OpenAPI spec (`{API_BASE_URL}/openapi.json`), endpoint catalog with descriptions and example curl commands, query syntax reference
+- [X] T021 [US3] Remove all GitHub API tools from `filozzy-mcp/filozzy_mcp/server.py`: remove `list_board_items`, `list_board_view_items`, `get_board_item`, `list_board_fields`, `list_board_field_options`, `set_board_item_field`, `bulk_set_board_item_field`, `get_action_log`
+- [X] T022 [US3] Remove GitHub API dependencies from `filozzy-mcp/filozzy_mcp/server.py`: remove `_build_session()`, all `requests.Session` usage, all `github_projects_client` imports, all `action_log` imports
+- [X] T023 [US3] Remove `GITHUB_TOKEN` from MCP environment config: update `filozzy-mcp/filozzy_mcp/server.py` to not require `GITHUB_TOKEN`, add `API_BASE_URL` to configuration
+- [X] T024 [US3] Delete `filozzy-mcp/filozzy_mcp/action_log.py` (moved to `github_projects_client/audit_log.py` in T012)
+- [X] T025 [US3] Update `filozzy-mcp/pyproject.toml`: remove `github-projects-client` and `requests` from dependencies (no longer needed)
+- [X] T026 [US3] Update `filozzy-mcp/tests/`: remove or update `test_format.py` (formatting moved to API), update `test_integration.py` to test coordinator tool instead of data tools
 
 **Checkpoint**: `filozzy-mcp` starts without `GITHUB_TOKEN`. The `get_board_context` tool returns board identity and API instructions. No MCP tool returns board item data. `.mcp.json` no longer passes `GITHUB_TOKEN` to the MCP server.
 
@@ -112,12 +112,12 @@
 
 **Purpose**: Documentation, validation, and cleanup
 
-- [ ] T027 [P] Update `github-projects-client/README.md`: document the new REST API server, how to start it, link to `/docs` for interactive API explorer
-- [ ] T028 [P] Update `filozzy-mcp/README.md`: document the coordinator role, new `get_board_context` tool, removed tools
-- [ ] T029 Update `.mcp.json`: remove `GITHUB_TOKEN` from filozzy config, add `API_BASE_URL`
-- [ ] T030 Validate OpenAPI spec completeness: start the server, fetch `/openapi.json`, verify all endpoints from contracts/rest-api.md are present with correct parameters, request/response schemas, and error codes
+- [X] T027 [P] Update `github-projects-client/README.md`: document the new REST API server, how to start it, link to `/docs` for interactive API explorer
+- [X] T028 [P] Update `filozzy-mcp/README.md`: document the coordinator role, new `get_board_context` tool, removed tools
+- [X] T029 Update `.mcp.json`: remove `GITHUB_TOKEN` from filozzy config, add `API_BASE_URL`
+- [X] T030 Validate OpenAPI spec completeness: start the server, fetch `/openapi.json`, verify all endpoints from contracts/rest-api.md are present with correct parameters, request/response schemas, and error codes
 - [ ] T031 Run quickstart.md validation: start the API server, execute all curl examples from `specs/005-rest-api-layer/quickstart.md`, verify responses match expected shapes
-- [ ] T032 Verify `github-project-export` still works: run existing export workflow to confirm the client library's public API is unaffected by adding the server subpackage
+- [X] T032 Verify `github-project-export` still works: run existing export workflow to confirm the client library's public API is unaffected by adding the server subpackage
 
 ---
 

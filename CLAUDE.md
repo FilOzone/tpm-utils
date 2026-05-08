@@ -134,6 +134,20 @@ When contributing to this repository:
 - Avoid force-pushing to shared branches unless necessary
 - Keep commit messages informative and professional
 
+## github-projects-client: Prefer GitHub-Supported Tools
+
+This project exists only to fill gaps in GitHub's own tooling for Projects v2.
+Any functionality that can be replaced by a GitHub-supported tool (`gh` CLI,
+GitHub REST/GraphQL APIs, GitHub's official MCP server) **should be** replaced.
+Before adding new capabilities, check whether GitHub has shipped native support.
+
+Current gaps filled (as of 2026-05):
+1. `gh project item-list` has no server-side filtering (`--query` flag)
+2. All GitHub mutation tools require raw node IDs, not human-readable names
+3. No GitHub tool supports batch field mutations
+
+Track upstream: [github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383)
+
 ## Active Technologies
 - Python >=3.13 (constraint from all `pyproject.toml` files) + `requests>=2.31` (shared client), `mcp>=1.0` (MCP server only) (003-generalize-mcp-client)
 - `action_log.jsonl` (append-only, MCP layer only) (003-generalize-mcp-client)

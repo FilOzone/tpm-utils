@@ -1,155 +1,45 @@
 """
-Integration tests for the filozzy-mcp MCP layer against the live GitHub API.
+Integration tests for the filozzy-mcp MCP coordinator.
 
-These tests cover MCP-specific behavior (docstring validation, tool formatting).
-Shared client tests live in github-projects-client/tests/test_integration.py.
-
-Requirements:
-    - GITHUB_TOKEN env var (or `gh auth token` available)
-    - Network access to api.github.com
-    - Read access to FilOzone org project #14
+The coordinator no longer calls the GitHub API directly — it only
+returns board context and API usage instructions. These tests verify
+the coordinator tool works correctly.
 
 Run:
     cd filozzy-mcp
-    GITHUB_TOKEN=$(gh auth token) uv run pytest tests/test_integration.py -v
+    uv run pytest tests/test_integration.py -v
 """
 
 from __future__ import annotations
 
-import os
-import re
-import subprocess
-
-import pytest
-import requests
-
-from github_projects_client import list_items
-from filozzy_mcp.server import list_board_items, GITHUB_ORG, GITHUB_PROJECT_NUMBER
-
-pytestmark = pytest.mark.integration
+from filozzy_mcp.server import get_board_context, GITHUB_ORG, GITHUB_PROJECT_NUMBER
 
 
-@pytest.fixture(scope="session")
-def session() -> requests.Session:
-    """Build a GitHub API session from env or gh CLI."""
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        try:
-            token = subprocess.check_output(
-                ["gh", "auth", "token"],
-                text=True,
-            ).strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pytest.skip("No GITHUB_TOKEN and gh CLI unavailable")
+class TestCoordinatorIntegration:
+    """Verify the coordinator returns complete board context."""
 
-    s = requests.Session()
-    s.headers.update(
-        {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-    )
-    return s
+    def test_context_includes_key_content(self):
+        result = get_board_context()
+        # Quick start examples
+        assert "/items" in result
+        assert "PUT" in result
+        assert "/bulk" in result
+        # Query syntax reference
+        assert "status:" in result
+        assert "is:pr" in result
+        # When to use which tool
+        assert "gh pr view" in result
+        # OpenAPI pointer
+        assert "/openapi.json" in result
 
+    def test_context_includes_board_identity(self):
+        result = get_board_context()
+        assert GITHUB_ORG in result
+        assert str(GITHUB_PROJECT_NUMBER) in result
+        assert "FOC Board" in result
 
-# ---------------------------------------------------------------------------
-# MCP tool docstring validation
-# ---------------------------------------------------------------------------
-
-
-class TestListBoardItemsDocstringExamples:
-    """Validate list_board_items docstring query examples against live API."""
-
-    @staticmethod
-    def _parse_docstring_query_examples() -> tuple[list[str], list[str]]:
-        doc = list_board_items.__doc__
-        assert doc is not None
-
-        runnable_queries: list[str] = []
-        skipped_queries: list[str] = []
-        for line in doc.splitlines():
-            match = re.match(r"^\s{2,}(.+?)\s+—\s+.+$", line)
-            if not match:
-                continue
-            query = match.group(1).strip()
-            if not query:
-                continue
-
-            should_skip = False
-            if query.startswith('"search text"'):
-                should_skip = True
-            if query == "blocking:FilOzone/dealbot#470":
-                should_skip = True
-            if re.match(r'^[a-zA-Z0-9_:"@#.,><\-/\s]+$', query):
-                if should_skip:
-                    skipped_queries.append(query)
-                else:
-                    runnable_queries.append(query)
-
-        seen = set()
-        runnable_ordered: list[str] = []
-        for q in runnable_queries:
-            if q in seen:
-                continue
-            seen.add(q)
-            runnable_ordered.append(q)
-
-        seen.clear()
-        skipped_ordered: list[str] = []
-        for q in skipped_queries:
-            if q in seen:
-                continue
-            seen.add(q)
-            skipped_ordered.append(q)
-
-        return runnable_ordered, skipped_ordered
-
-    def test_docstring_examples_return_non_empty(self, session: requests.Session):
-        examples, _skipped = self._parse_docstring_query_examples()
-        assert len(examples) > 0, (
-            "No query examples parsed from list_board_items docstring"
-        )
-        print(f"Extracted {len(examples)} docstring query examples:")
-        for idx, query in enumerate(examples, start=1):
-            print(f"  {idx:02d}. {query}")
-
-        empty_results: list[str] = []
-        for query in examples:
-            result = list_items(
-                session,
-                org=GITHUB_ORG,
-                project_number=GITHUB_PROJECT_NUMBER,
-                query=query,
-                per_page=1,
-            )
-            if len(result["items"]) == 0:
-                empty_results.append(query)
-
-        assert not empty_results, (
-            "These docstring query examples returned no items:\n"
-            + "\n".join(f"- {q}" for q in empty_results)
-        )
-
-    def test_docstring_skipped_examples_are_syntactically_accepted(
-        self, session: requests.Session
-    ):
-        _examples, skipped = self._parse_docstring_query_examples()
-        assert len(skipped) > 0, (
-            "No skipped query examples parsed from list_board_items docstring"
-        )
-        print(
-            f"Skipped {len(skipped)} docstring query examples (syntax-only validation):"
-        )
-        for idx, query in enumerate(skipped, start=1):
-            print(f"  {idx:02d}. {query}")
-
-        for query in skipped:
-            result = list_items(
-                session,
-                org=GITHUB_ORG,
-                project_number=GITHUB_PROJECT_NUMBER,
-                query=query,
-                per_page=1,
-            )
-            assert "items" in result
-            assert "has_more" in result
+    def test_no_github_token_required(self):
+        """The coordinator should work without GITHUB_TOKEN."""
+        # If we got here, the module imported without GITHUB_TOKEN — pass
+        result = get_board_context()
+        assert len(result) > 100
