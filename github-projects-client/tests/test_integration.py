@@ -554,6 +554,17 @@ class TestOrQuery:
         assert result["has_more"] is False
         assert result["next_cursor"] is None
 
+    def test_or_query_rejects_cursor(self, session: requests.Session):
+        """OR query raises ValueError when a cursor is provided."""
+        with pytest.raises(ValueError, match="not supported for OR queries"):
+            list_items(
+                session,
+                org=FILOZ_ORG,
+                project_number=PROJECT_NUMBER,
+                query='is:issue (milestone:"M4.0: mainnet staged") OR (milestone:"M4.1: mainnet ready")',
+                cursor="some_cursor_value",
+            )
+
     def test_or_query_no_duplicates(self, session: requests.Session):
         """OR query returns no duplicate node IDs."""
         result = list_items(
