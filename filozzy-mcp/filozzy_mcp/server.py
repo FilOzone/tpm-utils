@@ -424,7 +424,7 @@ def list_board_view_items(
     _VALID_FORMATS = {None, "json", "compact"}
     if format not in _VALID_FORMATS:
         raise ValueError(
-            f"Unknown format {format!r}. Must be one of: \"json\", \"compact\", or omitted for default JSONL."
+            f'Unknown format {format!r}. Must be one of: "json", "compact", or omitted for default JSONL.'
         )
 
     session = _build_session()
