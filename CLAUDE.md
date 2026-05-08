@@ -139,6 +139,8 @@ When contributing to this repository:
 - `action_log.jsonl` (append-only, MCP layer only) (003-generalize-mcp-client)
 - Python >=3.13 + `requests>=2.31`, `github-projects-client` (local editable) (004-or-filter-syntax)
 - N/A (stateless — reads from GitHub API, writes TSV) (004-or-filter-syntax)
+- Python >=3.13 (consistent with existing packages) + `github-projects-client` (local editable), `requests>=2.31` (transitive via client) (005-rest-api-layer)
+- Append-only JSONL file for audit log (same pattern as current `action_log.jsonl`) (005-rest-api-layer)
 
 ---
 
