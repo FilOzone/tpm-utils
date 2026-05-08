@@ -137,9 +137,14 @@ When contributing to this repository:
 ## Active Technologies
 - Python >=3.13 (constraint from all `pyproject.toml` files) + `requests>=2.31` (shared client), `mcp>=1.0` (MCP server only) (003-generalize-mcp-client)
 - `action_log.jsonl` (append-only, MCP layer only) (003-generalize-mcp-client)
+- Python >=3.13 + `requests>=2.31`, `github-projects-client` (local editable) (004-or-filter-syntax)
+- N/A (stateless — reads from GitHub API, writes TSV) (004-or-filter-syntax)
 
 ---
 
 *This document should be updated as the repository evolves and new conventions are established.*
 
 
+
+## Recent Changes
+- 004-or-filter-syntax: Added Python >=3.13 + `requests>=2.31`, `github-projects-client` (local editable)

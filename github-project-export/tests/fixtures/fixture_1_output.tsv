@@ -1,4 +1,5 @@
 Repository	Id	Title	Status	url
-dealbot	411	Investigate staging Dealbot startup failure	🎉 Done	https://github.com/FilOzone/dealbot/issues/411
-filecoin-services	411	Cleanup Calibration datasets to (temporarily) reduce chain bandwidth pressure before GA	🎉 Done	https://github.com/FilOzone/filecoin-services/issues/411
 synapse-sdk	411	fix: error outputs out of lotus are weird	🎉 Done	https://github.com/FilOzone/synapse-sdk/pull/411
+filecoin-services	411	Cleanup Calibration datasets to (temporarily) reduce chain bandwidth pressure before GA	🎉 Done	https://github.com/FilOzone/filecoin-services/issues/411
+dealbot	411	Investigate staging Dealbot startup failure	🎉 Done	https://github.com/FilOzone/dealbot/issues/411
+filecoin-pin	411	filecoin-pin-upload action failing due to pnpm	🎉 Done	https://github.com/filecoin-project/filecoin-pin/issues/411

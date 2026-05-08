@@ -1,0 +1,14 @@
+{
+  "projectUrl": "https://github.com/orgs/FilOzone/projects/14",
+  "query": "is:issue (milestone:\"M4.0: mainnet staged\" no:assignee) OR (milestone:\"M4.1: mainnet ready\" has:assignee)",
+  "fields": [
+    "Repository",
+    "Id",
+    "Title",
+    "Status",
+    "Milestone",
+    "Assignees",
+    "url"
+  ],
+  "outputFile": null
+}

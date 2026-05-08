@@ -527,3 +527,53 @@ class TestGetItem:
             item_ref="not-a-valid-ref",
         )
         assert details is None
+
+
+# ---------------------------------------------------------------------------
+# OR query support (via list_items)
+# ---------------------------------------------------------------------------
+
+
+class TestOrQuery:
+    """Tests for OR query expansion through list_items."""
+
+    def test_or_query_returns_union(self, session: requests.Session):
+        """OR query returns items from both branches."""
+        result = list_items(
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query='is:issue (milestone:"M4.0: mainnet staged" no:assignee) OR (milestone:"M4.1: mainnet ready" has:assignee)',
+            fields=["Repository", "Id", "Title", "Milestone"],
+            per_page=50,
+        )
+        assert len(result["items"]) > 0
+        milestones = {item.get("Milestone", "") for item in result["items"]}
+        assert "M4.0: mainnet staged" in milestones, "Expected items from M4.0 branch"
+        assert "M4.1: mainnet ready" in milestones, "Expected items from M4.1 branch"
+        assert result["has_more"] is False
+        assert result["next_cursor"] is None
+
+    def test_or_query_rejects_cursor(self, session: requests.Session):
+        """OR query raises ValueError when a cursor is provided."""
+        with pytest.raises(ValueError, match="not supported for OR queries"):
+            list_items(
+                session,
+                org=FILOZ_ORG,
+                project_number=PROJECT_NUMBER,
+                query='is:issue (milestone:"M4.0: mainnet staged") OR (milestone:"M4.1: mainnet ready")',
+                cursor="some_cursor_value",
+            )
+
+    def test_or_query_no_duplicates(self, session: requests.Session):
+        """OR query returns no duplicate node IDs."""
+        result = list_items(
+            session,
+            org=FILOZ_ORG,
+            project_number=PROJECT_NUMBER,
+            query='is:issue (milestone:"M4.0: mainnet staged" no:assignee) OR (milestone:"M4.1: mainnet ready" has:assignee)',
+            fields=["Repository", "Id", "Title"],
+            per_page=50,
+        )
+        node_ids = [item["_node_id"] for item in result["items"]]
+        assert len(node_ids) == len(set(node_ids)), "Duplicate _node_id values found"

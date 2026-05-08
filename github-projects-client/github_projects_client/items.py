@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from .api import fetch_items_rest, list_field_ids_by_name
+from .query import expand_or_query
 
 
 DEFAULT_FIELDS = [
@@ -192,11 +193,17 @@ def list_items(
     fields: Optional[List[str]] = None,
     per_page: int = 50,
     cursor: Optional[str] = None,
+    max_or_items: int = 1000,
 ) -> Dict[str, Any]:
     """List project items with optional filter query.
 
     Uses cursor-based pagination: each call fetches one page from the REST API.
     Pass the returned ``next_cursor`` back to get the next page.
+
+    OR queries (e.g. ``(branch1) OR (branch2)``) fetch all matching items in a
+    single request and do not support cursor-based pagination.  Passing a
+    ``cursor`` with an OR query raises ``ValueError``.  The ``max_or_items``
+    parameter caps the total items returned by OR queries (default 1000).
 
     Returns a dict with:
         "items": list of compact formatted dicts (~200-300 bytes each)
@@ -224,17 +231,54 @@ def list_items(
                     resolved_fields.append(f"{board_name} (id: {fid})")
                     break
 
-    fetch_result = fetch_items_rest(
-        session,
-        org=org,
-        project_number=project_number,
-        query=query,
-        field_ids=field_ids if field_ids else None,
-        per_page=per_page,
-        max_pages=1,
-        cursor=cursor,
-    )
-    raw_items = fetch_result["items"]
+    queries = expand_or_query(query)
+
+    if len(queries) > 1 and cursor is not None:
+        raise ValueError(
+            "Cursor-based pagination is not supported for OR queries. "
+            "OR queries fetch all matching items in a single request."
+        )
+
+    if len(queries) == 1:
+        # Single query: standard cursor-based pagination (one page)
+        fetch_result = fetch_items_rest(
+            session,
+            org=org,
+            project_number=project_number,
+            query=queries[0],
+            field_ids=field_ids if field_ids else None,
+            per_page=per_page,
+            max_pages=1,
+            cursor=cursor,
+        )
+        raw_items = fetch_result["items"]
+        next_cursor = fetch_result["next_cursor"]
+        has_more = fetch_result["has_more"]
+    else:
+        # Multiple OR branches: fetch all pages for all queries, deduplicate.
+        # Safety cap to prevent runaway queries from overwhelming the server.
+        raw_items: List[Dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for q in queries:
+            fetch_result = fetch_items_rest(
+                session,
+                org=org,
+                project_number=project_number,
+                query=q,
+                field_ids=field_ids if field_ids else None,
+                per_page=per_page,
+                max_pages=None,
+            )
+            for item in fetch_result["items"]:
+                node_id = _extract_node_id(item)
+                if node_id not in seen_ids:
+                    seen_ids.add(node_id)
+                    raw_items.append(item)
+            if len(raw_items) >= max_or_items:
+                raw_items = raw_items[:max_or_items]
+                break
+        next_cursor = None
+        has_more = False
 
     items = [_format_item(item, fields) for item in raw_items]
 
@@ -245,13 +289,13 @@ def list_items(
         "resolved_fields": resolved_fields,
         "per_page": per_page,
         "items_returned": len(items),
-        "has_more": fetch_result["has_more"],
+        "has_more": has_more,
     }
 
     return {
         "items": items,
-        "next_cursor": fetch_result["next_cursor"],
-        "has_more": fetch_result["has_more"],
+        "next_cursor": next_cursor,
+        "has_more": has_more,
         "debug": debug,
     }
 
