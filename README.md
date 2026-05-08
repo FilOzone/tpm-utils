@@ -144,9 +144,15 @@ This runs integration tests across `github-projects-client`, `filozzy-mcp`, and 
    cd tpm-utils
    ```
 
-2. **Review the documentation** for the specific tool you need
-3. **Set up any required dependencies** (Python 3, jq, etc.)
-4. **Follow the workflow steps** outlined in each documentation file
+2. **Enable the pre-commit lint hook** (runs the same `ruff` checks as CI).
+   Requires [`uv`](https://docs.astral.sh/uv/getting-started/installation/) (provides `uvx`).
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+
+3. **Review the documentation** for the specific tool you need
+4. **Set up any required dependencies** (Python 3, jq, etc.)
+5. **Follow the workflow steps** outlined in each documentation file
 
 ## Contributing
 

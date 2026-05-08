@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Pre-commit hook: runs the same ruff checks as CI.
+# Install with: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+if ! command -v uvx &> /dev/null; then
+  echo "Error: 'uvx' is not installed or not on PATH."
+  echo "Install it via: curl -LsSf https://astral.sh/uv/install.sh | sh"
+  echo "See https://docs.astral.sh/uv/getting-started/installation/ for more options."
+  exit 1
+fi
+
+echo "Running ruff lint..."
+uvx ruff check .
+
+echo "Running ruff format check..."
+uvx ruff format --check .
+
+echo "All lint checks passed."
