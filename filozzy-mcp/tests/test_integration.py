@@ -23,7 +23,7 @@ class TestCoordinatorIntegration:
         # Quick start examples
         assert "/items" in result
         assert "PUT" in result
-        assert "/fields/" in result
+        assert "/items/field/" in result
         # Query syntax reference
         assert "status:" in result
         assert "is:pr" in result

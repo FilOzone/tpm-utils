@@ -35,7 +35,7 @@ class TestGetBoardContext:
         result = get_board_context()
         assert "/items" in result
         assert "PUT" in result
-        assert "/fields" in result
+        assert "/items/field/" in result
 
     def test_contains_query_syntax(self):
         result = get_board_context()
