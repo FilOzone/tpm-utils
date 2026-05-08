@@ -419,7 +419,14 @@ def list_board_view_items(
         format: Output format. Default (None) returns human-readable JSONL.
                 "json" returns a single JSON object with an "items" array
                 and pagination metadata (see list_board_items for details).
+                "compact" returns columnar JSON (see list_board_items).
     """
+    _VALID_FORMATS = {None, "json", "compact"}
+    if format not in _VALID_FORMATS:
+        raise ValueError(
+            f"Unknown format {format!r}. Must be one of: \"json\", \"compact\", or omitted for default JSONL."
+        )
+
     session = _build_session()
     resolved = resolve_view_url(session, view_url=view_url)
 
@@ -454,6 +461,8 @@ def list_board_view_items(
 
     if format == "json":
         return _format_json(display_items, has_more, next_cursor)
+    if format == "compact":
+        return _format_compact(display_items, has_more, next_cursor)
 
     if not items:
         msg = f"No items found for view URL: {view_url}"

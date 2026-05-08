@@ -60,7 +60,7 @@ def _format_field_value(value: Any) -> str:
         # The GitHub Projects v2 REST API returns the complete PR/issue
         # object (~8KB each) including user avatars, all API endpoints,
         # full body text, labels, etc.  Strip down to useful fields only.
-        _KEEP_KEYS = {"number", "state", "draft", "title"}
+        _KEEP_KEYS = ("number", "state", "draft", "title")
         trimmed = []
         for item in value:
             if isinstance(item, dict) and "number" in item:
