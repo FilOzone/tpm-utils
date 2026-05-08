@@ -31,15 +31,6 @@ class CompactItemsResponse(BaseModel):
     next_cursor: Optional[str] = None
 
 
-class MutationResponse(BaseModel):
-    success: bool
-    item_ref: str
-    field_name: str
-    old_value: str = ""
-    new_value: str = ""
-    error: Optional[str] = None
-
-
 class BulkMutationResult(BaseModel):
     item_ref: str
     success: bool
@@ -55,10 +46,6 @@ class BulkMutationResponse(BaseModel):
 
 
 # --- Request models ---
-
-
-class SetFieldRequest(BaseModel):
-    value: str
 
 
 class BulkSetFieldRequest(BaseModel):

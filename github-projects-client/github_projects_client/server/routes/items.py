@@ -199,8 +199,4 @@ def get_item(
             },
         )
 
-    return {
-        k: v
-        for k, v in details.items()
-        if not k.startswith("_") and v not in (None, "")
-    }
+    return {k: v for k, v in details.items() if not k.startswith("_")}

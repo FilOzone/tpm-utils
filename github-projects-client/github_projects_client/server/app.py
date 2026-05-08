@@ -157,5 +157,17 @@ def main() -> None:
     uvicorn.run(app, host=host, port=port)
 
 
+def main_dev() -> None:
+    """Entry point for the github-projects-api-dev CLI command (auto-reload)."""
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "8080"))
+    uvicorn.run(
+        "github_projects_client.server.app:app",
+        host=host,
+        port=port,
+        reload=True,
+    )
+
+
 if __name__ == "__main__":
     main()

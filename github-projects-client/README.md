@@ -36,10 +36,9 @@ These are the operations specific to GitHub Projects v2 boards — reading and w
 | **Server-side filtering** | No `--query` flag; must fetch all items | `q=` param with [filter syntax](https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects) | Manual query construction | `query` param | `query` param (wraps REST) |
 | **OR filter syntax** | No | No | No | No | `(status:"In Progress") OR (status:"Review")` — expanded to multiple queries, deduplicated |
 | **Response size per item** | ~800 bytes (includes body text) | ~8KB (full PR/issue objects embedded) | You pick fields, but must craft query | Verbose (field values wrapped in `{html, raw}`). Upstream tracking issue:[github/github-mcp-server#2383](https://github.com/github/github-mcp-server/issues/2383) | ~200-300 bytes (trimmed to field values only) |
-| **Field value trimming** | No (returns full PR/issue body text) | No (~8KB linked PR objects) | You craft the query | No (full objects in response) | Linked PRs trimmed to `{repo, number, state, title, author}` (~100 bytes vs ~8KB); assignees to comma-separated logins |
+| **Field value trimming** | No (returns full PR/issue body text) | No (~8KB linked PR objects) | You craft the query | No (full objects in response) | All fields trimmed to display values: single-select/text/iteration → display name; milestone → title; sub-issues → `N/N`; linked PRs → `{repo, number, state, title, author}` (~100 bytes vs ~8KB); assignees/reviewers → comma-separated logins |
 | **Direct to disk (bypass LLM context)** | Yes (pipe stdout) | Yes (curl) | Yes (curl) | No (MCP responses enter context — [#2383](https://github.com/github/github-mcp-server/issues/2383)) | Yes (curl) |
-| **Set a field value** | `item-edit` — requires `--field-id`, `--single-select-option-id`, `--project-id` (all raw node IDs) | No mutation support | `updateProjectV2ItemFieldValue` — requires project/field/option node IDs (3-4 lookups) | `update_project_item` — requires numeric field ID | `PUT /items/{ref}/fields/{name}` — human-readable names, ID resolution automatic |
-| **Bulk set a field** | No | No | Manual aliased mutations | No | `PUT /fields/{name}/bulk` — batches up to 25 per request |
+| **Set a field value (single or bulk)** | `item-edit` — requires `--field-id`, `--single-select-option-id`, `--project-id` (all raw node IDs) | No mutation support | `updateProjectV2ItemFieldValue` — requires project/field/option node IDs (3-4 lookups) | `update_project_item` — requires numeric field ID | `PUT /items/field/{name}` — human-readable names, single or bulk, batches up to 25 per request |
 | **Item lookup by reference** | No (need PVTI_ node ID) | No (need to query + filter) | No (need node ID) | No (need item ID) | `GET /items/dealbot%23458` — parses `repo#number`, `owner/repo#number`, or URL |
 | **Item `updated_at` and `creator`** | No | Available in raw response but not surfaced | Queryable but manual | No | Not yet — see [future ideas](../foc-board-rules/future-ideas.md#expose-built-in-item-properties-in-list_board_items) |
 | **Discover field options** | `gh project field-list` (clean) | `GET /projectsV2/{n}/fields` | Inline fragment query | `list_project_fields` | `GET /fields/{name}/options` |
@@ -65,7 +64,7 @@ This project returns ~200-300 bytes per item (just the project field values) —
 | 50-item query | ~400KB / ~100K tokens | ~10-15KB / ~3-4K tokens |
 | Field name resolution | Raw IDs required | By name (`"Status"` → `"Done"`) |
 | Filter syntax docs | None in tool description | Comprehensive reference in MCP coordinator |
-| Mutation UX | 3 tool calls with raw IDs | 1 curl call: `PUT /items/dealbot%23458/fields/Status` |
+| Mutation UX | 3 tool calls with raw IDs | 1 curl call: `PUT /items/field/Status` with `{"item_refs": ["dealbot#458"], "value": "..."}` |
 | Bulk mutations | No | Up to 25 per request |
 | Audit logging | None | JSONL with old/new values |
 
@@ -152,11 +151,11 @@ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
   "http://localhost:8080/orgs/FilOzone/projects/14/items?query=is:pr+-status:%22🎉+Done%22" \
   > board_prs.json
 
-# Set a field by name
+# Set a field (single or bulk)
 curl -s -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"value": "🎉 Done"}' \
-  "http://localhost:8080/orgs/FilOzone/projects/14/items/dealbot%23458/fields/Status"
+  -d '{"item_refs": ["dealbot#458"], "value": "🎉 Done"}' \
+  "http://localhost:8080/orgs/FilOzone/projects/14/items/field/Status"
 ```
 
 **Endpoints:**
@@ -168,8 +167,7 @@ curl -s -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" \
 | GET | `/orgs/{org}/projects/{n}/items/view` | List items from a saved view URL |
 | GET | `/orgs/{org}/projects/{n}/fields` | List all board fields |
 | GET | `/orgs/{org}/projects/{n}/fields/{name}/options` | List field options |
-| PUT | `/orgs/{org}/projects/{n}/items/{ref}/fields/{name}` | Update a field |
-| PUT | `/orgs/{org}/projects/{n}/fields/{name}/bulk` | Bulk update a field |
+| PUT | `/orgs/{org}/projects/{n}/items/field/{name}` | Set a field (single or bulk) |
 | GET | `/orgs/{org}/projects/{n}/audit-log` | Read audit log entries |
 
 ---

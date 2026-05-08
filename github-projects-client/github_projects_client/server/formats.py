@@ -6,11 +6,12 @@ from typing import Any
 
 
 def build_display_items(items: list[dict]) -> list[dict]:
-    """Strip internal fields and empty values from items for output."""
-    return [
-        {k: v for k, v in item.items() if not k.startswith("_") and v not in (None, "")}
-        for item in items
-    ]
+    """Strip internal fields from items for output.
+
+    Empty strings are preserved so callers can distinguish "field has no value"
+    from "field was not requested."
+    """
+    return [{k: v for k, v in item.items() if not k.startswith("_")} for item in items]
 
 
 def format_compact(

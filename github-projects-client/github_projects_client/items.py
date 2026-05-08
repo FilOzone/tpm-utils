@@ -82,6 +82,9 @@ def _format_field_value(value: Any) -> str:
             return json.dumps(trimmed, ensure_ascii=False)
         return str(value)
     if isinstance(value, dict):
+        # Sub-issues progress: {"total": N, "completed": N, "percent_completed": N}
+        if "total" in value and "completed" in value and "percent_completed" in value:
+            return f"{value['completed']}/{value['total']}"
         # Reviewers payload
         if "requested_reviewers" in value or "requested_teams" in value:
             parts = []
@@ -105,6 +108,8 @@ def _format_field_value(value: Any) -> str:
         if isinstance(text, str):
             return text
         title = value.get("title")
+        if isinstance(title, dict) and "raw" in title:
+            return title["raw"]
         if isinstance(title, str):
             return title
         return ""

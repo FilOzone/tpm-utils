@@ -170,42 +170,9 @@ List options for a single-select or iteration field.
 
 ---
 
-### PUT /orgs/{org}/projects/{project_number}/items/{item_ref}/fields/{field_name}
+### PUT /orgs/{org}/projects/{project_number}/items/field/{field_name}
 
-Update a single field on a board item.
-
-**Request Body**:
-
-```json
-{
-  "value": "⌨️ In Progress"
-}
-```
-
-Pass `""` (empty string) to clear the field.
-
-**Response**:
-
-```json
-{
-  "success": true,
-  "item_ref": "dealbot#458",
-  "field_name": "Status",
-  "old_value": "🐱 Todo",
-  "new_value": "⌨️ In Progress"
-}
-```
-
-**Errors**:
-- `401`: Missing or invalid bearer token
-- `404`: Item or field not found
-- `422`: Invalid value for field type
-
----
-
-### PUT /orgs/{org}/projects/{project_number}/fields/{field_name}/bulk
-
-Bulk update a field across multiple items.
+Update a project-level field on one or more board items.
 
 **Request Body**:
 
@@ -215,6 +182,8 @@ Bulk update a field across multiple items.
   "value": "⌨️ In Progress"
 }
 ```
+
+Pass `""` (empty string) as `value` to clear the field. `item_refs` accepts `repo#number`, `owner/repo#number`, full GitHub URLs, or raw project item node IDs (`PVTI_...`).
 
 **Response**:
 
@@ -231,6 +200,11 @@ Bulk update a field across multiple items.
 ```
 
 Partial failures are reported per-item (the request does not roll back).
+
+**Errors**:
+- `401`: Missing or invalid bearer token
+- `404`: Field not found
+- `422`: Invalid value for field type
 
 ---
 
@@ -252,7 +226,7 @@ Read recent audit log entries.
     {
       "timestamp": "2026-05-08T14:30:00Z",
       "caller": "biglep",
-      "endpoint": "/items/dealbot%23458/fields/Status",
+      "endpoint": "/items/field/Status",
       "params": {"org": "FilOzone", "project_number": 14, "item_ref": "dealbot#458", "field_name": "Status", "value": "⌨️ In Progress"},
       "result": "success",
       "old_value": "🐱 Todo",

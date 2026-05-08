@@ -100,29 +100,33 @@ The API URL pattern is: `{base}/orgs/{{org}}/projects/{{project_number}}/...`
 
 **List non-Done PRs (direct to disk):**
 ```
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \\
-  "{prefix}/items?query=is:pr+-status:%22🎉+Done%22&per_page=100" > board_prs.json
+curl -s -G "{prefix}/items" \\
+  --data-urlencode 'query=is:pr -status:"🎉 Done"' \\
+  --data-urlencode 'per_page=100' \\
+  -H "Authorization: Bearer $GITHUB_TOKEN" > board_prs.json
 ```
+
+Always use `curl -G --data-urlencode` for queries — manual percent-encoding of emojis and spaces is fragile.
 
 **Get a single item** (URL-encode # as %23):
 ```
 curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "{prefix}/items/dealbot%23458"
 ```
 
-**Set a field by name:**
-```
-curl -s -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{{"value": "⌨️ In Progress"}}' \\
-  "{prefix}/items/dealbot%23458/fields/Status"
-```
-
-**Bulk set a field** (accepts PVTI_ node IDs from prior list call to skip lookups):
+**Set a field** (single or bulk — accepts PVTI_ node IDs from prior list call to skip lookups):
 ```
 curl -s -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{{"item_refs": ["dealbot#458", "synapse-sdk#748"], "value": "🎉 Done"}}' \\
-  "{prefix}/fields/Status/bulk"
+  "{prefix}/items/field/Status"
+```
+
+For field names with spaces, URL-encode the space (e.g., `Cycle%20Theme`):
+```
+curl -s -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"item_refs": ["dealbot#458"], "value": "Dealbot"}}' \\
+  "{prefix}/items/field/Cycle%20Theme"
 ```
 
 Fetch `{base}/openapi.json` for the complete endpoint reference including
@@ -137,8 +141,7 @@ all parameters, request/response schemas, and detailed descriptions.
 | Operation | Tool | Why |
 |---|---|---|
 | List/filter board items | This API (curl) | Server-side filtering, ~200 bytes/item, direct to disk |
-| Set board field (Status, Cycle Theme, etc.) | This API (curl) | Only tool with name-based mutations (no raw IDs) |
-| Bulk set a board field | This API (curl) | Only tool with batch support |
+| Set board field (Status, Cycle Theme, etc.) | This API (curl) | Name-based mutations (no raw IDs), supports single and batch |
 | PR review state, draft status | `gh pr view --json reviewDecision,reviews,isDraft` | Not a board field — lives on the PR |
 | Set assignees | `gh issue edit --add-assignee` or `gh pr edit --add-assignee` | Not a board field — lives on the issue/PR |
 | Set milestone | `gh issue edit --milestone` | Not a board field — lives on the issue/PR |
