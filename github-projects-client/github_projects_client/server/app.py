@@ -130,11 +130,14 @@ def create_app() -> FastAPI:
         request: Request, exc: Exception
     ) -> JSONResponse:
         """Catch-all for unhandled exceptions."""
+        import logging
+
+        logging.exception("Unhandled exception in %s %s", request.method, request.url)
         return JSONResponse(
             status_code=500,
             content={
                 "error": "internal_error",
-                "message": str(exc),
+                "message": "Internal server error",
                 "details": {},
             },
         )

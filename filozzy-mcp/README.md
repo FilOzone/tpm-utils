@@ -2,7 +2,7 @@
 
 Thin MCP coordinator for GitHub Projects v2 boards. Provides board context and API usage instructions to LLM agents.
 
-**This server does NOT make any GitHub API calls.** Instead, it tells agents where the "githut-projects-turbo" REST API server is and how to call it via curl. All board data operations go through the [github-projects-client REST API](../github-projects-client/).
+**This server does NOT make any GitHub API calls.** Instead, it tells agents where the "github-projects-client" REST API server is and how to call it via curl. All board data operations go through the [github-projects-client REST API](../github-projects-client/).
 
 For issue/PR-level operations (assignees, milestones, reviewers), use `gh` CLI directly.
 

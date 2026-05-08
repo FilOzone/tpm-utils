@@ -187,7 +187,7 @@ GITHUB_TOKEN=$(gh auth token) uv run pytest tests/ -v
 ## Known gaps and future ideas
 See [foc-board-rules/future-ideas.md](../foc-board-rules/future-ideas.md) for the central list. Relevant items:
 
-- `list_items` does not surface built-in item properties like `updated_at` and `creator`. Ssee [future ideas](../foc-board-rules/future-ideas.md#expose-built-in-item-properties-in-list_board_items).
+- `list_items` does not surface built-in item properties like `updated_at` and `creator`. See [future ideas](../foc-board-rules/future-ideas.md#expose-built-in-item-properties-in-list_board_items).
 - Remove `format=compact` — context-window optimization that doesn't apply when data goes to disk
 - Remove `GET /fields/{name}/options` — `gh project field-list` covers this natively
 
