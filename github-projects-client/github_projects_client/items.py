@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -54,7 +55,32 @@ def _format_field_value(value: Any) -> str:
                 login = item.get("login")
                 if isinstance(login, str):
                     logins.append(login)
-        return ", ".join(logins) if logins else str(value)
+        if logins:
+            return ", ".join(logins)
+        # Linked pull requests / issues: list of full API objects.
+        # The GitHub Projects v2 REST API returns the complete PR/issue
+        # object (~8KB each) including user avatars, all API endpoints,
+        # full body text, labels, etc.  Strip down to useful fields only.
+        _KEEP_KEYS = ("number", "state", "draft", "title")
+        trimmed = []
+        for item in value:
+            if isinstance(item, dict) and "number" in item:
+                compact: dict[str, Any] = {}
+                # Derive repo name from repository_url
+                repo_url = item.get("repository_url", "")
+                if "/" in repo_url:
+                    compact["repo"] = repo_url.rsplit("/", 1)[-1]
+                for k in _KEEP_KEYS:
+                    if k in item:
+                        compact[k] = item[k]
+                # Flatten user to just login
+                user = item.get("user")
+                if isinstance(user, dict) and "login" in user:
+                    compact["author"] = user["login"]
+                trimmed.append(compact)
+        if trimmed:
+            return json.dumps(trimmed, ensure_ascii=False)
+        return str(value)
     if isinstance(value, dict):
         # Reviewers payload
         if "requested_reviewers" in value or "requested_teams" in value:

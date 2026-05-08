@@ -4,6 +4,18 @@ Prescribed stage-by-stage workflow for a full board sweep. Each stage uses targe
 
 Work through stages in order. Complete all actions and reporting for one stage before moving to the next.
 
+## Stage 0: Create sweep workspace
+
+Before any queries, create a unique temp directory for this sweep's working files:
+
+```bash
+mkdir /tmp/foc-board-sweep@$(date -u +%Y-%m-%dT%H:%M:%SZ)
+```
+
+Store the path (e.g., `/tmp/foc-board-sweep@2026-05-07T14:30:00Z`) and use it for all file writes throughout the sweep. This keeps artifacts organized per run, avoids collisions with prior sweeps, and — critically — ensures every Write tool call targets a new file (the Write tool requires a prior Read for existing files, but new files in a fresh directory just work).
+
+All file path examples in this playbook use `$SWEEP/` as shorthand for this directory.
+
 ## Stage 1: Open PRs
 
 **Goal:** Apply PR hygiene, status lifecycle, and field completeness rules to all open PRs.
@@ -32,6 +44,77 @@ Work through stages in order. Complete all actions and reporting for one stage b
 - R-FC-004: Set Cycle Theme from repo defaults
 - R-FC-005: All PRs should have a Cycle Theme
 - R-FC-006: In-flight PRs + dependabot/release Todo PRs without a Cycle → current cycle
+
+**Ordering note — Cycle gaps after status changes:** Run the `no:cycle` field-gap queries *after* completing status mutations, not before. PRs that move from Triage/Todo into in-flight statuses (R-PR-003→Todo for dependabot, R-PR-005/006→In Progress or Awaiting Review) also need cycles per R-FC-006, but they won't appear in the pre-mutation `no:cycle` in-flight query. Either re-query after status changes or track the newly in-flight items from your status mutations and include them in the cycle bulk update. (Added after a sweep where cycle gaps for newly in-flight items had to be re-derived manually.)
+
+**Cross-referencing board data with GitHub metadata:**
+
+The main bottleneck in Stage 1 is joining board query results (65+ items) with GitHub Phase 1 metadata (14+ repos). Do this programmatically with `jq`, not by manually scanning JSON walls.
+
+**Use `format: "compact"` and immediately Write to disk.** Pass `format: "compact"` to `list_board_items` to get columnar JSON — field names appear once, rows are arrays of values:
+
+```json
+{"columns": ["Repository", "Title", "Status", ...],
+ "rows": [["curio", "Fix X", "⌨️ In Progress", ...], ...],
+ "total_in_page": 62}
+```
+
+This is ~40-60% smaller than `format: "json"` (which repeats field names per item), meaning fewer tokens through your context. **Immediately after receiving the tool result, use the Write tool to save the raw JSON string to a file in your `$SWEEP/` directory** (e.g., `$SWEEP/board_prs.json`). Do NOT try to echo/cat the result via Bash — the tool output is in your conversation context, not in a shell variable. The Write tool is the only reliable way to transfer it to disk.
+
+To convert back to an array of objects for `jq` joins:
+
+```bash
+jq '[.columns as $c | .rows[] | [$c, .] | transpose | map({(.[0]): .[1]}) | add]' $SWEEP/board_prs.json > $SWEEP/board_prs_objects.json
+```
+
+**Why this matters:** Without writing to disk first, the agent falls into a trap: it has the JSON in context, tries to reconstruct it in a bash heredoc, and wastes time hand-copying 62+ items. The Write tool is instant and exact.
+
+**Pagination: always check `has_more`.** After writing to disk, check for more pages:
+
+```bash
+jq -e '.has_more' $SWEEP/board_prs.json  # exits 0 if true, 1 if false/missing
+```
+
+If true, fetch the next page with the returned `next_cursor`, Write that result to a second file, then merge rows:
+
+```bash
+jq -s '{"columns": .[0].columns, "rows": [.[].rows[]]}' $SWEEP/board_prs.json $SWEEP/board_prs_p2.json > $SWEEP/board_prs_all.json
+```
+
+**Tip:** Use `per_page: 100` (the maximum) to reduce the number of pages. Most board queries fit in 1-2 pages.
+
+Without a `format` parameter, the default output is human-readable JSONL (one JSON object per line after a "Found N items:" header). This is fine for small result sets displayed in conversation, but for programmatic use prefer `format: "compact"` (fewer tokens) or `format: "json"` (one object per item).
+
+Include `"Node ID"` in the fields parameter to get project item node IDs (`PVTI_...`), which can be passed directly to `bulk_set_board_item_field` to skip per-item re-resolution.
+
+After fetching both datasets:
+
+1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
+
+2. **Produce action lists per rule.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations:
+   - R-PR-005: `select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))`
+   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.board_status | IN("📌 Triage","⌨️ In Progress")))`
+   - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
+   - R-PR-007 Phase 2 candidates: `select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))` — empty `reviewRequests` is ambiguous (pending requests are consumed when a review is submitted), so always Phase 2 before flagging
+
+3. **Treat `reviewDecision: ""` as ambiguous.** Empty means GitHub produced no formal verdict — not that no reviews exist. Always Phase 2 before changing status on these PRs. See general behavior rule 6.
+
+4. **Batch all Phase 2 candidates, then fetch in parallel.** Collect the union of Phase 2 candidates from step 2 (R-PR-006, R-PR-007, and any `reviewDecision: ""` PRs from step 3) into a single list. Then run all `gh pr view` calls in parallel — don't process one rule's candidates, then discover the next rule needs Phase 2 on overlapping PRs. One parallel batch of `gh pr view` calls is faster than sequential per-rule fetches, and avoids duplicate lookups when the same PR is a candidate for multiple rules.
+
+Example — build a joined dataset in one bash call:
+```bash
+# After fetching board PRs (format: "compact") and Writing to $SWEEP/board_prs.json,
+# and Phase 1 per-repo results to $SWEEP/phase1_*.json:
+BOARD_JSON=$(jq '[.columns as $c | .rows[] | [., $c] | transpose | map({(.[1]): .[0]}) | add]' "$SWEEP/board_prs.json")
+for repo_file in "$SWEEP"/phase1_*.json; do
+  repo=$(basename "$repo_file" .json | sed 's/phase1_//')
+  jq --argjson board "$BOARD_JSON" --arg repo "$repo" '
+    [.[] | select(.number as $n | $board | any(.repo == $repo and .number == $n))]
+  ' "$repo_file"
+done
+```
+
+This gives you a clean, small dataset to reason about — typically 15-30 items instead of 100+.
 
 **Automated vs. flagged:**
 - Automated: Status transitions (R-PR-002–009, R-SL-001, R-SL-007), Cycle Theme (R-FC-004/005), Cycle (R-FC-006), assignee (R-PR-001 for PRs)
@@ -78,13 +161,13 @@ Work through stages in order. Complete all actions and reporting for one stage b
 **Queries:**
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee` (unassigned active items)
 - `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" updated:<YYYY-MM-DD` (stale active items, where date is 2 weeks ago; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale)
-- `is:issue -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge"` with "Linked pull requests" field (active issues that should be in "Issue awaiting PR merge")
-- `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle)
+- `is:issue -status:"🎉 Done" -status:"⌚️ Issue awaiting PR merge" has:linked-pull-requests` with "Linked pull requests" field (R-SL-008 — issues with formally linked PRs that might need to move to "Issue awaiting PR merge"). The `has:linked-pull-requests` filter keeps this set small — typically 5-10 items instead of 40+.
+- `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle — inherit from linked PR per R-SL-008, not just R-FC-009)
 
 **Rules applied:**
 - R-FC-001: Active items must have an assignee
 - R-PR-001: For unassigned PRs, assign to the PR author (skip bots)
-- R-SL-008: Active issues with linked PRs should be in "Issue awaiting PR merge"
+- R-SL-008: Not-done issues with linked PRs **where at least one PR is In Progress or later** should be in "Issue awaiting PR merge"; also inherit cycle from linked PR for items already in this status
 - R-SL-009: Stale items in In Progress / Awaiting Review / Approved (no update in 2+ weeks on both board and GitHub) should move back to Todo
 - R-FC-009: Issues in "Issue awaiting PR merge" with active milestones should have a cycle
 
@@ -95,9 +178,12 @@ Work through stages in order. Complete all actions and reporting for one stage b
 4. If uncertain, propose with justification and flag for human confirmation
 
 **How to check for linked PRs (per R-SL-008):**
-1. Include "Linked pull requests" in the `list_board_items` fields
-2. Any active issue with a non-empty linked PR list should move to "Issue awaiting PR merge"
-3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008)
+1. The `has:linked-pull-requests` query above returns only issues with formally linked PRs — typically 5-10 items.
+2. Cross-reference linked PRs with board data to check their status — only move the issue to "Issue awaiting PR merge" if at least one linked PR is In Progress or later (not in Todo/Triage).
+3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008).
+
+**How to discover unlinked PRs (per R-SL-008):**
+After processing formal linked PRs, do a targeted check for In Progress issues that have **no** formal linked PRs — these may have cross-referencing PRs that weren't formally linked. Query the board for `is:issue status:"⌨️ In Progress" no:linked-pull-requests`, exclude zOrganizing Items, then batch-fetch `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12) for **only this set**. This is an expensive query — do not run it broadly. See R-SL-008 "Discovering unlinked PRs" for the full procedure. Flag findings for human rather than auto-transitioning.
 
 **How to report stale items (per R-SL-009):**
 1. Exclude zOrganizing Items and "Issue awaiting PR merge" items
@@ -106,14 +192,19 @@ Work through stages in order. Complete all actions and reporting for one stage b
 4. Human confirms which items to move back to Todo
 
 **Automated vs. flagged:**
-- Automated: PR assignees set to author (R-PR-001), issues with linked PRs → Issue awaiting PR merge (R-SL-008)
+- Automated: PR assignees set to author (R-PR-001), issues with linked PRs where at least one PR is In Progress or later → Issue awaiting PR merge (R-SL-008)
 - Flagged for human: Issues where assignee can't be confidently determined, stale active items (R-SL-009), issues awaiting PR merge without a cycle (confirm current cycle assignment)
 
 ## Stage 5: Recently-done items — reporting readiness
 
 **Goal:** Ensure recently-completed items have Cycle Theme, Cycle, and Assignee so they show up correctly in periodic reporting.
 
-**Query:** `status:"🎉 Done" updated:>YYYY-MM-DD` (where date is 7 days ago)
+**Queries — use targeted gap queries, not a bulk fetch:**
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:cycle-theme` (missing Cycle Theme)
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:cycle` (missing Cycle)
+- `status:"🎉 Done" updated:>YYYY-MM-DD no:assignee -cycle-theme:"Dependency Updates"` (missing assignee, excluding dependabot — those are expected to be unassigned per R-PR-001)
+
+where date is 7 days ago. Do **not** fetch all recently-done items first — that returns 100+ items and wastes context. The gap queries surface only the items that need action. (Added after a sweep where the bulk fetch consumed a full page of results before the gap queries found only ~20 actionable items.)
 
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee

@@ -14,7 +14,7 @@ When applying rules (whether by LLM or human):
 
 3. **Summarize every change.** When setting or changing a field value, always report the old value → new value. For example: `Status: 📌 Triage → 🐱 Todo`. This applies to all mutations, not just status changes.
 
-4. **Always include item titles.** When listing items (in summaries, flags, or reports), always include the item title alongside the `org/repo#number` reference. The number alone lacks context.
+4. **Always include item titles and hyperlinks.** When listing items (in summaries, flags, or reports), always include the item title alongside the `org/repo#number` reference, and render the reference as a clickable hyperlink (e.g., `[filecoin-pay-explorer#162](https://github.com/FilOzone/filecoin-pay-explorer/issues/162)`). The number alone lacks context, and non-linked references require manual navigation to act on.
 
 5. **Choose query strategy by scope.** When enforcing a *single rule* or verifying a *specific condition*, use targeted board queries (e.g., `is:pr -status:"🎉 Done" no:cycle-theme` to find PRs missing a Cycle Theme). When doing a *full rule sweep* across all rules, fetch all open items in one query (`is:pr -status:"🎉 Done"`) and evaluate each item against every rule — this avoids redundant overlapping queries and is more efficient overall. See `list_board_items` tool docs for filter syntax. **For field-gap checks** (R-FC-005, R-FC-006, R-FC-008), always use `no:field` filter queries (e.g., `no:cycle`, `no:cycle-theme`, `no:assignee`) rather than scanning bulk results — bulk output doesn't clearly distinguish "field is empty" from "field not returned."
 
@@ -24,14 +24,16 @@ When applying rules (whether by LLM or human):
    - R-PR-001: `author` → assignee
    - R-PR-002/003/004: `author` → bot/release detection
    - R-PR-005: `isDraft`
-   - R-PR-007: `reviewRequests` → human reviewer engagement (pending requests)
-   - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2
+   - R-PR-007: `reviewRequests` → identifies Phase 2 candidates (empty `reviewRequests` is ambiguous — pending requests are consumed when a review is submitted, so empty ≠ "no engagement")
+   - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2. **Caveat:** `reviewDecision: ""` (empty) is ambiguous — it does NOT mean "no reviews". COMMENTED reviews, approvals from non-CODEOWNERS, and reviews that don't satisfy branch protection all leave `reviewDecision` empty. Never treat empty as "no engagement" — always Phase 2 these PRs if a status change is under consideration.
 
    **Phase 2 — targeted per-PR deep dive.** For specific PRs identified by cross-referencing Phase 1 data with board status, run `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests`. Phase 2 candidates:
-   - **R-PR-006 (status determination):** Non-draft, non-bot PRs in Triage or In Progress — need `reviews` and `commits` to compare last human review timestamp vs last commit timestamp
-   - **R-SL-001 (approval verification):** PRs where `reviewDecision=APPROVED` but board status is not Approved — need `reviews` to identify the approving reviewer for a permission check
+   - **R-PR-006 (status determination):** Non-draft, non-bot PRs in Triage or In Progress — need `reviews` and `commits` to compare last human review timestamp vs last commit timestamp. **This includes PRs with `reviewDecision: ""`** — empty does NOT mean "no reviews"; it means GitHub hasn't produced a formal verdict (e.g., reviews exist but don't satisfy branch protection rules, or only COMMENTED reviews were submitted). Always Phase 2 before changing status on these PRs.
+   - **R-SL-001 (approval verification):** PRs where `reviewDecision=APPROVED` but board status is not Approved — need `reviews` to identify the approving reviewer for a permission check. Also check PRs where board says Approved but `reviewDecision` is empty or non-APPROVED — verify the board status is still valid.
    - **R-SL-007 (changes requested):** PRs where `reviewDecision=CHANGES_REQUESTED` in Awaiting Review or Approved — need `reviews` to confirm the reviewer has write access
-   - **R-PR-007 (review engagement):** PRs in Awaiting Review with no `reviewRequests` — need `reviews` to check for submitted (not just pending) human reviews
+   - **R-PR-007 (review engagement):** PRs in Awaiting Review with empty `reviewRequests` — **always Phase 2 before flagging**. Empty `reviewRequests` means no *pending* requests, but reviews may already have been submitted (consuming the pending request). Need `reviews` to check for submitted human reviews.
+
+   **Batch all Phase 2 candidates.** Collect the union of candidates from all rules above into a single list before fetching. Run all `gh pr view` calls in parallel — don't fetch per-rule sequentially. This avoids duplicate lookups when the same PR is a candidate for multiple rules (e.g., a PR in Awaiting Review with empty `reviewDecision` and empty `reviewRequests` is a candidate for both R-PR-006 and R-PR-007).
 
    **Why two phases?** Phase 1 data is ~5 compact fields per PR. Phase 2 adds ~3–8 individual `gh pr view` calls, but only for PRs that actually need deep analysis. This replaces the previous approach of fetching full `reviews` for every open PR in every repo, which consumed thousands of context lines — mostly for PRs not on the board — and led to scanning errors and incomplete follow-through on In Progress candidates.
 
