@@ -53,6 +53,19 @@ GITHUB_TOKEN=$(gh auth token) uv run pytest tests/ -v
 
 Tests are integration tests against a live GitHub Projects v2 board.
 
+## Field value trimming
+
+The GitHub Projects v2 REST API returns some field values as full API objects — notably "Linked pull requests", which includes the complete PR payload (~8KB per linked PR: full body text, user objects with avatar URLs, all API endpoints, labels, etc.). This client trims these down to just the useful fields before returning them.
+
+**Trimmed fields:**
+
+| Field type | Raw API shape | What the client returns |
+|---|---|---|
+| Linked pull requests / issues | Full PR/issue objects (~8KB each) | JSON array of `{repo, number, state, draft, title, author}` (~100 bytes each) |
+| Assignees / reviewers | User objects with avatar URLs, API endpoints | Comma-separated logins |
+
+This trimming happens in `_format_field_value()` in `items.py`. All other field values are passed through as-is from the API.
+
 ## Known gaps
 
 - `list_items` does not surface built-in item properties like `updated_at` and `creator` — see [foc-board-rules/future-ideas.md](../foc-board-rules/future-ideas.md#expose-built-in-item-properties-in-list_board_items).
