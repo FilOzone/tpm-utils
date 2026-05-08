@@ -4,17 +4,16 @@
 
 ## R1: HTTP Framework Choice
 
-**Decision**: Use a lightweight ASGI/WSGI framework for the REST API server.
+**Decision**: Use FastAPI with uvicorn.
 
-**Rationale**: The server is single-user (LLM agent on localhost), handles a handful of concurrent requests at most, and wraps synchronous `requests`-based client code. Framework choice should optimize for: minimal boilerplate, fast startup, easy route definition, and compatibility with the synchronous `github-projects-client` library.
+**Rationale**: FastAPI auto-generates an OpenAPI spec from route definitions and Pydantic models — the API spec lives in code, stays in sync, and is served at `/openapi.json` and `/docs` for free. This eliminates maintaining a separate spec file. FastAPI's `Depends()` system handles auth middleware concisely, and Pydantic models define request/response shapes that double as validation and documentation. Sync route functions are run in a threadpool automatically, so the `requests`-based client library works without async changes. Net less code than Flask or manual approaches.
+
+**Tradeoff**: Pulls in `uvicorn`, `starlette`, `pydantic`, `anyio` as transitive deps. Acceptable for a localhost server — all well-maintained, fast install.
 
 **Alternatives considered**:
-- **FastAPI**: Full-featured, auto-generates OpenAPI docs, native async. However, the underlying client library is synchronous (`requests`), so async benefits are limited. Adds `uvicorn`, `starlette`, `pydantic` as transitive deps.
-- **Flask**: Mature, synchronous by default (good fit for `requests`-based client), minimal deps. Well-understood. Production WSGI server (e.g., `waitress` or built-in dev server for localhost use) is simple.
-- **Starlette**: Lighter than FastAPI, still async-first. Same sync mismatch concern.
-- **http.server (stdlib)**: Zero deps, but manual routing, no middleware, error-prone for anything beyond trivial endpoints.
-
-**Recommendation for planning**: Defer framework choice to implementation. The contract layer defines endpoints and payloads; any of the above can implement them. The task breakdown should treat the framework as a pluggable detail.
+- **Flask**: Mature, synchronous by default (good fit), but no auto-generated OpenAPI. Would require `flask-smorest` or a manually-maintained spec file.
+- **Starlette**: Lighter than FastAPI, but no auto-generated OpenAPI or Pydantic integration. More boilerplate.
+- **http.server (stdlib)**: Zero deps, but manual routing, no middleware, no OpenAPI — too much hand-rolling.
 
 ## R2: Audit Log Migration
 

@@ -10,7 +10,7 @@ Add a stateless REST API server inside the existing `github-projects-client` pac
 ## Technical Context
 
 **Language/Version**: Python >=3.13 (consistent with existing packages)
-**Primary Dependencies**: `requests>=2.31` (existing), plus an HTTP framework (see research.md R1)
+**Primary Dependencies**: `requests>=2.31` (existing), `fastapi` + `uvicorn` (HTTP framework — auto-generates OpenAPI spec from route definitions)
 **Storage**: Append-only JSONL file for audit log (same pattern as current `action_log.jsonl`)
 **Testing**: pytest (consistent with existing packages), unit tests + integration tests
 **Target Platform**: Local server (localhost), same machine as the LLM agent
@@ -56,16 +56,17 @@ github-projects-client/          # EXTENDED (existing library + new API server)
 │   ├── mutations.py             # Existing: field updates
 │   ├── query.py                 # Existing: OR-query expansion
 │   ├── views.py                 # Existing: view URL resolution
-│   ├── server/                  # NEW: REST API server
+│   ├── server/                  # NEW: REST API server (FastAPI)
 │   │   ├── __init__.py
-│   │   ├── app.py               # HTTP server setup, route registration
+│   │   ├── app.py               # FastAPI app, route registration, error handlers
 │   │   ├── routes/
 │   │   │   ├── __init__.py
 │   │   │   ├── items.py         # list_items, get_item, list_view_items
 │   │   │   ├── fields.py        # list_fields, list_field_options
 │   │   │   └── mutations.py     # set_field, bulk_set_field
-│   │   ├── auth.py              # Bearer token extraction
-│   │   └── formats.py           # Response formatting (json, compact)
+│   │   ├── auth.py              # FastAPI Depends() for bearer token extraction
+│   │   ├── models.py            # Pydantic request/response models (drives OpenAPI schema)
+│   │   └── formats.py           # Compact columnar format (custom; json is default via FastAPI)
 │   └── audit_log.py             # NEW: moved from filozzy-mcp/action_log.py
 ├── tests/
 │   ├── test_items_unit.py       # Existing
