@@ -69,3 +69,5 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 9. **Use jq to bucket and filter — don't dump item lists into context.** Instead of piping N items and reasoning through them, use jq to produce compact summaries on disk (e.g., `{bots: [...numbers], actionable: [...{repo, number, author}]}`). Only read individual items into context when Phase 2 judgment is needed.
 
+10. **Verify assignee mutations stuck.** The GitHub API returns 201 for assignee additions even when the user lacks sufficient repo permissions (write/triage access). Always re-read the issue/PR after assigning to confirm the assignee persisted. If it didn't, flag for human — the user may need elevated access or a different assignee. See R-FC-001.
+
