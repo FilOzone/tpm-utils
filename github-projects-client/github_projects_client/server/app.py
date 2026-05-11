@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from github_projects_client.api import GitHubAPIError, GitHubAuthError
+
 from .routes import items, fields, mutations
 
 
@@ -120,6 +122,34 @@ def create_app() -> FastAPI:
             status_code=422,
             content={
                 "error": "invalid_request",
+                "message": str(exc),
+                "details": {},
+            },
+        )
+
+    @app.exception_handler(GitHubAuthError)
+    async def github_auth_error_handler(
+        request: Request, exc: GitHubAuthError
+    ) -> JSONResponse:
+        """Map GitHub auth/scope errors to 401 with actionable message."""
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": "unauthorized",
+                "message": str(exc),
+                "details": {},
+            },
+        )
+
+    @app.exception_handler(GitHubAPIError)
+    async def github_api_error_handler(
+        request: Request, exc: GitHubAPIError
+    ) -> JSONResponse:
+        """Map GitHub API errors to 502 with the original message preserved."""
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "github_api_error",
                 "message": str(exc),
                 "details": {},
             },

@@ -296,3 +296,106 @@ class TestValidation:
             headers=AUTH_HEADER,
         )
         assert resp.status_code == 422
+
+
+# --- Audit log token validation ---
+
+
+class TestAuditLogAuth:
+    def test_invalid_token_returns_401(self, client):
+        """Audit log endpoint must validate the bearer token against GitHub."""
+        mock_response = type("R", (), {"ok": False, "status_code": 401})()
+        with patch(
+            "github_projects_client.server.auth.req.get",
+            return_value=mock_response,
+        ):
+            resp = client.get(
+                "/orgs/TestOrg/projects/1/audit-log",
+                headers={"Authorization": "Bearer bad-token"},
+            )
+        assert resp.status_code == 401
+
+    def test_valid_token_returns_entries(self, client):
+        """Audit log returns entries when the token is validated by GitHub."""
+        mock_response = type(
+            "R",
+            (),
+            {
+                "ok": True,
+                "status_code": 200,
+                "json": lambda self: {"login": "testuser"},
+            },
+        )()
+        with (
+            patch(
+                "github_projects_client.server.auth.req.get",
+                return_value=mock_response,
+            ),
+            patch(
+                "github_projects_client.server.routes.mutations.read_recent_entries",
+                return_value=[],
+            ),
+        ):
+            resp = client.get(
+                "/orgs/TestOrg/projects/1/audit-log",
+                headers=AUTH_HEADER,
+            )
+        assert resp.status_code == 200
+        assert resp.json()["entries"] == []
+
+
+# --- GraphQL auth error handling ---
+
+
+class TestGitHubErrorHandling:
+    def test_insufficient_scopes_returns_401(self, client):
+        """INSUFFICIENT_SCOPES from GraphQL should surface as 401, not 500."""
+        from github_projects_client.api import GitHubAuthError
+
+        with (
+            patch(
+                "github_projects_client.server.routes.mutations.client_set_field_value_bulk",
+                side_effect=GitHubAuthError(
+                    "GitHub token is missing required OAuth/PAT scopes"
+                ),
+            ),
+            patch(
+                "github_projects_client.server.routes.mutations._get_caller",
+                return_value="testuser",
+            ),
+        ):
+            resp = client.put(
+                "/orgs/TestOrg/projects/1/items/field/Status",
+                json={"item_refs": ["dealbot#458"], "value": "⌨️ In Progress"},
+                headers=AUTH_HEADER,
+            )
+        assert resp.status_code == 401
+        body = resp.json()
+        assert body["error"] == "unauthorized"
+        assert "scopes" in body["message"]
+
+    def test_graphql_error_returns_502_with_message(self, client):
+        """Non-auth GraphQL errors should surface as 502, not swallowed as 500."""
+        from github_projects_client.api import GitHubAPIError
+
+        with (
+            patch(
+                "github_projects_client.server.routes.mutations.client_set_field_value_bulk",
+                side_effect=GitHubAPIError(
+                    "GraphQL errors: [{'message': 'something broke'}]"
+                ),
+            ),
+            patch(
+                "github_projects_client.server.routes.mutations._get_caller",
+                return_value="testuser",
+            ),
+        ):
+            resp = client.put(
+                "/orgs/TestOrg/projects/1/items/field/Status",
+                json={"item_refs": ["dealbot#458"], "value": "⌨️ In Progress"},
+                headers=AUTH_HEADER,
+            )
+        assert resp.status_code == 502
+        body = resp.json()
+        assert body["error"] == "github_api_error"
+        assert "something broke" in body["message"]

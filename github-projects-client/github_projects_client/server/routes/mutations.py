@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from ..auth import build_session, get_token
+from ..auth import build_session, get_token, get_validated_token
 from ..models import BulkSetFieldRequest
 
 from github_projects_client import (
@@ -109,7 +109,7 @@ def set_field(
 def get_audit_log(
     org: str,
     project_number: int,
-    token: str = Depends(get_token),
+    token: str = Depends(get_validated_token),
     count: int = Query(default=20, description="Number of recent entries to return."),
 ) -> dict:
     """Read recent audit log entries. Each entry includes timestamp, caller, endpoint, old/new values."""
