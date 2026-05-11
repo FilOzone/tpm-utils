@@ -67,7 +67,7 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 8. **Don't use `jq -e` in parallel batches.** `jq -e '.has_more'` returns exit code 1 when false, which cancels sibling parallel commands. Use `jq -r` instead. See the playbook's pagination section.
 
-9. **Use jq to bucket and filter — don't dump item lists into context.** Instead of piping N items and reasoning through them, use jq to produce compact summaries on disk (e.g., `{bots: [...numbers], actionable: [...{repo, number, author}]}`). Only read individual items into context when Phase 2 judgment is needed.
+9. **Keep data on disk, not in context.** Process all query results and action lists with jq on disk. Read only counts or compact summaries into context — never raw JSON walls. This applies to Phase 2 review data, action list contents, and field-gap results. The playbook has specific jq templates for each. Use `PVTI_` node IDs (from board queries) in mutation calls to avoid backend re-resolution.
 
-10. **Verify assignee mutations stuck.** The GitHub API returns 201 for assignee additions even when the user lacks sufficient repo permissions (write/triage access). Always re-read the issue/PR after assigning to confirm the assignee persisted. If it didn't, flag for human — the user may need elevated access or a different assignee. See R-FC-001.
+10. **Verify assignee mutations stuck.** The GitHub API returns 201 even when the user lacks write/triage access. Re-read after assigning to confirm. See R-FC-001.
 

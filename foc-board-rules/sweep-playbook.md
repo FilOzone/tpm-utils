@@ -55,8 +55,15 @@ curl -s -X PUT "$API/$1" \
   -d "$2"
 SCRIPT
 
-chmod +x "$SWEEP/bin/foc_gh_get" "$SWEEP/bin/foc_gh_put"
+cat > "$SWEEP/bin/foc_timer" << 'SCRIPT'
+#!/usr/bin/env bash
+echo "$(date +%s) $1" >> "$(dirname "$0")/../timing.log"
+SCRIPT
+
+chmod +x "$SWEEP/bin/foc_gh_get" "$SWEEP/bin/foc_gh_put" "$SWEEP/bin/foc_timer"
 ```
+
+**Timing:** Use `"$SWEEP/bin/foc_timer" "phase1_start"` at the start and end of each phase/stage to capture timestamps. At the end of each stage, print the timing log to help identify whether slowness is API latency, LLM reasoning, or context processing.
 
 **Calling the scripts:** Each Bash tool invocation is a fresh shell — `export`, `PATH`, and shell functions all reset. The scripts persist on disk but PATH won't be set, so **always call them with the absolute path** using `$SWEEP`:
 
@@ -116,7 +123,17 @@ All examples in this playbook use `$SWEEP/` as shorthand for this directory. Boa
 - Board: `is:pr -status:"🎉 Done"` (all non-Done PRs)
 - Board: `is:pr is:merged -status:"🎉 Done"` (merged PRs not yet Done — R-PR-008)
 - Board: `is:pr is:closed -status:"🎉 Done"` (closed PRs not yet Done — R-PR-009)
-- Board (field gaps): `is:pr -status:"🎉 Done" no:assignee`, `is:pr -status:"🎉 Done" no:cycle-theme`, `is:pr -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:cycle` — use these targeted queries for field-gap checks (R-PR-001, R-FC-005, R-FC-006) instead of scanning the bulk PR list. **Note on unassigned PRs:** Expect ~75% of unassigned PRs to be bots (dependabot, release-please). Filter with `jq 'select(.author.is_bot == false)'` or equivalent before reading into context — the bot PRs are handled by R-PR-001's skip rules and don't need investigation.
+- Board (field gaps): `is:pr -status:"🎉 Done" no:assignee`, `is:pr -status:"🎉 Done" no:cycle-theme`, `is:pr -status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:cycle` — use these targeted queries for field-gap checks (R-PR-001, R-FC-005, R-FC-006) instead of scanning the bulk PR list. **Process field-gap results on disk, not in context.** Filter out known-handled cases (bots, external items) with jq before reading anything:
+
+  ```bash
+  # Example: unassigned PRs — filter out bots and external repos, keep only actionable fields
+  jq '[.items[] | select(
+    (.Title | test("^chore\\(deps"; "i") | not) and
+    (.Repository | IN("ipshipyard/ipfs-deploy-action") | not)
+  ) | {repo: .Repository, id: .Id, title: .Title, node_id: .["Node ID"]}]' "$SWEEP/prs_no_assignee.json"
+  ```
+
+  Expect ~75% of unassigned PRs to be bots (dependabot, release-please) — the bot PRs are handled by R-PR-001's skip rules and don't need investigation.
 - GitHub Phase 1 (lightweight): `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests` (one call per repo — **no `reviews` field**)
 - GitHub Phase 2 (targeted): `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests` — only for PRs needing deep analysis (R-PR-006 status determination, R-SL-001 approval verification, R-SL-007 changes-requested check). See general behavior rule 6 for trigger conditions.
 
@@ -204,11 +221,47 @@ After fetching both datasets:
    - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
    - R-PR-007 Phase 2 candidates: `select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))` — empty `reviewRequests` is ambiguous (pending requests are consumed when a review is submitted), so always Phase 2 before flagging
    
-   Read action list files only to confirm counts and spot-check — don't dump full item lists into context. Use jq to bucket items (e.g., `{actionable: [...], skip: [...]}`) and only read actionable items.
+   **Produce all action lists in a single jq pass** rather than sequential per-rule commands:
+
+   ```bash
+   jq '{
+     pr002: [.[] | select(.author.is_bot and .author.login == "app/dependabot" and .cycle_theme != "Dependency Updates")],
+     pr003: [.[] | select(.author.is_bot and .author.login == "app/dependabot" and .board_status == "📌 Triage")],
+     pr005: [.[] | select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))],
+     pr006: [.[] | select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((deps|master)\\)|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))],
+     sl007: [.[] | select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))],
+     pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))]
+   }' "$SWEEP/joined_prs.json" > "$SWEEP/action_buckets.json"
+   ```
+
+   **Read counts first, not contents.** After writing action lists to disk, verify with a single summary command:
+
+   ```bash
+   jq 'to_entries[] | "\(.key): \(.value | length)"' "$SWEEP/action_buckets.json"
+   ```
+
+   Only read individual items when you need to make a judgment call (e.g., which status to route to). Even then, use jq to select only the fields you need.
 
 3. **Treat `reviewDecision: ""` as ambiguous — but only Phase 2 if a status change is under consideration.** Empty means GitHub produced no formal verdict — not that no reviews exist. But if the PR is already in the correct status and no rule is proposing to move it, Phase 2 is wasted work. For example, a PR in Awaiting Review with pending `reviewRequests` and empty `reviewDecision` is already in the right place — skip it. Only Phase 2 PRs where you'd actually change the status based on the result. See general behavior rule 6.
 
 4. **Batch all Phase 2 candidates, then fetch in parallel.** Collect the union of Phase 2 candidates from step 2 (R-PR-006, R-PR-007, and any `reviewDecision: ""` PRs from step 3 **that need a status change**) into a single list. Then run all `gh pr view` calls in parallel — don't process one rule's candidates, then discover the next rule needs Phase 2 on overlapping PRs. One parallel batch of `gh pr view` calls is faster than sequential per-rule fetches, and avoids duplicate lookups when the same PR is a candidate for multiple rules.
+
+   **Never print raw Phase 2 JSON into context.** Reviews can have 20+ entries per PR. After fetching, extract a compact summary to disk, then read only the summaries:
+
+   ```bash
+   for f in "$SWEEP"/phase2_*.json; do
+     jq '{
+       lastCommit: .commits[-1].committedDate,
+       lastHumanReview: [.reviews[] | select(.author.login != "copilot-pull-request-reviewer" and (.author.login | startswith("app/") | not)) | .submittedAt] | sort | last,
+       hasApproval: ([.reviews[] | select(.state == "APPROVED")] | length > 0),
+       approvers: [.reviews[] | select(.state == "APPROVED") | .author.login],
+       hasChangesRequested: ([.reviews[] | select(.state == "CHANGES_REQUESTED")] | length > 0),
+       changesRequestedBy: [.reviews[] | select(.state == "CHANGES_REQUESTED") | {who: .author.login, when: .submittedAt}],
+       reviewRequests: [.reviewRequests[]? | .login // .name],
+       humanReviewerCount: ([.reviews[] | select(.author.login != "copilot-pull-request-reviewer" and (.author.login | startswith("app/") | not)) | .author.login] | unique | length)
+     }' "$f" > "${f%.json}_summary.json"
+   done
+   ```
 
 Example — build a joined dataset in one bash call:
 ```bash
@@ -322,9 +375,19 @@ where date is 7 days ago. Do **not** fetch all recently-done items first — tha
 - R-FC-004: Infer Cycle Theme from repository and title
 - R-PR-001: For unassigned PRs, assign to the PR author. For merged release PRs (bot-authored), assign to the person who merged/approved them. Dependabot PRs can be left unassigned.
 
+**How to investigate unassigned Done issues:**
+
+Batch-fetch issue metadata using GraphQL (general behavior rule 12), including **both** `closedByPullRequestsReferences` and `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])`. The `closedByPullRequestsReferences` only catches formal closing syntax (`Closes #N`, `Fixes #N`). PRs that reference an issue informally (e.g., "Addresses #765" in the PR body) show up only as cross-referenced timeline items. Priority order for inferring assignee:
+
+1. `closedByPullRequestsReferences` → use the closing PR's assignee/author
+2. `timelineItems(CROSS_REFERENCED_EVENT)` → if a cross-referencing PR is merged, use its assignee/author (merged = likely the actual fix)
+3. Comment stream / issue author (fallback)
+
+If uncertain, propose with justification and flag for human confirmation.
+
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author (or merger for release PRs)
-- Flagged for human: Issues without assignees (investigate linked PRs and comment stream, propose assignee with justification), items where Cycle Theme can't be inferred from R-FC-004
+- Flagged for human: Issues without assignees (propose assignee per priority order above), items where Cycle Theme can't be inferred from R-FC-004
 
 **Note:** Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled. For release PRs, use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find who merged.
 
