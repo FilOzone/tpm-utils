@@ -9,6 +9,14 @@ import requests
 GRAPHQL_URL = "https://api.github.com/graphql"
 
 
+class GitHubAPIError(Exception):
+    """Raised when the GitHub API returns an unexpected or error response."""
+
+
+class GitHubAuthError(GitHubAPIError):
+    """Raised when the GitHub API rejects a request due to auth/scope issues."""
+
+
 def graphql_query(
     session: requests.Session,
     query: str,
@@ -34,8 +42,8 @@ def graphql_query(
                     "Or create a PAT that includes the read:project scope. "
                     f"Original API message: {e.get('message', errs)}"
                 )
-                raise Exception(msg) from None
-        raise Exception(f"GraphQL errors: {errs}")
+                raise GitHubAuthError(msg) from None
+        raise GitHubAPIError(f"GraphQL errors: {errs}")
 
     return result["data"]
 
@@ -71,7 +79,7 @@ def list_field_ids_by_name(
         resp.raise_for_status()
         batch = resp.json()
         if not isinstance(batch, list):
-            raise Exception(f"Unexpected /fields response type: {type(batch)}")
+            raise GitHubAPIError(f"Unexpected /fields response type: {type(batch)}")
 
         for f in batch:
             name = f.get("name")
@@ -140,7 +148,7 @@ def fetch_items_rest(
         resp.raise_for_status()
         batch = resp.json()
         if not isinstance(batch, list):
-            raise Exception(f"Unexpected /items response type: {type(batch)}")
+            raise GitHubAPIError(f"Unexpected /items response type: {type(batch)}")
 
         all_rows.extend(batch)
 

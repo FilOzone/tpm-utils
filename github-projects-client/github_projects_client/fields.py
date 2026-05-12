@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from .api import graphql_query
+from .api import graphql_query, GitHubAPIError
 
 
 FIELD_OPTIONS_QUERY = """
@@ -78,7 +78,7 @@ def list_field_options(
 
     project = (data.get("organization") or {}).get("projectV2")
     if not project:
-        raise Exception(
+        raise GitHubAPIError(
             f"Project {project_number} not found in org '{org}'. "
             "Check that the project number is correct and your token has access."
         )

@@ -40,11 +40,13 @@ Rules for keeping pull request items on the FOC board well-formed.
 **Action:** Determine the correct status based on the PR's review state. Check the PR's reviews, commits, and reviewer permissions to pick the right destination:
 
 1. **Write-access approval, no blocking changes_requested** → `✔️ Approved by reviewer` (per [R-SL-001](status-lifecycle.md#r-sl-001-prs-with-approved-reviews-should-be-approved-by-reviewer)).
-2. **Human reviewer left comments/questions/changes_requested and the author has NOT pushed new commits after** → `⌨️ In Progress`. The author still needs to respond to feedback.
-3. **Human reviewer left comments but the author HAS pushed new commits after** → `🔎 Awaiting review`. The author likely addressed the feedback and is ready for re-review.
+2. **Last human review is more recent than last commit** (`lastHumanReview > lastCommit`) → `⌨️ In Progress`. The reviewer left feedback and the author hasn't responded with new commits yet.
+3. **Last commit is more recent than last human review** (`lastCommit > lastHumanReview`) → `🔎 Awaiting review`. The author pushed after the feedback, likely addressing it — the PR is ready for re-review. (A re-requested reviewer further confirms this — the author explicitly asked the reviewer to look again.)
 4. **No human reviewer has engaged yet** (only bot reviews or no reviews at all) → `🔎 Awaiting review`. The PR needs initial review.
 
-**How to check:** Use `gh pr view -R <repo> <number> --json reviews,commits --jq '{reviews: [.reviews[] | {author: .author.login, state: .state, submittedAt: .submittedAt}], lastCommit: .commits[-1].committedDate}'` to compare the last human review timestamp against the last commit timestamp. Only needed for PRs where the per-repo `gh pr list` data shows human review engagement.
+**Note on R-SL-001 re-request exception:** The [R-SL-001](status-lifecycle.md#r-sl-001-prs-with-approved-reviews-should-be-approved-by-reviewer) re-request exception only prevents moving to *Approved* — it does not affect R-PR-006 routing. A re-requested reviewer who previously requested changes means the PR is awaiting their re-review, which is consistent with case 3 (→ Awaiting Review), not a reason to keep the PR in In Progress.
+
+**How to check:** Use `gh pr view -R <repo> <number> --json reviews,commits --jq '{reviews: [.reviews[] | {author: .author.login, state: .state, submittedAt: .submittedAt}], lastCommit: .commits[-1].committedDate}'` to compare timestamps. The key comparison: if `lastHumanReview > lastCommit`, the author hasn't responded yet (case 2); if `lastCommit > lastHumanReview`, the author addressed feedback (case 3). Only needed for PRs where the per-repo `gh pr list` data shows human review engagement.
 **Why:** Non-draft, non-bot PRs should always leave Triage, and In Progress PRs may need re-evaluation. But the destination depends on review state — not every PR goes to Awaiting Review. A PR with unaddressed feedback belongs in In Progress, a PR with a merge-authority approval belongs in Approved, and a PR with no feedback or addressed feedback belongs in Awaiting Review. This is the counterpart to R-PR-005: when a draft PR becomes non-draft, it advances — but the destination depends on what reviewers have already said.
 
 ## R-PR-007: Awaiting Review PRs must have human reviewer engagement
