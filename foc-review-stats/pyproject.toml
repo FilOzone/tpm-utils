@@ -1,0 +1,22 @@
+[project]
+name = "foc-review-stats"
+version = "0.1.0"
+description = "Per-contributor PR creation and review counts across configured GitHub orgs and repos"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "requests>=2.34",
+]
+
+[project.scripts]
+foc-review-stats = "foc_review_stats.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
+[build-system]
+requires = ["hatchling>=1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+markers = ["integration: hits live GitHub API (requires GITHUB_TOKEN)"]
