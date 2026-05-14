@@ -28,6 +28,7 @@ jobs:
           - filozzy-mcp
           - github-projects-client
           - foc-pr-report
+          - foc-review-stats
           - github-project-export
     steps:
       - uses: actions/checkout@v4

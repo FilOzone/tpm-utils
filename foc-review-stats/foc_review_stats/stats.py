@@ -47,15 +47,15 @@ def aggregate(
     per PR regardless of how many review events they submitted. Self-reviews are
     ignored.
 
-    If `in_scope_lower` is provided, only logins in that set are counted on
-    either side: external authors (and any reviews on their PRs) are dropped,
-    and external reviewers are not counted toward `reviewed`. An empty or None
-    set means no team filter (all non-bot, non-ignored activity counts).
+    `in_scope_lower` controls team filtering:
+      - `None`: no team filter, every non-bot, non-ignored login is counted.
+      - empty set: filter on, but nobody is in scope -> nothing is counted.
+      - non-empty set: only those logins are counted on either side.
     """
     agg = Aggregate()
 
     def in_scope(login: str) -> bool:
-        return not in_scope_lower or login in in_scope_lower
+        return in_scope_lower is None or login in in_scope_lower
 
     for pr in prs:
         author = pr.get("author")

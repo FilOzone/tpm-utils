@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import html
 from typing import Callable
 
 from foc_review_stats.stats import Aggregate, top_given, top_received
 
 
-HTML_SHADE_LOW = "#fce4e4"   # very light red, ratio < 1
+HTML_SHADE_LOW = "#fce4e4"  # very light red, ratio < 1
 HTML_SHADE_HIGH = "#e6f4ea"  # very light green, ratio > 1
 
 
@@ -54,9 +55,10 @@ def _format_table(
     cols = list(zip(*([headers] + rows)))
     widths = [max(len(str(c)) for c in col) for col in cols]
     aligns = aligns or ["<"] * len(headers)
-    fmt = lambda row: "  ".join(
-        f"{str(v):{aligns[i]}{widths[i]}}" for i, v in enumerate(row)
-    )
+
+    def fmt(row: tuple) -> str:
+        return "  ".join(f"{str(v):{aligns[i]}{widths[i]}}" for i, v in enumerate(row))
+
     out = [fmt(headers), "  ".join("-" * w for w in widths)]
     out.extend(fmt(r) for r in rows)
     return "\n".join(out)
@@ -106,9 +108,7 @@ def render_markdown(
     return "\n".join(out)
 
 
-def render_html(
-    agg: Aggregate, names: dict[str, str], since: str, top_n: int
-) -> str:
+def render_html(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -> str:
     rows = _build_rows(agg, names, top_n)
 
     def shade(ratio: str) -> str:
@@ -127,9 +127,12 @@ def render_html(
     cell = "padding:4px 8px; border:1px solid #ccc;"
     header_cell = cell + "background-color:#f0f0f0; font-weight:bold;"
 
+    def esc(value: object) -> str:
+        return html.escape(str(value), quote=True)
+
     lines: list[str] = []
     lines.append('<meta charset="utf-8">')
-    lines.append(f"<h2>FOC review stats (PRs created since {since})</h2>")
+    lines.append(f"<h2>FOC review stats (PRs created since {esc(since)})</h2>")
     lines.append(
         '<table style="border-collapse:collapse; '
         'font-family:Arial, sans-serif; font-size:11pt;">'
@@ -143,19 +146,19 @@ def render_html(
         f"Reviewed by (top {top_n})",
         f"Reviewed for (top {top_n})",
     ]:
-        lines.append(f'    <th style="{header_cell}">{h}</th>')
+        lines.append(f'    <th style="{header_cell}">{esc(h)}</th>')
     lines.append("  </tr></thead>")
     lines.append("  <tbody>")
     for name, prs, reviews, ratio, by, for_ in rows:
         ratio_style = cell + "text-align:right;" + shade(ratio)
         num_style = cell + "text-align:right;"
         lines.append("    <tr>")
-        lines.append(f'      <td style="{cell}">{name}</td>')
-        lines.append(f'      <td style="{num_style}">{prs}</td>')
-        lines.append(f'      <td style="{num_style}">{reviews}</td>')
-        lines.append(f'      <td style="{ratio_style}">{ratio}</td>')
-        lines.append(f'      <td style="{cell}">{by}</td>')
-        lines.append(f'      <td style="{cell}">{for_}</td>')
+        lines.append(f'      <td style="{cell}">{esc(name)}</td>')
+        lines.append(f'      <td style="{num_style}">{esc(prs)}</td>')
+        lines.append(f'      <td style="{num_style}">{esc(reviews)}</td>')
+        lines.append(f'      <td style="{ratio_style}">{esc(ratio)}</td>')
+        lines.append(f'      <td style="{cell}">{esc(by)}</td>')
+        lines.append(f'      <td style="{cell}">{esc(for_)}</td>')
         lines.append("    </tr>")
     lines.append("  </tbody>")
     lines.append("</table>")

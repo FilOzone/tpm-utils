@@ -74,9 +74,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--token", help="GitHub token (or set GITHUB_TOKEN). Needs read:org, repo."
     )
-    p.add_argument(
-        "-o", "--output", help="Write to this file instead of stdout."
-    )
+    p.add_argument("-o", "--output", help="Write to this file instead of stdout.")
     p.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress progress output."
     )
@@ -99,7 +97,7 @@ def main(argv: list[str] | None = None) -> None:
     github_teams: list[str] = team_cfg.get("github_teams", [])
     extra_members: list[str] = team_cfg.get("extra_members", [])
     ignored_lower = {
-        l.lower() for l in config.get("ignored", {}).get("logins", [])
+        login.lower() for login in config.get("ignored", {}).get("logins", [])
     }
 
     since_date = (
@@ -112,12 +110,11 @@ def main(argv: list[str] | None = None) -> None:
 
     session = github.make_session(token)
 
-    in_scope_lower: set[str] = set()
+    in_scope_lower: set[str] | None = None
     if github_teams or extra_members:
+        in_scope_lower = set()
         if not args.quiet and github_teams:
-            print(
-                f"Resolving {len(github_teams)} GitHub team(s)...", file=sys.stderr
-            )
+            print(f"Resolving {len(github_teams)} GitHub team(s)...", file=sys.stderr)
         for qslug in github_teams:
             members = github.list_team_members(session, qslug)
             if not args.quiet:
@@ -125,10 +122,15 @@ def main(argv: list[str] | None = None) -> None:
             in_scope_lower.update(m.lower() for m in members)
         in_scope_lower.update(m.lower() for m in extra_members)
         in_scope_lower -= ignored_lower
-        if not args.quiet:
+        if not in_scope_lower:
             print(
-                f"In-scope contributors: {len(in_scope_lower)}", file=sys.stderr
+                "Error: [team] is configured but resolved to zero contributors. "
+                "Check that your token has read:org and the team slugs are correct.",
+                file=sys.stderr,
             )
+            sys.exit(1)
+        if not args.quiet:
+            print(f"In-scope contributors: {len(in_scope_lower)}", file=sys.stderr)
 
     if not args.quiet:
         print(
@@ -146,9 +148,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.quiet:
         print(f"Window: PRs created since {since_date}", file=sys.stderr)
-        print(
-            f"Repos: {len(repo_list)} (workers={args.workers})", file=sys.stderr
-        )
+        print(f"Repos: {len(repo_list)} (workers={args.workers})", file=sys.stderr)
 
     all_prs: list[dict] = []
     completed = 0
@@ -165,11 +165,9 @@ def main(argv: list[str] | None = None) -> None:
             except Exception as e:
                 print(f"  ERR {repo}: {e}", file=sys.stderr)
             if not args.quiet and completed % 25 == 0:
-                print(
-                    f"  ...{completed}/{len(repo_list)}", file=sys.stderr
-                )
+                print(f"  ...{completed}/{len(repo_list)}", file=sys.stderr)
 
-    agg = stats.aggregate(all_prs, ignored_lower, in_scope_lower or None)
+    agg = stats.aggregate(all_prs, ignored_lower, in_scope_lower)
 
     if not args.quiet:
         print(

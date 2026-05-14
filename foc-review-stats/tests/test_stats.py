@@ -109,6 +109,13 @@ def test_aggregate_no_in_scope_means_no_filter():
     assert agg.reviewed["rvagg"] == 1
 
 
+def test_aggregate_empty_in_scope_filters_out_everyone():
+    prs = [_pr("rvagg", reviewer_logins=["hugomrdias"])]
+    agg = aggregate(prs, ignored_lower=set(), in_scope_lower=set())
+    assert agg.authored == {}
+    assert agg.reviewed == {}
+
+
 def test_top_received_and_given_are_sorted_descending():
     prs = [
         _pr("rvagg", reviewer_logins=["hugomrdias"]),
