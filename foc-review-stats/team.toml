@@ -1,0 +1,57 @@
+# foc-review-stats configuration.
+#
+# Anyone who authored or reviewed a non-bot, non-ignored PR in the analysis
+# window appears in the report, with their display name pulled from GitHub.
+# Contributors with zero activity do not appear.
+#
+# If [team] is configured, the report is restricted to those team members
+# (plus extra_members), with external authors/reviewers dropped entirely. Leave
+# [team] empty to show every active contributor.
+
+[scope]
+# Every non-archived repo in these orgs (pushed within the analysis window
+# plus the configurable buffer) is scanned.
+orgs = ["FilOzone", "filecoin-project", "FIL-Builders", "curiostorage"]
+
+# Additional repos outside the orgs above.
+extra_repos = [
+    "hugomrdias/iso-repo",
+]
+
+[team]
+# Members of these GitHub teams are considered in-scope contributors. The union
+# of all listed teams plus extra_members below defines the team boundary.
+# Format: "org/team-slug". Empty list = no team filter (everyone active shows).
+github_teams = [
+    "FilOzone/filoz-fs",
+    "FilOzone/fil-b",
+    "filecoin-project/filoz",
+    "filecoin-project/fil-b",
+    "filecoin-project/curio",
+]
+
+# Logins that should be counted as in-scope even though they are not in any
+# of the GitHub teams above (typically external contractors).
+extra_members = [
+    "hugomrdias",     # Hugo Dias
+    "juliangruber",   # Julian Gruber
+    "beck-8",         # Beck
+    "silent-cipher",  # Puspendra Mahariya
+]
+
+[ignored]
+# Always-excluded logins, even if present in a configured team. Used for bots
+# without the GitHub Bot account type and for team members we don't want to
+# report on (e.g. departed, or in a team but out-of-scope for this analysis).
+# Matching is case-insensitive.
+logins = [
+    # Bots without the GitHub Bot account type
+    "FilOzzy",
+    "copilot-pull-request-reviewer",
+    "copilot-swe-agent",
+    # In filecoin-project/curio team but outside the FOC analysis scope
+    "magik6k",
+    "Reiers",
+    # Departed
+    "redpanda-f",
+]
