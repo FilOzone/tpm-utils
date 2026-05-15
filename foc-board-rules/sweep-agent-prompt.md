@@ -59,7 +59,7 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 4. **`filecoin-services` items need human confirmation for Cycle Theme.** See the note in R-FC-004 — don't auto-set.
 
-5. **Use full org/repo refs** for items in `filecoin-project` org (e.g., `filecoin-project/filecoin-pin#123` not `filecoin-pin#123`). The short form may not resolve with FilOzzy tools.
+5. **Always use full org/repo refs** for items outside the `FilOzone` org (e.g., `filecoin-project/filecoin-pin#123` not `filecoin-pin#123`). The short form fails on both the REST API and FilOzzy tools — mutations will silently fail or error. (Broadened after REST API mutation failure during 2026-05-13 sweep.)
 
 6. **zOrganizing Items are excluded** from most field completeness rules. Don't try to assign them or set their fields.
 

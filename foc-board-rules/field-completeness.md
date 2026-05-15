@@ -60,6 +60,7 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/pdp-explorer` | PDP Explorer | |
 | `FilOzone/filecoin-cloud` | filecoin.cloud | |
 | `filecoin-project/curio` | Curio Hardening | |
+| `FilOzone/foc-observer` | Maintainer Experience | For now |
 | `FilOzone/tpm-utils` | Maintainer Experience | Usually, but not always |
 | `FilOzone/foc-devnet` | Maintainer Experience | Dev tooling |
 | `FilOzone/filecoin-services` | Contract Upgrade | Often but not always — flag for human review |
