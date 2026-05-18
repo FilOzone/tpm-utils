@@ -233,7 +233,8 @@ After fetching both datasets:
      pr005: [.[] | select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))],
      pr006: [.[] | select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((deps|master)\\)|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))],
      sl007: [.[] | select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))],
-     pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))]
+     pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))],
+     sl010: [.[] | select(.board_status == "🔎 Awaiting review")]
    }' "$SWEEP/joined_prs.json" > "$SWEEP/action_buckets.json"
    ```
 
@@ -268,7 +269,7 @@ After fetching both datasets:
        changesRequestedBy: [.reviews[] | select(.state == "CHANGES_REQUESTED") | {who: .author.login, when: .submittedAt}],
        reviewRequests: [.reviewRequests[]? | .login // .name],
        humanReviewerCount: ([.reviews[] | select(.author.login != "copilot-pull-request-reviewer" and (.author.login | startswith("app/") | not)) | .author.login] | unique | length),
-       humanCommentsAfterLastCommit: ((.commits[-1].committedDate // "") as $lc | [(.comments // [])[] | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, when: .createdAt, snippet: .body[:120]}])
+       humanCommentsAfterLastCommit: ((.commits[-1].committedDate // "") as $lc | [(.comments // [])[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, association: .authorAssociation, when: .createdAt, snippet: .body[:120]}])
      }' "$f" > "${f%.json}_summary.json"
    done
    ```
@@ -279,7 +280,7 @@ After fetching both datasets:
    for f in "$SWEEP"/phase2b_*.json; do
      jq '(.commits[-1].committedDate // "") as $lc | {
        lastCommit: $lc,
-       humanCommentsAfterLastCommit: [.comments[] | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, when: .createdAt, snippet: .body[:120]}]
+       humanCommentsAfterLastCommit: [.comments[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, association: .authorAssociation, when: .createdAt, snippet: .body[:120]}]
      }' "$f" > "${f%.json}_summary.json"
    done
    ```
@@ -334,7 +335,7 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 - R-FC-004: Infer Cycle Theme from repository
 - R-FC-011: Flag unrecognized Cycle Theme values
 
-**Cycle Theme validation (R-FC-011):** After processing missing Cycle Themes above, run a distinct-values check on all non-Done items that *have* a Cycle Theme set. Query: `-status:"🎉 Done" has:cycle-theme`. Extract distinct Cycle Theme values with jq (`[.[].cycle_theme] | unique`), diff against the established list in R-FC-004. Flag any unrecognized values with the items that have them and suggest the closest match.
+**Cycle Theme validation (R-FC-011):** After processing missing Cycle Themes above, run a distinct-values check on all non-Done items that *have* a Cycle Theme set. Query: `-status:"🎉 Done" has:cycle-theme`. Extract distinct Cycle Theme values with jq (`[.items[] | .["Cycle Theme"] // empty] | unique`), diff against the established list in R-FC-004. Flag any unrecognized values with the items that have them and suggest the closest match.
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004)
@@ -393,6 +394,8 @@ After processing formal linked PRs, do a targeted check for In Progress issues *
 - `status:"🎉 Done" updated:>YYYY-MM-DD no:assignee -cycle-theme:"Dependency Updates"` (missing assignee, excluding dependabot — those are expected to be unassigned per R-PR-001)
 
 where date is 7 days ago. Do **not** fetch all recently-done items first — that returns 100+ items and wastes context. The gap queries surface only the items that need action. (Added after a sweep where the bulk fetch consumed a full page of results before the gap queries found only ~20 actionable items.)
+
+**Cycle Theme validation (R-FC-011):** Also query `status:"🎉 Done" updated:>YYYY-MM-DD has:cycle-theme` to check recently-done items that *have* a Cycle Theme. Extract distinct values with jq (`[.items[] | .["Cycle Theme"] // empty] | unique`), diff against the established list in R-FC-004, and flag any unrecognized values — same process as Stage 3.
 
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
