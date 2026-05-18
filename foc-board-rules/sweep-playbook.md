@@ -332,10 +332,13 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 **Rules applied:**
 - R-FC-003: All open issues should have a Milestone
 - R-FC-004: Infer Cycle Theme from repository
+- R-FC-011: Flag unrecognized Cycle Theme values
+
+**Cycle Theme validation (R-FC-011):** After processing missing Cycle Themes above, run a distinct-values check on all non-Done items that *have* a Cycle Theme set. Query: `-status:"🎉 Done" has:cycle-theme`. Extract distinct Cycle Theme values with jq (`[.[].cycle_theme] | unique`), diff against the established list in R-FC-004. Flag any unrecognized values with the items that have them and suggest the closest match.
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004)
-- Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set
+- Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set, unrecognized Cycle Theme values (R-FC-011)
 
 ## Stage 4: Active items — health check
 
@@ -394,6 +397,7 @@ where date is 7 days ago. Do **not** fetch all recently-done items first — tha
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
 - R-FC-004: Infer Cycle Theme from repository and title
+- R-FC-011: Flag unrecognized Cycle Theme values on recently-done items
 - R-PR-001: For unassigned PRs, assign to the PR author. For merged release PRs (bot-authored), assign to the person who merged/approved them. Dependabot PRs can be left unassigned.
 
 **How to investigate unassigned Done issues:**
@@ -408,7 +412,7 @@ If uncertain, propose with justification and flag for human confirmation.
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author (or merger for release PRs)
-- Flagged for human: Issues without assignees (propose assignee per priority order above), items where Cycle Theme can't be inferred from R-FC-004
+- Flagged for human: Issues without assignees (propose assignee per priority order above), items where Cycle Theme can't be inferred from R-FC-004, unrecognized Cycle Theme values on recently-done items (R-FC-011)
 
 **How to investigate unassigned Done PRs:**
 

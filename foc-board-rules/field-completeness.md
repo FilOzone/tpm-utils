@@ -134,3 +134,10 @@ If no reasonable inference can be made, flag for human review — do not invent 
 - Recently done: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate updated:>YYYY-MM-DD` (where date is 3 days ago)
 
 **Why:** Issues without a Dev Days Estimate are unaccounted effort — they distort both "effort remaining" and "work completed" calculations. Every milestoned issue should have an estimate so planning and reporting are accurate.
+
+## R-FC-011: All Cycle Theme values must match the established list
+
+**When:** Any item on the board (non-Done or recently-done within the last 7 days) has a Cycle Theme value that is not in the established values list above (R-FC-004).
+**Action:** Flag for human review. Present the unrecognized value, the items that have it, and suggest the closest match from the established list (likely a typo or variant — e.g., "Filecoin-Pin" vs "Filecoin Pin").
+**How to check:** Query all non-Done items and recently-done items that have a Cycle Theme set. Extract distinct Cycle Theme values and diff against the established list. Any value not in the list is flagged.
+**Why:** Cycle Theme is a free-text field with no server-side validation — typos and ad-hoc variants silently create theme sprawl that fragments reporting and filtering. A proactive check catches these before they accumulate.

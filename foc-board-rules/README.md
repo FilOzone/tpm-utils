@@ -47,7 +47,7 @@ When applying rules (whether by LLM or human):
 
 7. **Use bulk operations when possible.** When applying the same field+value to multiple items, use the mutation endpoint (`PUT .../items/field/{field_name}`) with multiple `item_refs` instead of separate calls. This is common when applying a rule that affects many items the same way (e.g., setting Cycle Theme on several PRs from the same repo, or moving multiple dependabot PRs from Triage to Todo). Even two items is worth batching — it saves a round-trip and resolves field info only once.
 
-8. **Flag unfamiliar Cycle Theme values.** You don't need to proactively audit all Cycle Theme values, but if while processing an item you encounter a Cycle Theme that isn't in the established values list (R-FC-004), flag it. It may be a misspelling or an unauthorized new value.
+8. **Flag unfamiliar Cycle Theme values.** Proactively audit Cycle Theme values during Stage 3 and Stage 5 per [R-FC-011](field-completeness.md#r-fc-011-all-cycle-theme-values-must-match-the-established-list). Additionally, if while processing any item you encounter a Cycle Theme that isn't in the established values list (R-FC-004), flag it immediately — don't wait for the audit stage.
 
 9. **Reconcile counts before and after bulk operations.** When building a bulk operation from query results, verify the item count matches. For example, if a query returns 25 synapse-sdk items, the bulk call should contain exactly 25 item refs. After applying, re-query to confirm zero items remain. Manually transcribing item IDs from large result sets is error-prone — group items programmatically (e.g., by repo) rather than cherry-picking from a wall of text.
 
