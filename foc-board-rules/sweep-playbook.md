@@ -136,6 +136,7 @@ All examples in this playbook use `$SWEEP/` as shorthand for this directory. Boa
   Expect ~75% of unassigned PRs to be bots (dependabot, release-please) — the bot PRs are handled by R-PR-001's skip rules and don't need investigation.
 - GitHub Phase 1 (lightweight): `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests` (one call per repo — **no `reviews` field**)
 - GitHub Phase 2 (targeted): `gh pr view -R <repo> <number> --json reviews,commits,reviewRequests` — only for PRs needing deep analysis (R-PR-006 status determination, R-SL-001 approval verification, R-SL-007 changes-requested check). See general behavior rule 6 for trigger conditions.
+- GitHub Phase 2b (R-SL-010 comment check): `gh pr view -R <repo> <number> --json comments,commits` — for Awaiting Review PRs **not already in the main Phase 2 batch**. For PRs already in Phase 2, add `comments` to the existing `--json` field list instead of a separate call. See step 4 below for batching details.
 
 **Rules applied:**
 - R-PR-001: Assign unassigned PRs to their author
@@ -149,6 +150,7 @@ All examples in this playbook use `$SWEEP/` as shorthand for this directory. Boa
 - R-PR-009: Closed PRs → Done
 - R-SL-001: PRs with merge-authority approval (in Awaiting Review or In Progress) → Approved by reviewer
 - R-SL-007: PRs with merge-authority changes requested (in Awaiting Review or Approved) → In Progress
+- R-SL-010: Awaiting Review PRs with unaddressed human reviewer comments after last commit → flag for human
 - R-SL-006: PRs in "Issue awaiting PR merge" → flag (almost always a mistake)
 - R-FC-004: Set Cycle Theme from repo defaults
 - R-FC-005: All PRs should have a Cycle Theme
@@ -220,6 +222,7 @@ After fetching both datasets:
      - **Phase 2 skip for In Progress + CHANGES_REQUESTED:** PRs already in In Progress with `reviewDecision == "CHANGES_REQUESTED"` will almost always stay In Progress — the only exception is if the author pushed after the review (case 3 in R-PR-006). Check Phase 1 `reviewDecision` first: if it's `CHANGES_REQUESTED` and the PR is already In Progress, skip Phase 2 unless there's a signal the author responded (e.g., a re-requested reviewer in `reviewRequests`). This avoids wasting Phase 2 calls to confirm the status quo.
    - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
    - R-PR-007 Phase 2 candidates: `select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))` — empty `reviewRequests` is ambiguous (pending requests are consumed when a review is submitted), so always Phase 2 before flagging
+   - R-SL-010 Phase 2b candidates: `select(.board_status == "🔎 Awaiting review")` — **all** Awaiting Review PRs need a comment check. PRs already in the main Phase 2 batch get `comments` added to their existing `--json` fields. The remainder get a lightweight Phase 2b call (`--json comments,commits` only). See step 4.
    
    **Produce all action lists in a single jq pass** rather than sequential per-rule commands:
 
@@ -230,7 +233,8 @@ After fetching both datasets:
      pr005: [.[] | select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))],
      pr006: [.[] | select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((deps|master)\\)|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))],
      sl007: [.[] | select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))],
-     pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))]
+     pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))],
+     sl010: [.[] | select(.board_status == "🔎 Awaiting review")]
    }' "$SWEEP/joined_prs.json" > "$SWEEP/action_buckets.json"
    ```
 
@@ -246,6 +250,12 @@ After fetching both datasets:
 
 4. **Batch all Phase 2 candidates, then fetch in parallel.** Collect the union of Phase 2 candidates from step 2 (R-PR-006, R-PR-007, and any `reviewDecision: ""` PRs from step 3 **that need a status change**) into a single list. Then run all `gh pr view` calls in parallel — don't process one rule's candidates, then discover the next rule needs Phase 2 on overlapping PRs. One parallel batch of `gh pr view` calls is faster than sequential per-rule fetches, and avoids duplicate lookups when the same PR is a candidate for multiple rules.
 
+   **Phase 2 + Phase 2b split:** Two tiers of `gh pr view` calls:
+   - **Phase 2 (full):** PRs needing review analysis (R-PR-006, R-PR-007, R-SL-001, R-SL-007 candidates) — fetch `reviews,commits,reviewRequests,comments`. Add `comments` to these calls so R-SL-010 is covered for free.
+   - **Phase 2b (lightweight):** Remaining Awaiting Review PRs not in the Phase 2 batch — fetch `comments,commits` only (no `reviews`). This is cheaper and only serves R-SL-010.
+   
+   Run both tiers in a single parallel batch.
+
    **Never print raw Phase 2 JSON into context.** Reviews can have 20+ entries per PR. After fetching, extract a compact summary to disk, then read only the summaries:
 
    ```bash
@@ -258,7 +268,19 @@ After fetching both datasets:
        hasChangesRequested: ([.reviews[] | select(.state == "CHANGES_REQUESTED")] | length > 0),
        changesRequestedBy: [.reviews[] | select(.state == "CHANGES_REQUESTED") | {who: .author.login, when: .submittedAt}],
        reviewRequests: [.reviewRequests[]? | .login // .name],
-       humanReviewerCount: ([.reviews[] | select(.author.login != "copilot-pull-request-reviewer" and (.author.login | startswith("app/") | not)) | .author.login] | unique | length)
+       humanReviewerCount: ([.reviews[] | select(.author.login != "copilot-pull-request-reviewer" and (.author.login | startswith("app/") | not)) | .author.login] | unique | length),
+       humanCommentsAfterLastCommit: ((.commits[-1].committedDate // "") as $lc | [(.comments // [])[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, association: .authorAssociation, when: .createdAt, snippet: .body[:120]}])
+     }' "$f" > "${f%.json}_summary.json"
+   done
+   ```
+
+   For Phase 2b files (comments+commits only, no reviews), use a simpler extraction:
+
+   ```bash
+   for f in "$SWEEP"/phase2b_*.json; do
+     jq '(.commits[-1].committedDate // "") as $lc | {
+       lastCommit: $lc,
+       humanCommentsAfterLastCommit: [.comments[] | select(.authorAssociation | IN("OWNER","MEMBER","COLLABORATOR")) | select(.author.login | (startswith("app/") | not)) | select(.createdAt > $lc) | {who: .author.login, association: .authorAssociation, when: .createdAt, snippet: .body[:120]}]
      }' "$f" > "${f%.json}_summary.json"
    done
    ```
@@ -311,10 +333,13 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 **Rules applied:**
 - R-FC-003: All open issues should have a Milestone
 - R-FC-004: Infer Cycle Theme from repository
+- R-FC-011: Flag unrecognized Cycle Theme values
+
+**Cycle Theme validation (R-FC-011):** After processing missing Cycle Themes above, run a distinct-values check on all non-Done items that *have* a Cycle Theme set. Query: `-status:"🎉 Done" has:cycle-theme`. Extract distinct Cycle Theme values with jq (`[.items[] | .["Cycle Theme"] // empty] | unique`), diff against the established list in R-FC-004. Flag any unrecognized values with the items that have them and suggest the closest match.
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004)
-- Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set
+- Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set, unrecognized Cycle Theme values (R-FC-011)
 
 ## Stage 4: Active items — health check
 
@@ -370,9 +395,12 @@ After processing formal linked PRs, do a targeted check for In Progress issues *
 
 where date is 7 days ago. Do **not** fetch all recently-done items first — that returns 100+ items and wastes context. The gap queries surface only the items that need action. (Added after a sweep where the bulk fetch consumed a full page of results before the gap queries found only ~20 actionable items.)
 
+**Cycle Theme validation (R-FC-011):** Also query `status:"🎉 Done" updated:>YYYY-MM-DD has:cycle-theme` to check recently-done items that *have* a Cycle Theme. Extract distinct values with jq (`[.items[] | .["Cycle Theme"] // empty] | unique`), diff against the established list in R-FC-004, and flag any unrecognized values — same process as Stage 3.
+
 **Rules applied:**
 - R-FC-008: Recently-done items should have Cycle Theme, Cycle, and Assignee
 - R-FC-004: Infer Cycle Theme from repository and title
+- R-FC-011: Flag unrecognized Cycle Theme values on recently-done items
 - R-PR-001: For unassigned PRs, assign to the PR author. For merged release PRs (bot-authored), assign to the person who merged/approved them. Dependabot PRs can be left unassigned.
 
 **How to investigate unassigned Done issues:**
@@ -387,9 +415,28 @@ If uncertain, propose with justification and flag for human confirmation.
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004), Cycle set to current cycle, PR assignees set to author (or merger for release PRs)
-- Flagged for human: Issues without assignees (propose assignee per priority order above), items where Cycle Theme can't be inferred from R-FC-004
+- Flagged for human: Issues without assignees (propose assignee per priority order above), items where Cycle Theme can't be inferred from R-FC-004, unrecognized Cycle Theme values on recently-done items (R-FC-011)
 
-**Note:** Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled. For release PRs, use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find who merged.
+**How to investigate unassigned Done PRs:**
+
+Batch-fetch PR authors using a single GraphQL query instead of sequential `gh api` calls — the same pattern as general behavior rule 12, but for pull requests:
+
+```graphql
+{
+  r1: repository(owner: "FilOzone", name: "infra") {
+    p173: pullRequest(number: 173) { author { login } }
+    p174: pullRequest(number: 174) { author { login } }
+    p175: pullRequest(number: 175) { author { login } }
+  }
+  r2: repository(owner: "FilOzone", name: "tpm-utils") {
+    p42: pullRequest(number: 42) { author { login } }
+  }
+}
+```
+
+Group PRs by repo, batch up to ~25 per request. One call per repo replaces N individual `gh api repos/.../pulls/N` lookups. For release PRs (bot-authored), add `mergedBy { login }` to the fragment to find who merged.
+
+**Note:** Use the GitHub API (`gh api repos/{owner}/{repo}/issues/{number}/assignees`) for assignments — `gh pr edit --add-assignee` may fail on repos with Projects Classic enabled. For release PRs, use `mergedBy.login` from the GraphQL response (or `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'`) to find who merged.
 
 ## Stage 6: Effort estimation gaps
 
