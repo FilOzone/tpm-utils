@@ -64,6 +64,7 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/tpm-utils` | Maintainer Experience | Usually, but not always |
 | `FilOzone/foc-devnet` | Maintainer Experience | Dev tooling |
 | `FilOzone/filecoin-services` | Contract Upgrade | Often but not always — flag for human review |
+| `FilOzone/early-repair` | GA Durability | |
 | `FilOzone/infra` | Other | Unless a better theme applies (see below) |
 
 For repositories not listed above, check the item title and description for context clues. In particular:
