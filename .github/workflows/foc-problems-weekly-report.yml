@@ -1,0 +1,43 @@
+name: FOC Problems Weekly Report
+
+on:
+  schedule:
+    # Tuesday morning for Europe/Oslo: 09:00 CEST / 08:00 CET.
+    - cron: '0 7 * * 2'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Number of days to include in the report'
+        required: false
+        default: '7'
+        type: string
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    env:
+      REPORT_PATH: foc-problems-weekly-report.md
+      REPORT_DAYS: ${{ github.event.inputs.days || '7' }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Markdown report
+        run: |
+          python foc_problems_report.py --days "$REPORT_DAYS" --output "$REPORT_PATH"
+          cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Markdown report
+        uses: actions/upload-artifact@v4
+        with:
+          name: foc-problems-weekly-report
+          path: ${{ env.REPORT_PATH }}

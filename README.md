@@ -78,6 +78,17 @@ cd foc-pr-report && uv sync && GITHUB_TOKEN=your_token uv run foc-pr-report -o r
 
 See [foc-pr-report/README.md](foc-pr-report/README.md).
 
+### 🧾 FOC Problems Weekly Report
+**File:** `foc_problems_report.py`
+
+Generates a Markdown weekly activity report for [FilOzone/foc-problems](https://github.com/FilOzone/foc-problems), covering new reports, existing reports updated during the window, and open items that need attention.
+
+```bash
+GITHUB_TOKEN=$(gh auth token) python foc_problems_report.py --days 7 -o foc-problems-weekly-report.md
+```
+
+This report also runs every Tuesday morning via [`.github/workflows/foc-problems-weekly-report.yml`](.github/workflows/foc-problems-weekly-report.yml). The workflow writes the Markdown to the Actions job summary and uploads it as an artifact.
+
 ### 📤 GitHub project TSV export
 **Directory:** [github-project-export/](github-project-export/)
 
