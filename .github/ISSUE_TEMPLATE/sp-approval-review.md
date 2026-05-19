@@ -45,7 +45,12 @@ assignees: []
 - 
 
 **Threshold(s):**
-- 
+
+| Metric | Threshold | Minimum Sample Size |
+|--------|-----------|---------------------|
+| [Data Storage Success Rate](#data-storage-success-rate) | ≥ 97% | 200 |
+| [Data Retention Fault Rate](#data-retention-fault-rate) | ≤ 0.2% | 500 |
+| [Retrieval Success Rate](#retrieval-success-rate) | ≥ 97% | 200 |
 
 ---
 
