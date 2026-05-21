@@ -71,3 +71,5 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 
 10. **Verify assignee mutations stuck.** The GitHub API returns 201 even when the user lacks write/triage access. Re-read after assigning to confirm. See R-FC-001.
 
+11. **Never rely on stdout order from parallel `gh api` calls.** When running multiple `gh api` or `gh pr view` calls in parallel (with `&` and `wait`), their stdout lines interleave unpredictably. Always redirect each call to a separate file, then read the files — don't parse interleaved terminal output. This applies to any parallel shell commands whose output you need to attribute to a specific call. (Added after infra#193 and infra#195 assignees were swapped due to interleaved author lookups during 2026-05-18 sweep.)
+

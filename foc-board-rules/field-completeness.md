@@ -121,7 +121,7 @@ If no reasonable inference can be made, flag for human review — do not invent 
 
 ## R-FC-010: Issues in active milestones should have a Dev Days Estimate
 
-**When:** An **issue** on the board has an active milestone (see list below) but no Dev Days Estimate set. Includes both open issues and recently-done issues (updated within last 3 days). Exclude items with Cycle Theme "zOrganizing Item".
+**When:** An **issue** on the board has an active milestone (see list below) but no Dev Days Estimate set. Includes both open issues and recently-done issues (updated within last 3 days). Exclude items with Cycle Theme "zOrganizing Item". Also exclude issues closed as "not planned" (includes duplicates) — these represent no actual effort and don't belong in estimation reporting.
 **Action:** Flag for human review. Present a table of items sorted by repository showing: item reference (hyperlinked), title, status, assignee, milestone, and Cycle Theme.
 **Scope:** Issues only — PRs inherit effort context from their parent issue.
 
@@ -131,7 +131,7 @@ If no reasonable inference can be made, flag for human review — do not invent 
 
 **Query:**
 - Open: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" -status:"🎉 Done" is:issue no:dev-days-estimate`
-- Recently done: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate updated:>YYYY-MM-DD` (where date is 3 days ago)
+- Recently done: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate reason:completed updated:>YYYY-MM-DD` (where date is 3 days ago; `reason:completed` excludes duplicates and "not planned" closures)
 
 **Why:** Issues without a Dev Days Estimate are unaccounted effort — they distort both "effort remaining" and "work completed" calculations. Every milestoned issue should have an estimate so planning and reporting are accurate.
 
