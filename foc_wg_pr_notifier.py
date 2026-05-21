@@ -22,9 +22,11 @@ from urllib.parse import quote
 import argparse
 
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+_GITHUB_PROJECTS_CLIENT_DIR = os.path.join(_REPO_ROOT, "github-projects-client")
 _FOC_PR_REPORT_DIR = os.path.join(_REPO_ROOT, "foc-pr-report")
-if _FOC_PR_REPORT_DIR not in sys.path:
-    sys.path.insert(0, _FOC_PR_REPORT_DIR)
+for _LOCAL_IMPORT_DIR in (_GITHUB_PROJECTS_CLIENT_DIR, _FOC_PR_REPORT_DIR):
+    if _LOCAL_IMPORT_DIR not in sys.path:
+        sys.path.insert(0, _LOCAL_IMPORT_DIR)
 
 from foc_pr_report.pr_enrichment import (  # noqa: E402
     fetch_project_board_items_rest_filtered,
