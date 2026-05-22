@@ -96,6 +96,8 @@ When applying rules (whether by LLM or human):
 
 15. **Cross-reference with relative links.** When a rule references another rule or section in a different file, use a relative markdown hyperlink (e.g., `[R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository)`). This removes ambiguity about where a cross-reference lives and helps both humans and LLMs navigate. Within the same file, links are optional since the reader is already there. **Exception:** `sweep-playbook.md` references rules by ID on nearly every line — don't hyperlink rule IDs there. The playbook is a dense operational checklist; adding links would hurt readability. Rule IDs are unique and searchable.
 
+16. **Investigate before flagging.** Before adding any item to the "flags for human" list, read its comment stream (via GraphQL batch or `gh issue view --json comments`). Comments frequently explain why an item is in its current state (e.g., "keeping open for dashboard updates" on an issue whose linked PR merged). If the comments answer the question, resolve it yourself instead of flagging. If you still need to flag, include the relevant comment context so the human can decide without investigating further. False flags waste human attention and erode trust in sweep output.
+
 ## How to use
 
 These rules can be applied manually or referenced by an LLM when performing board maintenance tasks. Each rule file describes:

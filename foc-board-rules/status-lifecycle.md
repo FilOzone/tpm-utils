@@ -39,8 +39,8 @@ Rules governing how items should transition through board statuses.
 ## R-SL-003: Issues with all linked PRs merged should usually be marked as Done
 
 **When:** An issue has status "⌚️ Issue awaiting PR merge" and all of its linked PRs are merged.
-**Action:** Ask if its Status should be set to `🎉 Done`. It likely should be, but it's possible there are additional things in the issue that need to be completed out of PR.
-**Why:** Usually the issue's work is complete once its PRs land.
+**Action:** Before flagging, read the issue's comment stream — comments often explain why an issue stays open after its PR merges (e.g., remaining sub-tasks, dashboard work, follow-up items). If the comments answer the question, skip the flag. Otherwise, ask if its Status should be set to `🎉 Done`, including the relevant context from comments so the human can decide quickly.
+**Why:** Usually the issue's work is complete once its PRs land, but not always. Checking comments first avoids unnecessary flags.
 
 ## R-SL-004: Triage issues with Cycle Theme and Milestone can move to Todo
 
