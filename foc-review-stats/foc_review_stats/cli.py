@@ -180,8 +180,7 @@ def main(argv: list[str] | None = None) -> None:
         fetch_repo_prs = github.fetch_repo_prs
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futures = {
-            ex.submit(fetch_repo_prs, session, r, since_iso): r
-            for r in repo_list
+            ex.submit(fetch_repo_prs, session, r, since_iso): r for r in repo_list
         }
         for fut in as_completed(futures):
             repo = futures[fut]
