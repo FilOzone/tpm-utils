@@ -18,7 +18,7 @@ def _contributors(markdown: str) -> list[str]:
     return [row.split("|")[1].strip() for row in rows]
 
 
-def test_markdown_uses_configured_contributor_order_first():
+def test_markdown_sorts_by_reviews_then_prs_then_name():
     agg = Aggregate()
     agg.authored.update({"newperson": 4, "rjan90": 2, "rvagg": 2, "sgtpooki": 1})
     agg.reviewed.update({"newperson": 5, "rjan90": 1, "rvagg": 3, "sgtpooki": 1})
@@ -29,41 +29,7 @@ def test_markdown_uses_configured_contributor_order_first():
         "sgtpooki": "Russell Dempsey",
     }
 
-    out = render_markdown(
-        agg,
-        names,
-        "2026-05-12",
-        3,
-        contributor_order=["rvagg", "rjan90", "sgtpooki"],
-    )
-
-    assert _contributors(out) == [
-        "Rod Vagg",
-        "Phi-rjan",
-        "Russell Dempsey",
-        "Ada New",
-    ]
-
-
-def test_review_sort_remains_available():
-    agg = Aggregate()
-    agg.authored.update({"newperson": 4, "rjan90": 2, "rvagg": 2, "sgtpooki": 1})
-    agg.reviewed.update({"newperson": 5, "rjan90": 1, "rvagg": 3, "sgtpooki": 1})
-    names = {
-        "newperson": "Ada New",
-        "rjan90": "Phi-rjan",
-        "rvagg": "Rod Vagg",
-        "sgtpooki": "Russell Dempsey",
-    }
-
-    out = render_markdown(
-        agg,
-        names,
-        "2026-05-12",
-        3,
-        contributor_order=["rvagg", "rjan90", "sgtpooki"],
-        sort_by="reviews",
-    )
+    out = render_markdown(agg, names, "2026-05-12", 3)
 
     assert _contributors(out) == [
         "Ada New",
@@ -84,7 +50,6 @@ def test_html_shades_ratio_below_and_above_one_only():
         names,
         "2026-05-12",
         3,
-        contributor_order=["low", "even", "high", "none"],
     )
     ratio_lines = {
         value: next(line for line in out.splitlines() if f">{value}</td>" in line)

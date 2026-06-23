@@ -11,8 +11,6 @@ from foc_review_stats.stats import Aggregate, top_given, top_received
 HTML_SHADE_LOW = "#fce4e4"  # very light red, ratio < 1
 HTML_SHADE_HIGH = "#e6f4ea"  # very light green, ratio > 1
 
-Row = tuple[str, str, int, int, str, str, str]
-
 
 def _ratio_str(created: int, reviewed: int) -> str:
     if created == 0:
@@ -21,13 +19,12 @@ def _ratio_str(created: int, reviewed: int) -> str:
 
 
 def _build_rows(
-    agg: Aggregate,
-    names: dict[str, str],
-    top_n: int,
-    contributor_order: list[str] | None = None,
-    sort_by: str = "contributor",
-) -> list[Row]:
-    """Return rows with login plus display-ready output fields."""
+    agg: Aggregate, names: dict[str, str], top_n: int
+) -> list[tuple[str, int, int, str, str, str]]:
+    """Return rows of (name, created, reviewed, ratio, reviewed_by, reviewed_for).
+
+    Sorted by reviews descending, then PRs descending, then name.
+    """
 
     def fmt_pairs(pairs: list[tuple[str, int]]) -> str:
         if not pairs:
@@ -40,7 +37,6 @@ def _build_rows(
         reviewed = agg.reviewed.get(login, 0)
         rows.append(
             (
-                login,
                 names.get(login, login),
                 created,
                 reviewed,
@@ -49,20 +45,8 @@ def _build_rows(
                 fmt_pairs(top_given(login, agg.matrix, top_n)),
             )
         )
-
-    if sort_by == "reviews":
-        rows.sort(key=lambda r: (-r[3], -r[2], r[1].casefold()))
-    else:
-        order = {login.lower(): i for i, login in enumerate(contributor_order or [])}
-        rows.sort(key=lambda r: (order.get(r[0], len(order)), r[1].casefold()))
+    rows.sort(key=lambda r: (-r[2], -r[1], r[0]))
     return rows
-
-
-def _display_rows(rows: list[Row]) -> list[tuple[str, int, int, str, str, str]]:
-    return [
-        (name, prs, reviews, ratio, by, for_)
-        for _, name, prs, reviews, ratio, by, for_ in rows
-    ]
 
 
 def _format_table(
@@ -80,15 +64,8 @@ def _format_table(
     return "\n".join(out)
 
 
-def render_text(
-    agg: Aggregate,
-    names: dict[str, str],
-    since: str,
-    top_n: int,
-    contributor_order: list[str] | None = None,
-    sort_by: str = "contributor",
-) -> str:
-    rows = _display_rows(_build_rows(agg, names, top_n, contributor_order, sort_by))
+def render_text(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -> str:
+    rows = _build_rows(agg, names, top_n)
     headers = [
         "Contributor",
         "PRs",
@@ -108,14 +85,9 @@ def render_text(
 
 
 def render_markdown(
-    agg: Aggregate,
-    names: dict[str, str],
-    since: str,
-    top_n: int,
-    contributor_order: list[str] | None = None,
-    sort_by: str = "contributor",
+    agg: Aggregate, names: dict[str, str], since: str, top_n: int
 ) -> str:
-    rows = _display_rows(_build_rows(agg, names, top_n, contributor_order, sort_by))
+    rows = _build_rows(agg, names, top_n)
     headers = [
         "Contributor",
         "PRs",
@@ -136,15 +108,8 @@ def render_markdown(
     return "\n".join(out)
 
 
-def render_html(
-    agg: Aggregate,
-    names: dict[str, str],
-    since: str,
-    top_n: int,
-    contributor_order: list[str] | None = None,
-    sort_by: str = "contributor",
-) -> str:
-    rows = _display_rows(_build_rows(agg, names, top_n, contributor_order, sort_by))
+def render_html(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -> str:
+    rows = _build_rows(agg, names, top_n)
 
     def shade(ratio: str) -> str:
         if ratio == "-":
@@ -200,9 +165,7 @@ def render_html(
     return "\n".join(lines)
 
 
-RENDERERS: dict[
-    str, Callable[[Aggregate, dict[str, str], str, int, list[str] | None, str], str]
-] = {
+RENDERERS: dict[str, Callable[[Aggregate, dict[str, str], str, int], str]] = {
     "text": render_text,
     "md": render_markdown,
     "html": render_html,

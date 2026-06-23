@@ -56,15 +56,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output format (default text). html cells are shaded by Rev/PR ratio.",
     )
     p.add_argument(
-        "--sort",
-        choices=["contributor", "reviews"],
-        default="contributor",
-        help=(
-            "Sort rows by configured contributor order (default), or by reviews "
-            "descending."
-        ),
-    )
-    p.add_argument(
         "--pushed-buffer-weeks",
         type=int,
         default=6,
@@ -101,14 +92,10 @@ def main(argv: list[str] | None = None) -> None:
     config = _load_config()
     scope = config.get("scope", {})
     team_cfg = config.get("team", {})
-    report_cfg = config.get("report", {})
     orgs: list[str] = scope.get("orgs", [])
     extra_repos: list[str] = scope.get("extra_repos", [])
     github_teams: list[str] = team_cfg.get("github_teams", [])
     extra_members: list[str] = team_cfg.get("extra_members", [])
-    contributor_order: list[str] = [
-        login.lower() for login in report_cfg.get("contributor_order", [])
-    ]
     ignored_lower = {
         login.lower() for login in config.get("ignored", {}).get("logins", [])
     }
@@ -190,9 +177,7 @@ def main(argv: list[str] | None = None) -> None:
     names = github.fetch_display_names(session, sorted(agg.logins))
 
     renderer = RENDERERS[args.format]
-    output = renderer(
-        agg, names, since_date.isoformat(), args.top, contributor_order, args.sort
-    )
+    output = renderer(agg, names, since_date.isoformat(), args.top)
 
     if args.output:
         Path(args.output).write_text(output + "\n", encoding="utf-8")
