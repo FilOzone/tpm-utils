@@ -41,6 +41,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="ISO date (YYYY-MM-DD). Defaults to --weeks weeks before today.",
     )
     p.add_argument(
+        "--until",
+        help=(
+            "ISO end date (YYYY-MM-DD), inclusive. When set, counts PRs created "
+            "and reviews submitted from --since through --until."
+        ),
+    )
+    p.add_argument(
         "--weeks", type=int, default=6, help="Window length in weeks (default 6)."
     )
     p.add_argument(
@@ -105,7 +112,16 @@ def main(argv: list[str] | None = None) -> None:
         if args.since
         else (datetime.now(timezone.utc).date() - timedelta(weeks=args.weeks))
     )
+    until_date = date.fromisoformat(args.until) if args.until else None
+    if until_date is not None and until_date < since_date:
+        print("Error: --until must be on or after --since", file=sys.stderr)
+        sys.exit(2)
     since_iso = since_date.isoformat() + "T00:00:00Z"
+    until_iso = (
+        (until_date + timedelta(days=1)).isoformat() + "T00:00:00Z"
+        if until_date is not None
+        else None
+    )
     pushed_since = (since_date - timedelta(weeks=args.pushed_buffer_weeks)).isoformat()
 
     session = github.make_session(token)
@@ -147,14 +163,24 @@ def main(argv: list[str] | None = None) -> None:
     repo_list = sorted(repos)
 
     if not args.quiet:
-        print(f"Window: PRs created since {since_date}", file=sys.stderr)
+        if until_date is not None:
+            print(
+                f"Window: activity from {since_date} through {until_date}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Window: PRs created since {since_date}", file=sys.stderr)
         print(f"Repos: {len(repo_list)} (workers={args.workers})", file=sys.stderr)
 
     all_prs: list[dict] = []
     completed = 0
+    if until_date is not None:
+        fetch_repo_prs = github.fetch_repo_prs_updated_since
+    else:
+        fetch_repo_prs = github.fetch_repo_prs
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futures = {
-            ex.submit(github.fetch_repo_prs, session, r, since_iso): r
+            ex.submit(fetch_repo_prs, session, r, since_iso): r
             for r in repo_list
         }
         for fut in as_completed(futures):
@@ -167,7 +193,13 @@ def main(argv: list[str] | None = None) -> None:
             if not args.quiet and completed % 25 == 0:
                 print(f"  ...{completed}/{len(repo_list)}", file=sys.stderr)
 
-    agg = stats.aggregate(all_prs, ignored_lower, in_scope_lower)
+    agg = stats.aggregate(
+        all_prs,
+        ignored_lower,
+        in_scope_lower,
+        since_iso=since_iso if until_date is not None else None,
+        until_iso=until_iso,
+    )
 
     if not args.quiet:
         print(
@@ -177,7 +209,13 @@ def main(argv: list[str] | None = None) -> None:
     names = github.fetch_display_names(session, sorted(agg.logins))
 
     renderer = RENDERERS[args.format]
-    output = renderer(agg, names, since_date.isoformat(), args.top)
+    output = renderer(
+        agg,
+        names,
+        since_date.isoformat(),
+        args.top,
+        until_date.isoformat() if until_date is not None else None,
+    )
 
     if args.output:
         Path(args.output).write_text(output + "\n", encoding="utf-8")

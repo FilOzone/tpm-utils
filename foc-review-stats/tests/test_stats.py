@@ -1,10 +1,24 @@
 """Unit tests for aggregation logic."""
 
-from foc_review_stats.stats import aggregate, is_bot, top_given, top_received
+from foc_review_stats.render import render_markdown
+from foc_review_stats.stats import Aggregate, aggregate, is_bot, top_given, top_received
 
 
-def _pr(author_login, reviewer_logins=(), bot_author=False, bot_reviewers=()):
+def _pr(
+    author_login,
+    reviewer_logins=(),
+    bot_author=False,
+    bot_reviewers=(),
+    created_at="2026-03-10T12:00:00Z",
+    review_created_at="2026-03-10T12:00:00Z",
+):
+    review_times = (
+        review_created_at
+        if isinstance(review_created_at, list)
+        else [review_created_at] * len(reviewer_logins)
+    )
     return {
+        "createdAt": created_at,
         "author": {
             "__typename": "Bot" if bot_author else "User",
             "login": author_login,
@@ -12,13 +26,14 @@ def _pr(author_login, reviewer_logins=(), bot_author=False, bot_reviewers=()):
         "reviews": {
             "nodes": [
                 {
+                    "createdAt": review_times[i],
                     "author": {
                         "__typename": "Bot" if login in bot_reviewers else "User",
                         "login": login,
                     },
                     "state": "APPROVED",
                 }
-                for login in reviewer_logins
+                for i, login in enumerate(reviewer_logins)
             ]
         },
     }
@@ -116,6 +131,73 @@ def test_aggregate_empty_in_scope_filters_out_everyone():
     assert agg.reviewed == {}
 
 
+def test_aggregate_window_counts_reviews_on_prs_created_before_window():
+    prs = [
+        _pr(
+            "rvagg",
+            reviewer_logins=["hugomrdias"],
+            created_at="2026-02-20T12:00:00Z",
+            review_created_at="2026-03-05T12:00:00Z",
+        )
+    ]
+
+    agg = aggregate(
+        prs,
+        ignored_lower=set(),
+        since_iso="2026-03-01T00:00:00Z",
+        until_iso="2026-04-01T00:00:00Z",
+    )
+
+    assert agg.authored.get("rvagg", 0) == 0
+    assert agg.reviewed["hugomrdias"] == 1
+    assert agg.matrix["hugomrdias"]["rvagg"] == 1
+    assert "rvagg" in agg.logins
+
+
+def test_aggregate_window_filters_reviews_after_until():
+    prs = [
+        _pr(
+            "rvagg",
+            reviewer_logins=["hugomrdias"],
+            created_at="2026-03-10T12:00:00Z",
+            review_created_at="2026-04-01T00:00:00Z",
+        )
+    ]
+
+    agg = aggregate(
+        prs,
+        ignored_lower=set(),
+        since_iso="2026-03-01T00:00:00Z",
+        until_iso="2026-04-01T00:00:00Z",
+    )
+
+    assert agg.authored["rvagg"] == 1
+    assert agg.reviewed.get("hugomrdias", 0) == 0
+
+
+def test_aggregate_window_dedupes_reviewer_with_in_window_review():
+    prs = [
+        _pr(
+            "rvagg",
+            reviewer_logins=["hugomrdias", "hugomrdias", "hugomrdias"],
+            review_created_at=[
+                "2026-02-28T12:00:00Z",
+                "2026-03-05T12:00:00Z",
+                "2026-03-06T12:00:00Z",
+            ],
+        )
+    ]
+
+    agg = aggregate(
+        prs,
+        ignored_lower=set(),
+        since_iso="2026-03-01T00:00:00Z",
+        until_iso="2026-04-01T00:00:00Z",
+    )
+
+    assert agg.reviewed["hugomrdias"] == 1
+
+
 def test_top_received_and_given_are_sorted_descending():
     prs = [
         _pr("rvagg", reviewer_logins=["hugomrdias"]),
@@ -130,3 +212,10 @@ def test_top_received_and_given_are_sorted_descending():
     ]
     given = top_given("hugomrdias", agg.matrix, n=3)
     assert given == [("rvagg", 2)]
+
+
+def test_markdown_heading_describes_bounded_activity_window():
+    out = render_markdown(Aggregate(), {}, "2026-03-01", 3, until="2026-03-31")
+    assert out.splitlines()[0] == (
+        "FOC review stats (activity from 2026-03-01 through 2026-03-31)"
+    )

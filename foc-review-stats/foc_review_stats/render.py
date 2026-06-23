@@ -18,6 +18,12 @@ def _ratio_str(created: int, reviewed: int) -> str:
     return f"{reviewed / created:.2f}"
 
 
+def _heading(since: str, until: str | None, separator: str) -> str:
+    if until:
+        return f"FOC review stats{separator}activity from {since} through {until}"
+    return f"FOC review stats{separator}PRs created since {since}"
+
+
 def _build_rows(
     agg: Aggregate, names: dict[str, str], top_n: int
 ) -> list[tuple[str, int, int, str, str, str]]:
@@ -64,7 +70,13 @@ def _format_table(
     return "\n".join(out)
 
 
-def render_text(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -> str:
+def render_text(
+    agg: Aggregate,
+    names: dict[str, str],
+    since: str,
+    top_n: int,
+    until: str | None = None,
+) -> str:
     rows = _build_rows(agg, names, top_n)
     headers = [
         "Contributor",
@@ -76,7 +88,7 @@ def render_text(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -
     ]
     aligns = ["<", ">", ">", ">", "<", "<"]
     lines = [
-        f"FOC review stats: PRs created since {since}",
+        _heading(since, until, ": "),
         "",
         _format_table(rows, headers, aligns),
         "",
@@ -85,7 +97,11 @@ def render_text(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -
 
 
 def render_markdown(
-    agg: Aggregate, names: dict[str, str], since: str, top_n: int
+    agg: Aggregate,
+    names: dict[str, str],
+    since: str,
+    top_n: int,
+    until: str | None = None,
 ) -> str:
     rows = _build_rows(agg, names, top_n)
     headers = [
@@ -97,7 +113,7 @@ def render_markdown(
         f"Reviewed for (top {top_n})",
     ]
     out = [
-        f"FOC review stats (PRs created since {since})",
+        _heading(since, until, " (") + ")",
         "",
         "| " + " | ".join(headers) + " |",
         "|" + "|".join(["---"] * len(headers)) + "|",
@@ -108,7 +124,13 @@ def render_markdown(
     return "\n".join(out)
 
 
-def render_html(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -> str:
+def render_html(
+    agg: Aggregate,
+    names: dict[str, str],
+    since: str,
+    top_n: int,
+    until: str | None = None,
+) -> str:
     rows = _build_rows(agg, names, top_n)
 
     def shade(ratio: str) -> str:
@@ -132,7 +154,7 @@ def render_html(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -
 
     lines: list[str] = []
     lines.append('<meta charset="utf-8">')
-    lines.append(f"<h2>FOC review stats (PRs created since {esc(since)})</h2>")
+    lines.append(f"<h2>{esc(_heading(since, until, ' (') + ')')}</h2>")
     lines.append(
         '<table style="border-collapse:collapse; '
         'font-family:Arial, sans-serif; font-size:11pt;">'
@@ -165,7 +187,9 @@ def render_html(agg: Aggregate, names: dict[str, str], since: str, top_n: int) -
     return "\n".join(lines)
 
 
-RENDERERS: dict[str, Callable[[Aggregate, dict[str, str], str, int], str]] = {
+RENDERERS: dict[
+    str, Callable[[Aggregate, dict[str, str], str, int, str | None], str]
+] = {
     "text": render_text,
     "md": render_markdown,
     "html": render_html,

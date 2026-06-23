@@ -58,6 +58,9 @@ uv run foc-review-stats --weeks 1
 # Window starting from a specific date.
 uv run foc-review-stats --since 2026-04-01
 
+# Historical window, inclusive of both dates.
+uv run foc-review-stats --since 2026-03-01 --until 2026-03-31
+
 # Markdown table for Slack or a wiki.
 uv run foc-review-stats --format md -o stats.md
 
@@ -139,7 +142,7 @@ Matching is case-insensitive.
 |---|---|
 | `Contributor` | Display name from GitHub, falling back to login. |
 | `PRs` | PRs authored in the window. |
-| `Reviews` | Distinct PRs reviewed in the window (self-reviews and bot-authored PRs excluded). |
+| `Reviews` | Distinct PRs reviewed in the window (self-reviews and bot-authored PRs excluded). With `--until`, review submission timestamps are filtered to the requested date range. |
 | `Rev/PR` | `Reviews` divided by `PRs`. Below 1 means more authored than reviewed (review debt); above 1 means paying review forward. |
 | `Reviewed by (top N)` | Top reviewers of this contributor's PRs in the window. |
 | `Reviewed for (top N)` | Top authors whose PRs this contributor reviewed. |
@@ -153,6 +156,10 @@ light green when above 1.
   dropped entirely (its reviewers are not counted on that PR either).
 - Each distinct reviewer is counted once per PR regardless of how many review
   events they submitted.
+- When `--until` is set, the report uses an inclusive date window. PRs are
+  counted by PR creation timestamp, while reviews are counted by review
+  submission timestamp. This means a review in the requested window can count
+  even when the PR was created before the window.
 - Self-reviews (reviewer login equals author login) are skipped.
 - Active in window means at least one PR authored or one PR reviewed since the
   window start; contributors with zero activity are not shown.
