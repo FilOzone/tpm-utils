@@ -33,7 +33,8 @@ You need three things installed:
    ```
    If `gh auth status` shows missing scopes, run `gh auth refresh -s read:org`.
 
-For the Google Docs paste workflow (Linux/X11), also install **`xclip`**:
+For the direct Google Docs clipboard workflow on Linux/X11, also install
+**`xclip`**:
 ```bash
 sudo apt install xclip   # Debian/Ubuntu
 ```
@@ -46,8 +47,9 @@ export GITHUB_TOKEN=$(gh auth token)
 uv run foc-review-stats
 ```
 
-That prints the last six weeks of activity to stdout as a table. First run takes
-a minute (downloads dependencies, scans ~70-100 repos).
+That prints the last six weeks of activity to stdout as a table, in the
+configured Google Docs contributor order. First run takes a minute (downloads
+dependencies, scans ~70-100 repos).
 
 ## Common tasks
 
@@ -64,20 +66,34 @@ uv run foc-review-stats --format md -o stats.md
 # HTML table with light red/green ratio shading, sized for Google Docs paste.
 uv run foc-review-stats --format html -o stats.html
 
+# Previous metric sort: reviews descending, then PRs descending.
+uv run foc-review-stats --sort reviews
+
 # Adjust the "top N" reviewers/reviewees shown per row (default 3).
 uv run foc-review-stats --top 5
 ```
 
 Run `uv run foc-review-stats --help` for every flag.
 
-### Pasting the HTML output into Google Docs (Linux/X11)
+### Pasting the HTML output into Google Docs
+
+On macOS, open the generated HTML file in a browser, select the heading and
+table, copy, then paste into Google Docs with the regular paste shortcut
+(`Cmd+V`). The table and Rev/PR shading are preserved.
+
+```bash
+open stats.html
+```
+
+On Linux/X11, you can also put the HTML directly on the clipboard:
 
 ```bash
 xclip -selection clipboard -t text/html -i stats.html
 ```
 
-Then **Ctrl+Shift+V** in the doc. Cell shading and the `<h2>` heading are
-preserved; the `<h2>` adopts the doc's own H2 style on paste.
+Then paste into the doc with the regular paste shortcut (`Ctrl+V`). Cell
+shading and the `<h2>` heading are preserved; the `<h2>` adopts the doc's own
+H2 style on paste.
 
 ## Configuring who appears
 
@@ -116,6 +132,18 @@ To bring a new GitHub team into scope: append `"org/team-slug"` to
 
 Set `github_teams = []` and `extra_members = []` to disable team filtering
 entirely. The report then includes every active contributor.
+
+### `[report]` — presentation order
+
+```toml
+[report]
+contributor_order = ["rvagg", "rjan90", "sgtpooki"]
+```
+
+Rows are sorted by this login list by default so the generated table matches
+the standing Google Docs roster order. Active contributors not listed here are
+appended by display name. Use `--sort reviews` when you want the previous
+metric-driven order instead.
 
 ### `[ignored]` — always exclude
 

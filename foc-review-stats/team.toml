@@ -39,6 +39,29 @@ extra_members = [
     "silent-cipher",  # Puspendra Mahariya
 ]
 
+[report]
+# Rows are emitted in this Google Docs roster order by default. Active
+# contributors not listed here are appended by display name.
+contributor_order = [
+    "rvagg",           # Rod Vagg
+    "rjan90",          # Phi-rjan
+    "sgtpooki",        # Russell Dempsey
+    "silent-cipher",   # Puspendra Mahariya
+    "kubuxu",          # Jakub Sztandera
+    "lexluthr",        # lexluthr
+    "biglep",          # Steve Loeppky
+    "juliangruber",    # Julian Gruber
+    "zenground0",      # zenground0
+    "tippyflitsuk",    # TippyFlits
+    "hugomrdias",      # Hugo Dias
+    "snadrus",         # Andrew Jackson (Ajax)
+    "wjmelements",     # William Morriss
+    "beck-8",          # beck
+    "jennijuju",       # Jiaying Wang
+    "nijoe1",          # Nick Lionis
+    "snissn",          # Mikers
+]
+
 [ignored]
 # Always-excluded logins, even if present in a configured team. Used for bots
 # without the GitHub Bot account type and for team members we don't want to
