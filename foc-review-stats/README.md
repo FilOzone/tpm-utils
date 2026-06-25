@@ -161,8 +161,8 @@ light green when above 1.
   submission timestamp. This means a review in the requested window can count
   even when the PR was created before the window.
 - Self-reviews (reviewer login equals author login) are skipped.
-- Active in window means at least one PR authored or one PR reviewed since the
-  window start; contributors with zero activity are not shown.
+- Active in window means at least one PR authored or one PR reviewed within
+  the requested report window; contributors with zero activity are not shown.
 - With `[team]` configured: PRs authored by anyone outside the team union are
   dropped, and reviews submitted by anyone outside the team union are not
   counted (so external one-off contributors don't appear).

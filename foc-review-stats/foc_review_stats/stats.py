@@ -46,7 +46,7 @@ def aggregate(
     since_iso: str | None = None,
     until_iso: str | None = None,
 ) -> Aggregate:
-    """Walk a sequence of PR nodes (as returned by github.fetch_repo_prs).
+    """Walk a sequence of PR nodes returned by the GitHub fetch helpers.
 
     Skips PRs by bot or ignored authors entirely. Each reviewer is counted once
     per PR regardless of how many in-window review events they submitted.
