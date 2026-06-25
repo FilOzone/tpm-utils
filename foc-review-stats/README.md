@@ -33,7 +33,8 @@ You need three things installed:
    ```
    If `gh auth status` shows missing scopes, run `gh auth refresh -s read:org`.
 
-For the Google Docs paste workflow (Linux/X11), also install **`xclip`**:
+For the direct Google Docs clipboard workflow on Linux/X11, also install
+**`xclip`**:
 ```bash
 sudo apt install xclip   # Debian/Ubuntu
 ```
@@ -46,8 +47,8 @@ export GITHUB_TOKEN=$(gh auth token)
 uv run foc-review-stats
 ```
 
-That prints the last six weeks of activity to stdout as a table. First run takes
-a minute (downloads dependencies, scans ~70-100 repos).
+That prints the last six weeks of activity to stdout as a table. First run
+takes a minute (downloads dependencies, scans ~70-100 repos).
 
 ## Common tasks
 
@@ -70,14 +71,25 @@ uv run foc-review-stats --top 5
 
 Run `uv run foc-review-stats --help` for every flag.
 
-### Pasting the HTML output into Google Docs (Linux/X11)
+### Pasting the HTML output into Google Docs
+
+On macOS, open the generated HTML file in a browser, select the heading and
+table, copy, then paste into Google Docs with the regular paste shortcut
+(`Cmd+V`). The table and Rev/PR shading are preserved.
+
+```bash
+open stats.html
+```
+
+On Linux/X11, you can also put the HTML directly on the clipboard:
 
 ```bash
 xclip -selection clipboard -t text/html -i stats.html
 ```
 
-Then **Ctrl+Shift+V** in the doc. Cell shading and the `<h2>` heading are
-preserved; the `<h2>` adopts the doc's own H2 style on paste.
+Then paste into the doc with the regular paste shortcut (`Ctrl+V`). Cell
+shading and the `<h2>` heading are preserved; the `<h2>` adopts the doc's own
+H2 style on paste.
 
 ## Configuring who appears
 
