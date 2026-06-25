@@ -33,19 +33,29 @@ class Aggregate:
 
     @property
     def logins(self) -> set[str]:
-        return set(self.authored) | set(self.reviewed)
+        authors_with_reviews = {
+            author for by_author in self.matrix.values() for author in by_author
+        }
+        return set(self.authored) | set(self.reviewed) | authors_with_reviews
 
 
 def aggregate(
     prs: Iterable[dict[str, Any]],
     ignored_lower: set[str],
     in_scope_lower: set[str] | None = None,
+    since_iso: str | None = None,
+    until_iso: str | None = None,
 ) -> Aggregate:
-    """Walk a sequence of PR nodes (as returned by github.fetch_repo_prs).
+    """Walk a sequence of PR nodes returned by the GitHub fetch helpers.
 
     Skips PRs by bot or ignored authors entirely. Each reviewer is counted once
-    per PR regardless of how many review events they submitted. Self-reviews are
-    ignored.
+    per PR regardless of how many in-window review events they submitted.
+    Self-reviews are ignored.
+
+    When since_iso/until_iso are provided, PR authorship is counted only when
+    the PR creation timestamp is inside the half-open window
+    [since_iso, until_iso), and reviews are counted only when the review
+    timestamp is inside that same window.
 
     `in_scope_lower` controls team filtering:
       - `None`: no team filter, every non-bot, non-ignored login is counted.
@@ -57,6 +67,17 @@ def aggregate(
     def in_scope(login: str) -> bool:
         return in_scope_lower is None or login in in_scope_lower
 
+    def in_window(timestamp: str | None) -> bool:
+        if since_iso is None and until_iso is None:
+            return True
+        if not timestamp:
+            return False
+        if since_iso is not None and timestamp < since_iso:
+            return False
+        if until_iso is not None and timestamp >= until_iso:
+            return False
+        return True
+
     for pr in prs:
         author = pr.get("author")
         if is_bot(author, ignored_lower):
@@ -64,11 +85,14 @@ def aggregate(
         a_key = (author.get("login") or "").lower()
         if not a_key or not in_scope(a_key):
             continue
-        agg.authored[a_key] += 1
+        if in_window(pr.get("createdAt")):
+            agg.authored[a_key] += 1
 
         distinct_reviewers: set[str] = set()
         reviews = (pr.get("reviews") or {}).get("nodes") or []
         for review in reviews:
+            if not in_window(review.get("createdAt")):
+                continue
             ra = review.get("author")
             if is_bot(ra, ignored_lower):
                 continue

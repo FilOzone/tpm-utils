@@ -126,10 +126,40 @@ query PRs($owner: String!, $name: String!, $cursor: String) {
       nodes {
         number
         createdAt
+        updatedAt
         author { __typename login }
         reviews(first: 100) {
           pageInfo { hasNextPage endCursor }
           nodes {
+            createdAt
+            author { __typename login }
+            state
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+_PRS_UPDATED_QUERY = """
+query PRsUpdated($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(
+      first: 50
+      after: $cursor
+      orderBy: {field: UPDATED_AT, direction: DESC}
+    ) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        createdAt
+        updatedAt
+        author { __typename login }
+        reviews(first: 100) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            createdAt
             author { __typename login }
             state
           }
@@ -147,6 +177,7 @@ query PRReviews($owner: String!, $name: String!, $number: Int!, $cursor: String)
       reviews(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
+          createdAt
           author { __typename login }
           state
         }
@@ -205,6 +236,49 @@ def fetch_repo_prs(
         page = repo["pullRequests"]
         for pr in page["nodes"]:
             if pr["createdAt"] < since_iso:
+                done = True
+                break
+            reviews = pr.get("reviews") or {}
+            review_info = reviews.get("pageInfo") or {}
+            if review_info.get("hasNextPage"):
+                overflow = _fetch_overflow_reviews(
+                    session, owner, name, pr["number"], review_info["endCursor"]
+                )
+                reviews["nodes"] = (reviews.get("nodes") or []) + overflow
+                review_info["hasNextPage"] = False
+                pr["reviews"] = reviews
+            prs.append(pr)
+        if done or not page["pageInfo"]["hasNextPage"]:
+            return prs
+        cursor = page["pageInfo"]["endCursor"]
+    return prs
+
+
+def fetch_repo_prs_updated_since(
+    session: TokenSession, name_with_owner: str, since_iso: str
+) -> list[dict[str, Any]]:
+    """Fetch PRs updated on or after since_iso with embedded reviews.
+
+    This is used for bounded historical windows where reviews on PRs created
+    before the window still need to be counted if the review happened inside
+    the window.
+    """
+    owner, name = name_with_owner.split("/", 1)
+    prs: list[dict[str, Any]] = []
+    cursor: str | None = None
+    done = False
+    while not done:
+        data = graphql(
+            session,
+            _PRS_UPDATED_QUERY,
+            {"owner": owner, "name": name, "cursor": cursor},
+        )
+        repo = data.get("repository")
+        if not repo:
+            return prs
+        page = repo["pullRequests"]
+        for pr in page["nodes"]:
+            if pr["updatedAt"] < since_iso:
                 done = True
                 break
             reviews = pr.get("reviews") or {}
