@@ -13,6 +13,7 @@ assignees: []
 - [ ] **New approval** — SP is being approved for the first time
 - [ ] **Breach review** — approved SP has breached SLA thresholds
 - [ ] **Periodic check** — routine re-verification of an approved SP
+- [ ] **Endorsement removal** — SP has been removed from the endorsed list, which requires removal from the approved list (see Outcome)
 
 > Some sections below are only required for breach reviews. These are marked _(breach review only)_.
 
@@ -21,6 +22,7 @@ assignees: []
 ### SP Details
 - **SP ID:**  
 - **SP Name (optional):**
+- **Endorsed SP?** Yes / No
 
 ---
 
@@ -89,7 +91,9 @@ assignees: []
 - [ ] **Approved** — SP added to approved list _(new approval / periodic check)_
 - [ ] **Not approved** — SP did not meet requirements _(new approval)_
 - [ ] **Recovered** within investigation window _(breach review)_
-- [ ] **Unapproved** _(breach review)_
+- [ ] **Unapproved** _(breach review / endorsement removal)_
+
+> **Endorsed/approved cascade:** Endorsed is a strict subset of approved. An SP cannot be endorsed without being approved, so removal from the endorsed list also requires removal from the approved list in the same action. If this SP is endorsed and the outcome is unapproval, remove it from both lists.
 
 - **Decision time (UTC):**
 - **Decision owner:**  
