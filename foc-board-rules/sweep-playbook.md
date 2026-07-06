@@ -215,10 +215,10 @@ After fetching both datasets:
 1. **Filter Phase 1 to board-only PRs.** Extract the PR numbers from the board query, then use `jq` to select only matching entries from each repo's Phase 1 output. This drops the noise (e.g., curio has 18 open PRs but only 3 are on the board).
 
 2. **Produce action lists per rule — to disk, not context.** After the join (step 1), each entry should have both GitHub fields (`.isDraft`, `.reviewDecision`, `.author`) and a `.board_status` field added during the join. Pipe through `jq` selects to identify rule violations and **write results to files** (e.g., `> "$SWEEP/actions_pr005.json"`). Include all automatable rules in a single pass — don't make follow-up queries for rules you could have checked here:
-   - R-PR-002/003: `select(.author.is_bot and (.author.login == "app/dependabot"))` — dependabot PRs needing Cycle Theme and/or Triage → Todo. **Note:** `gh pr list --json author` returns `{"login": "app/dependabot", "is_bot": true}`, not `dependabot[bot]` (the `[bot]` form appears in GitHub UI and webhooks, not in the CLI JSON output).
-   - R-PR-004: `select(.title | test("^chore\\("; "i")) and (.board_status == "📌 Triage")` — release PRs in Triage → Todo
+   - R-PR-002/003: `select(.author.is_bot and ((.author.login // "") | test("^(app/)?dependabot$")))` — dependabot PRs needing Cycle Theme and/or Triage → Todo. **Note:** `gh pr list --json author` usually returns `{"login": "app/dependabot", "is_bot": true}`, but some repos surface just `{"login": "dependabot", "is_bot": true}` (no `app/` prefix). Match both forms — neither matches the `dependabot[bot]` UI/webhook form, which doesn't appear in CLI JSON. (Broadened 2026-06-18 after filecoin-pin-website dependabot PRs returned `login: "dependabot"` and were missed by the strict `== "app/dependabot"` check.)
+   - R-PR-004: `select(.title | test("^chore\\((master|main)\\):? release|^chore: release"; "i")) and (.board_status == "📌 Triage")` — release PRs in Triage → Todo. **Do not include `deps` in the regex** — that matches dependabot's `chore(deps)` pattern, which is handled by R-PR-002/003.
    - R-PR-005: `select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))`
-   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((deps|master)\\)|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))` — excludes dependabot/release PRs (which should be handled by R-PR-003/004 first). Title-based exclusion is more reliable than `.author.is_bot` since release-please isn't always flagged as a bot.
+   - R-PR-006 Phase 2 candidates: `select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((master|main)\\):? release|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))` — excludes release PRs (which should be handled by R-PR-004 first). Title-based exclusion is more reliable than `.author.is_bot` since release-please isn't always flagged as a bot. Dependabot PRs are filtered by `.author.is_bot == false`. **Do not include `deps` in the release-PR alternation** — see R-PR-004.
      - **Phase 2 skip for In Progress + CHANGES_REQUESTED:** PRs already in In Progress with `reviewDecision == "CHANGES_REQUESTED"` will almost always stay In Progress — the only exception is if the author pushed after the review (case 3 in R-PR-006). Check Phase 1 `reviewDecision` first: if it's `CHANGES_REQUESTED` and the PR is already In Progress, skip Phase 2 unless there's a signal the author responded (e.g., a re-requested reviewer in `reviewRequests`). This avoids wasting Phase 2 calls to confirm the status quo.
    - R-SL-007: `select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))`
    - R-PR-007 Phase 2 candidates: `select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))` — empty `reviewRequests` is ambiguous (pending requests are consumed when a review is submitted), so always Phase 2 before flagging
@@ -228,10 +228,10 @@ After fetching both datasets:
 
    ```bash
    jq '{
-     pr002: [.[] | select(.author.is_bot and .author.login == "app/dependabot" and .cycle_theme != "Dependency Updates")],
-     pr003: [.[] | select(.author.is_bot and .author.login == "app/dependabot" and .board_status == "📌 Triage")],
+     pr002: [.[] | select(.author.is_bot and ((.author.login // "") | test("^(app/)?dependabot$")) and .cycle_theme != "Dependency Updates")],
+     pr003: [.[] | select(.author.is_bot and ((.author.login // "") | test("^(app/)?dependabot$")) and .board_status == "📌 Triage")],
      pr005: [.[] | select(.isDraft and (.board_status | IN("📌 Triage","🔎 Awaiting review","✔️ Approved by reviewer","⌚️ Issue awaiting PR merge")))],
-     pr006: [.[] | select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((deps|master)\\)|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))],
+     pr006: [.[] | select(.isDraft == false and .author.is_bot == false and (.title | test("^chore\\((master|main)\\):? release|^chore: release"; "i") | not) and (.board_status | IN("📌 Triage","⌨️ In Progress")))],
      sl007: [.[] | select(.reviewDecision == "CHANGES_REQUESTED" and (.board_status | IN("🔎 Awaiting review","✔️ Approved by reviewer")))],
      pr007: [.[] | select(.board_status == "🔎 Awaiting review" and (.reviewRequests | length == 0))],
      sl010: [.[] | select(.board_status == "🔎 Awaiting review")]
@@ -312,13 +312,21 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 
 **Rules applied:**
 - R-SL-008: Issues with linked PRs → set status based on PR state (Issue awaiting PR merge, In Progress, or Done), inherit assignee/cycle/milestone
+- R-SL-008 (unlinked PR discovery): Triage issues with no formal linked PRs (`LP=[]`) → batch-fetch `closedByPullRequestsReferences` and `timelineItems(CROSS_REFERENCED_EVENT)` via GraphQL to catch informal references and board-field lag. See below.
 - R-FC-004: Set Cycle Theme from repo defaults
 - R-FC-003: Ensure Milestone is set (check parent issue for inheritance)
 - R-SL-004: Move to Todo if both Cycle Theme and Milestone are set (and no linked PRs)
 
+**Discovering unlinked PRs on Triage issues:**
+Triage issues are especially likely to have unlinked PRs — a developer may jump on a freshly filed issue before it's even triaged. After processing formal linked PRs above, check Triage issues where `LP=[]`:
+1. Filter the Stage 2 query results to Triage issues with empty "Linked pull requests". Exclude zOrganizing Items.
+2. Batch-fetch `closedByPullRequestsReferences` and `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12). Include `closedByPullRequestsReferences` because the board's "Linked pull requests" field can lag — a formal reference may exist on GitHub but not yet appear in board data.
+3. For each cross-referencing or closing PR found: flag for human with the PR reference, its state (open/merged/closed), and whether it's on the board. If the PR is merged, note that the issue may be ready for Done (per R-SL-003).
+4. Do not auto-transition — the human confirms whether the reference is a true closing relationship. (Added after filecoin-pin#557 was missed in Triage despite having a merged closing PR #560, 2026-06-07 sweep.)
+
 **Automated vs. flagged:**
 - Automated: Cycle Theme (R-FC-004), Status → Todo (R-SL-004 when both fields are set), linked-PR status transitions (R-SL-008)
-- Flagged for human: Missing Milestone when no parent to inherit from
+- Flagged for human: Missing Milestone when no parent to inherit from, Triage issues with cross-referencing PRs discovered via GraphQL
 
 ## Stage 3: Non-Done issues — field completeness
 
@@ -346,8 +354,8 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 **Goal:** Ensure every active item (see status-lifecycle.md Terminology) has an accountable owner, is actually being worked on, has correct status relative to linked PRs, and has a cycle set when appropriate.
 
 **Queries:**
-- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" no:assignee` (unassigned active items)
-- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" updated:<YYYY-MM-DD` (stale active items, where date is 2 weeks ago; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale)
+- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -cycle-theme:"zOrganizing Item" no:assignee` (unassigned active items; exclude zOrganizing meta items which are always unassigned)
+- `-status:"🎉 Done" -status:"🐱 Todo" -status:"📌 Triage" -status:"⌚️ Issue awaiting PR merge" -cycle-theme:"zOrganizing Item" -updated:>@today-2w` (stale active items not updated in 2+ weeks; excludes "Issue awaiting PR merge" — those are waiting on PRs, not stale — and zOrganizing items which are always shown as stale)
 - `is:issue -status:"🎉 Done" -status:"⌚️ Issue awaiting PR merge" has:linked-pull-requests` with "Linked pull requests" field (R-SL-008 — issues with formally linked PRs that might need to move to "Issue awaiting PR merge"). The `has:linked-pull-requests` filter keeps this set small — typically 5-10 items instead of 40+.
 - `status:"⌚️ Issue awaiting PR merge" no:cycle` (issues awaiting PR merge without a cycle — inherit from linked PR per R-SL-008, not just R-FC-009)
 
@@ -370,7 +378,9 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 3. Also inherit assignee, cycle, and milestone from the linked PR if missing (per R-SL-008).
 
 **How to discover unlinked PRs (per R-SL-008):**
-After processing formal linked PRs, do a targeted check for In Progress issues **in the current cycle** that have **no** formal linked PRs — these may have cross-referencing PRs that weren't formally linked. Query the board for `is:issue status:"⌨️ In Progress" no:linked-pull-requests cycle:"<current cycle>"`, exclude zOrganizing Items, then batch-fetch `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12) for **only this set**. This is an expensive query with historically low yield (~0 actionable findings per sweep) — limiting to the current cycle keeps the scope small and targets issues most likely to have fresh PRs. See R-SL-008 "Discovering unlinked PRs" for the full procedure. Flag findings for human rather than auto-transitioning.
+After processing formal linked PRs, do a targeted check for **Todo and In Progress issues in the current cycle** that have **no** formal linked PRs — these may have cross-referencing PRs that weren't formally linked. Query the board for `is:issue status:"🐱 Todo","⌨️ In Progress" no:linked-pull-requests cycle:"<current cycle>"`, exclude zOrganizing Items, then batch-fetch `closedByPullRequestsReferences` and `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12) for **only this set**. This is an expensive query with historically low yield — limiting to the current cycle keeps the scope small and targets issues most likely to have fresh PRs. See R-SL-008 "Discovering unlinked PRs" for the full procedure. Flag findings for human rather than auto-transitioning.
+
+**Note:** Triage issues get their own unlinked-PR check in Stage 2 (see "Discovering unlinked PRs on Triage issues" above). The Stage 4 check here covers Todo and In Progress issues to avoid duplicate work. (Broadened from In Progress only to include Todo after infra#221 was missed — a Todo issue with an in-flight PR referencing it via `Refs #221`, 2026-06-09 sweep.)
 
 **Note on cross-reference GraphQL results:** The `... on PullRequest` fragment returns empty objects (`{}`) for cross-references from issues (not PRs). This is expected — filter them out with `select(.title != null)` or add `__typename` to the fragment to distinguish PR refs from issue refs.
 

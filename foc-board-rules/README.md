@@ -98,6 +98,8 @@ When applying rules (whether by LLM or human):
 
 16. **Investigate before flagging.** Before adding any item to the "flags for human" list, read its comment stream (via GraphQL batch or `gh issue view --json comments`). Comments frequently explain why an item is in its current state (e.g., "keeping open for dashboard updates" on an issue whose linked PR merged). If the comments answer the question, resolve it yourself instead of flagging. If you still need to flag, include the relevant comment context so the human can decide without investigating further. False flags waste human attention and erode trust in sweep output.
 
+17. **Milestone mutations require native GitHub tools, not the board REST API.** The board REST API rejects `PUT items/field/Milestone` with `Unsupported field type: MILESTONE` — milestones live on the issue/PR itself, not as a project-board field value. Use `gh issue edit <number> -R <owner>/<repo> --milestone "<title>"` (milestones are referenced by title, not number). Unlike `gh pr edit`, `gh issue edit --milestone` does **not** fail on Projects Classic repos, so the `gh api` workaround from [general behavior rule 13](#general-behavior) is not required. The board REST API accepts Status, Cycle, and Cycle Theme writes; assignees, milestones, reviewers, and labels must go through `gh`/`gh api`. (Added after 2026-06-23 sweep where `PUT items/field/Milestone` failed on infra#255.)
+
 ## How to use
 
 These rules can be applied manually or referenced by an LLM when performing board maintenance tasks. Each rule file describes:

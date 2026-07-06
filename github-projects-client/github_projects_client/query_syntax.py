@@ -38,25 +38,28 @@ Docs: https://docs.github.com/en/issues/planning-and-tracking-with-projects/cust
 ### Labels
 - `label:bug` / `label:"help wanted"` — labels with spaces need quotes
 
-### Time-Based (built-in filters, not project board fields)
-IMPORTANT: `last-updated` has counterintuitive semantics:
-- `last-updated:1days` — items NOT updated within 1 day (stale items)
-- `-last-updated:1days` — items updated within the last day (recent items)
-- `-last-updated:7days` — items updated within the last 7 days
+### Time-Based — prefer `updated:` over `last-updated:`
 
-Alternative syntax using `updated:` (equivalent results):
+GitHub Projects introduced built-in `Created` / `Updated` / `Closed` timestamp
+fields on 2026-05-15 (see https://github.blog/changelog/2026-05-15-timestamp-fields-in-github-projects/),
+and the docs now recommend the `updated:` family. The older `last-updated:Ndays`
+syntax still works on most queries but has known bugs for date ranges greater
+than ~17 days (community discussion #108039). Use `updated:` for anything new.
+
+**Recommended — `updated:` with comparison operators:**
 - `updated:@today` — items updated today
 - `updated:>@today-7d` — items updated within the last 7 days
+- `-updated:>@today-2w` — items NOT updated in the last 2 weeks (stale)
 - `updated:>2026-04-01` — items updated after a specific date
 - `updated:2026-04-01..2026-05-01` — items updated within a date range
 
-To find RECENTLY updated items, use one of:
-  `-last-updated:Ndays` (board UI style)
-  `updated:>@today-Nd` or `updated:>YYYY-MM-DD` (comparison operator)
+**Legacy — `last-updated:` (avoid for new queries):**
+- `last-updated:1days` — items NOT updated within 1 day (stale; counterintuitive — no negation)
+- `-last-updated:1days` — items updated within the last day (recent)
+- Known to silently return zero results for windows beyond ~17 days.
 
-To find STALE items (not updated recently), use one of:
-  `last-updated:Ndays` (board UI style, no negation)
-  `-updated:>@today-Nd` (negated comparison)
+To find RECENTLY updated items: `updated:>@today-Nd` or `updated:>YYYY-MM-DD`.
+To find STALE items (not updated recently): `-updated:>@today-Nd`.
 
 ### Relationships
 - `blocking:FilOzone/dealbot#470` — items blocking a specific issue
@@ -87,7 +90,7 @@ To find STALE items (not updated recently), use one of:
 
 ### Combining Filters (space-separated = implicit AND)
 - `is:pr assignee:rjan90 -status:"🎉 Done"`
-- `cycle-theme:"Contract Upgrade" -last-updated:1days`
+- `cycle-theme:"Contract Upgrade" -updated:>@today-1d`
 
 ### OR (comma-separated values within one filter)
 - `assignee:rjan90,biglep`

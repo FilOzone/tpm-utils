@@ -37,7 +37,7 @@ Rules for ensuring board items have the right fields populated based on their st
 
 ## R-FC-003: All open issues should have a Milestone
 
-**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items) and [external items](status-lifecycle.md#terminology) (milestones can't be set).
+**When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items), [external items](status-lifecycle.md#terminology) (milestones can't be set), and **project notes** (draft items with no repository — milestones are a repo-level field and don't exist for notes).
 **Action:** First, check if the issue has a parent issue (via `GET .../items/{ref}` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
 **Why:** Every real issue should be tied to a delivery milestone so it's tracked against a timeline. Issues without milestones fall through the cracks during planning. Even Triage items benefit from early milestone assignment — it helps prioritize what to triage first.
@@ -56,6 +56,7 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/synapse-sdk` | SDK Changes | |
 | `filecoin-project/filecoin-pin` | Filecoin Pin | |
 | `filecoin-project/filecoin-pin-website` | Filecoin Pin | Website for filecoin-pin |
+| `FilOzone/SessionKeyRegistry` | Contract Upgrade | |
 | `FilOzone/filecoin-pay` | Filecoin Pay | |
 | `FilOzone/pdp-explorer` | PDP Explorer | |
 | `FilOzone/filecoin-cloud` | filecoin.cloud | |
@@ -65,20 +66,23 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/foc-devnet` | Maintainer Experience | Dev tooling |
 | `FilOzone/filecoin-services` | Contract Upgrade | Often but not always — flag for human review |
 | `FilOzone/early-repair` | GA Durability | |
+| `FilOzone/pdp` | Contract Upgrade | |
+| `FilOzone/security-triage` | Security | |
 | `FilOzone/infra` | Other | Unless a better theme applies (see below) |
+| `filbeam/*` | filbeam | Anything in the `filbeam` GitHub org. |
 
 For repositories not listed above, check the item title and description for context clues. In particular:
-- **Docs**: If the title contains "docs" or "docs:" (e.g., `docs: add some details about...`) and no better product-specific theme applies, use "Docs".
-- **infra** items that reference a specific product in the title or description (e.g., "dealbot" in the title) should inherit that product's Cycle Theme. Otherwise default to "Other".
+- **Docs**: If the title contains "docs" or "docs:" (e.g., `docs: add some details about...`) and no better product-specific theme applies, use "Docs". **Exception:** `FilOzone/infra` items keep their repo default ("Other") even when the title has a `docs:` prefix — the infra-repo rule wins over the generic Docs heuristic. The "Docs" theme is for product-facing documentation work, not infra-side docs. (Clarified 2026-06-29 after infra#275 `docs: address #112 review feedback` was incorrectly flagged as theme-ambiguous.)
+- **infra** items that reference a specific product in the title or description (e.g., "dealbot" in the title) should inherit that product's Cycle Theme. Otherwise default to "Other" — including for `docs:`-prefixed PRs (see above).
 - **Stacked PRs**: Check if the item's description or comments reference related PRs/issues. If it's stacked on or related to another item that already has a Cycle Theme, use the same theme.
 
 If no reasonable inference can be made, flag for human review — do not invent a new Cycle Theme value.
 
-**Existing Cycle Theme values** (as of 2026-05-01):
+**Existing Cycle Theme values** (as of 2026-06-18):
 
-> Contract Upgrade, Curio Hardening, Dealbot, Dependency Updates, Docs, filecoin.cloud, Filecoin Pay, Filecoin Pay Explorer, Filecoin Pay Tools, Filecoin Pin, GA Durability, Maintainer Experience, Operational Readiness, Other, PDP Explorer, SDK Changes, zOrganizing Item
+> Contract Upgrade, Curio Hardening, Dealbot, Dependency Updates, Docs, filbeam, filecoin.cloud, Filecoin Pay, Filecoin Pay Explorer, Filecoin Pay Tools, Filecoin Pin, GA Durability, Maintainer Experience, Operational Readiness, Other, PDP Explorer, SDK Changes, Security, zOrganizing Item
 
-**Never create a new Cycle Theme.** Always use one of the existing values above. If none fit, flag for human review.
+**Never create a new Cycle Theme.** Always use one of the existing values above. If none fit, flag for human review. **Capitalization matters** — `filbeam` (not `Fil Beam` or `Filbeam`) is the canonical spelling for CDN/bandwidth-rail work; flag any variant.
 
 **Why:** Most items naturally belong to the Cycle Theme of their repository. Automating the obvious cases reduces manual triage work and keeps the board consistent. Using only established values prevents theme sprawl.
 

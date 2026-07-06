@@ -11,14 +11,14 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 ## R-PR-002: Dependabot PRs should have Cycle Theme "Dependency Updates"
 
-**When:** A PR authored by `app/dependabot` has no Cycle Theme set, or has a Cycle Theme other than "Dependency Updates".
+**When:** A PR authored by dependabot (`gh pr list --json author` returns either `app/dependabot` or just `dependabot` depending on the repo — match both) has no Cycle Theme set, or has a Cycle Theme other than "Dependency Updates".
 **Action:** Set Cycle Theme to `Dependency Updates`.
 **Priority:** This rule overrides [R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository) (repo defaults). Dependabot PRs are always "Dependency Updates" regardless of which repo they're in.
 **Why:** Dependency update PRs are a distinct category of work. Consistent labeling makes it easy to filter them in or out of board views.
 
 ## R-PR-003: Dependabot PRs should be in Todo status
 
-**When:** A PR authored by `app/dependabot` has status "📌 Triage".
+**When:** A PR authored by dependabot (either `app/dependabot` or `dependabot` — see [R-PR-002](#r-pr-002-dependabot-prs-should-have-cycle-theme-dependency-updates)) has status "📌 Triage".
 **Action:** Set Status to `🐱 Todo`.
 **Why:** Dependabot PRs don't need triage — they're well-understood work items. Moving them straight to Todo reduces noise in the Triage column.
 
@@ -26,6 +26,7 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 **When:** A PR in "📌 Triage" is a release PR (e.g., `chore(master): release ...` from synapse-sdk, or `chore: release to production (main)` from dealbot).
 **Action:** Set Status to `🐱 Todo`.
+**Detection regex:** `^chore\((master|main)\):? release|^chore: release` — match `chore(master)`/`chore(main)` release PRs and bare `chore: release` PRs. **Do not include `deps` in the scope alternation** — `chore(deps): ...` is dependabot's pattern and belongs to [R-PR-002](#r-pr-002-dependabot-prs-should-have-cycle-theme-dependency-updates) / [R-PR-003](#r-pr-003-dependabot-prs-should-be-in-todo-status). Mixing them ends in the same final state (Todo) but routes the wrong rule and can hide a real Cycle Theme bug. (Tightened 2026-06-18 after `^chore\((master|main|deps)\)` falsely matched dependabot PRs in playbook examples.)
 **Why:** Release PRs are a known, mechanical step that the engineering team needs to execute. They don't need triage — they just need to get done.
 
 ## R-PR-005: Draft PRs should be In Progress
@@ -43,6 +44,8 @@ Rules for keeping pull request items on the FOC board well-formed.
 2. **Last human review is more recent than last commit** (`lastHumanReview > lastCommit`) → `⌨️ In Progress`. The reviewer left feedback and the author hasn't responded with new commits yet.
 3. **Last commit is more recent than last human review** (`lastCommit > lastHumanReview`) → `🔎 Awaiting review`. The author pushed after the feedback, likely addressing it — the PR is ready for re-review. (A re-requested reviewer further confirms this — the author explicitly asked the reviewer to look again.)
 4. **No human reviewer has engaged yet** (only bot reviews or no reviews at all) → `🔎 Awaiting review`. The PR needs initial review.
+
+**Comments count as reviews.** Before applying case 4, check for substantive PR-level comments from a write/maintain/admin-access human after the last commit (filter to `authorAssociation` of `OWNER`/`MEMBER`/`COLLABORATOR`, skip `app/*` and bot comments, skip pure coordination/timing chatter). A substantive comment is effectively a review: if the comment looks like code/design feedback the author needs to act on, treat the comment timestamp as `lastHumanReview` and re-evaluate against cases 2/3. In particular, **a PR in In Progress with a substantive maintainer comment after the last commit stays In Progress (case 2)** — don't auto-route to Awaiting Review just because no formal `review` was submitted. This prevents bouncing such PRs into Awaiting Review only to have [R-SL-010](status-lifecycle.md#r-sl-010-prs-in-awaiting-review-with-unaddressed-reviewer-comments-should-be-flagged) flag them on the next sweep. (Added 2026-06-24 after filecoin-services#522 — an In Progress PR with no formal review but a substantive comment from wjmelements about library ABI scope — would have been routed to Awaiting Review by strict case 4.)
 
 **Note on R-SL-001 re-request exception:** The [R-SL-001](status-lifecycle.md#r-sl-001-prs-with-approved-reviews-should-be-approved-by-reviewer) re-request exception only prevents moving to *Approved* — it does not affect R-PR-006 routing. A re-requested reviewer who previously requested changes means the PR is awaiting their re-review, which is consistent with case 3 (→ Awaiting Review), not a reason to keep the PR in In Progress.
 
