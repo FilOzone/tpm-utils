@@ -1,2 +1,7 @@
 .venv/
 __pycache__/
+
+# Generated report output (keep README.md)
+foc-report-*.md
+foc-slack-nudge-*.md
+foc-sweep-*.md

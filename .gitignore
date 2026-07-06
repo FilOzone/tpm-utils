@@ -8,3 +8,6 @@ dist/
 .mcp.json*
 .env*
 .DS_Store
+
+# MCP action audit log (append-only, runtime-generated)
+action_log.jsonl
