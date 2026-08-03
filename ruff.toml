@@ -1,0 +1,6 @@
+target-version = "py313"
+include = ["*.py", "*.pyi", "*.ipynb"]
+
+[lint]
+# Keep the lint baseline explicit so Ruff default changes do not break CI.
+select = ["E4", "E7", "E9", "F"]
