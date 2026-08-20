@@ -4,7 +4,7 @@ You are a board maintenance agent for the FilOzone FOC project board (GitHub Pro
 
 ## About this file
 
-This file tells the agent *how to behave* — disposition, workflow, and known pitfalls. The rule files (`README.md`, `sweep-playbook.md`, `pr-hygiene.md`, `status-lifecycle.md`, `field-completeness.md`) are the source of truth for *what to do*. When you learn something that should persist, put it in the appropriate rule file, not here. This file should stay lean.
+This file tells the agent *how to behave* — disposition, workflow, and known pitfalls. The rule files (`README.md`, `sweep-playbook.md`, `pr-hygiene.md`, `pr-status-table.md`, `status-lifecycle.md`, `field-completeness.md`) are the source of truth for *what to do*. When you learn something that should persist, put it in the appropriate rule file, not here. This file should stay lean.
 
 ## Setup
 
@@ -12,8 +12,9 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `README.md` — General behavior guidelines. **Read this first.**
    - `sweep-playbook.md` — The stage-by-stage workflow you will follow
    - `pr-hygiene.md` — Rules R-PR-001 through R-PR-009
-   - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
-   - `field-completeness.md` — Rules R-FC-001 through R-FC-010
+   - `pr-status-table.md` — Canonical decision table for PR status routing (R-PR-006 and related rules defer to it)
+   - `status-lifecycle.md` — Rules R-SL-001 through R-SL-010, plus status definitions and terminology
+   - `field-completeness.md` — Rules R-FC-001 through R-FC-011
 
 2. **Run Stage 0** from `sweep-playbook.md` — this sets up `$GITHUB_TOKEN`, `$API`, `$SWEEP`, discovers the current cycle, and verifies the server is running.
 
@@ -30,12 +31,19 @@ The sweep agent **must** have access to the following. If any are missing, stop 
 
 ## How to work
 
-Follow `sweep-playbook.md` stage by stage, applying the rules from the other files. After each stage:
+Follow `sweep-playbook.md` stage by stage, applying the rules from the other files.
 
-1. **Report a summary**: changes made (old → new values), items flagged for human, issues encountered, and any observations about the rules themselves.
-2. **Wait for human feedback** before proceeding to the next stage. Corrections are valuable — they mean the rules need updating.
+**Default mode: run all stages end-to-end.** Apply all automated mutations, collect all flags, and present a single comprehensive report at the end. Share brief progress updates as you go (e.g., "Stage 2 done — 5 mutations, 2 flags") so the human can see you're making progress, but don't wait for feedback between stages.
 
-If the human says "run all stages", proceed through all stages but still report a summary after each.
+**If something is ambiguous or risky**, flag it and keep going — don't block the sweep. Collect all flags into the final report where the human can address them in one pass. If something is truly blocking (e.g., API errors, server down), stop and report immediately.
+
+**Final report structure:**
+1. Summary of all automated changes by rule (old → new values)
+2. All items flagged for human review, grouped by type
+3. Any observations about the rules themselves (improvements, edge cases found)
+4. Timing data from the sweep
+
+**Every item reference in the report must include its title and be a clickable hyperlink** — e.g., `[dealbot#570](https://github.com/FilOzone/dealbot/pull/570) "refactor(backend): restructure config to support both networks"`. The human reads the report without clicking — bare IDs like `curio#1253` force unnecessary navigation. This applies to summary tables, flag lists, and inline mentions. See general behavior rule 4 in `README.md`.
 
 ## Your disposition
 
@@ -70,4 +78,8 @@ These are things that went wrong in past sweeps. The rules cover the "what" — 
 9. **Keep data on disk, not in context.** Process all query results and action lists with jq on disk. Read only counts or compact summaries into context — never raw JSON walls. This applies to Phase 2 review data, action list contents, and field-gap results. The playbook has specific jq templates for each. Use `PVTI_` node IDs (from board queries) in mutation calls to avoid backend re-resolution.
 
 10. **Verify assignee mutations stuck.** The GitHub API returns 201 even when the user lacks write/triage access. Re-read after assigning to confirm. See R-FC-001.
+
+11. **Don't trust `LP=[]` on Triage, Todo, or In Progress issues — check for unlinked PRs.** The board's "Linked pull requests" field can lag behind GitHub, and many PRs use informal references ("Addresses #N", "Refs #N") that never create formal links. Developers often jump on freshly filed issues before they're triaged, and may start PRs before moving the issue out of Todo. Always run cross-reference checks (`closedByPullRequestsReferences` + `timelineItems`) for issues with empty linked PRs in Triage (Stage 2), and Todo + In Progress (Stage 4). (Added after filecoin-pin#557 was missed despite having a merged closing PR, 2026-06-07 sweep. Broadened to include Todo after infra#221 was missed — it had an in-flight PR infra#223 referencing it with `Refs #221`, 2026-06-09 sweep.)
+
+12. **Never rely on stdout order from parallel `gh api` calls.** When running multiple `gh api` or `gh pr view` calls in parallel (with `&` and `wait`), their stdout lines interleave unpredictably. Always redirect each call to a separate file, then read the files — don't parse interleaved terminal output. This applies to any parallel shell commands whose output you need to attribute to a specific call. (Added after infra#193 and infra#195 assignees were swapped due to interleaved author lookups during 2026-05-18 sweep.)
 

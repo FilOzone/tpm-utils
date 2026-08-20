@@ -39,6 +39,41 @@ SYNTHETIC_FIELDS = {
 }
 
 
+# Fields whose values are lists of PR/issue objects. Always returned as real
+# JSON arrays (possibly empty), never as JSON-encoded strings, so jq consumers
+# get one consistent shape.
+STRUCTURED_LIST_FIELDS = {"linked pull requests"}
+
+
+def _trim_linked_items(value: Any) -> List[Dict[str, Any]]:
+    """Trim a list of full PR/issue API objects down to compact dicts.
+
+    The GitHub Projects v2 REST API returns the complete PR/issue object
+    (~8KB each) including user avatars, all API endpoints, full body text,
+    labels, etc.  Keep only the useful fields.
+    """
+    if not isinstance(value, list):
+        return []
+    _KEEP_KEYS = ("number", "state", "draft", "title")
+    trimmed = []
+    for item in value:
+        if isinstance(item, dict) and "number" in item:
+            compact: dict[str, Any] = {}
+            # Derive repo name from repository_url
+            repo_url = item.get("repository_url", "")
+            if "/" in repo_url:
+                compact["repo"] = repo_url.rsplit("/", 1)[-1]
+            for k in _KEEP_KEYS:
+                if k in item:
+                    compact[k] = item[k]
+            # Flatten user to just login
+            user = item.get("user")
+            if isinstance(user, dict) and "login" in user:
+                compact["author"] = user["login"]
+            trimmed.append(compact)
+    return trimmed
+
+
 def _format_field_value(value: Any) -> str:
     """Convert a REST field value to a human-readable string."""
     if value is None:
@@ -57,27 +92,8 @@ def _format_field_value(value: Any) -> str:
                     logins.append(login)
         if logins:
             return ", ".join(logins)
-        # Linked pull requests / issues: list of full API objects.
-        # The GitHub Projects v2 REST API returns the complete PR/issue
-        # object (~8KB each) including user avatars, all API endpoints,
-        # full body text, labels, etc.  Strip down to useful fields only.
-        _KEEP_KEYS = ("number", "state", "draft", "title")
-        trimmed = []
-        for item in value:
-            if isinstance(item, dict) and "number" in item:
-                compact: dict[str, Any] = {}
-                # Derive repo name from repository_url
-                repo_url = item.get("repository_url", "")
-                if "/" in repo_url:
-                    compact["repo"] = repo_url.rsplit("/", 1)[-1]
-                for k in _KEEP_KEYS:
-                    if k in item:
-                        compact[k] = item[k]
-                # Flatten user to just login
-                user = item.get("user")
-                if isinstance(user, dict) and "login" in user:
-                    compact["author"] = user["login"]
-                trimmed.append(compact)
+        # Linked pull requests / issues: list of full API objects
+        trimmed = _trim_linked_items(value)
         if trimmed:
             return json.dumps(trimmed, ensure_ascii=False)
         return str(value)
@@ -175,23 +191,30 @@ def _extract_node_id(item: Dict[str, Any]) -> str:
     return item.get("node_id") or item.get("id") or ""
 
 
-def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]:
-    """Format a REST project item into a dict of field_name -> display_value."""
+def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, Any]:
+    """Format a REST project item into a dict of field_name -> display_value.
+
+    Most values are display strings; fields in STRUCTURED_LIST_FIELDS are
+    real JSON arrays (possibly empty).
+    """
     content = item.get("content")
     if not isinstance(content, dict):
         content = None
 
     # Build field value map from REST fields
-    field_values: Dict[str, str] = {}
+    field_values: Dict[str, Any] = {}
     for f in item.get("fields") or []:
         if not isinstance(f, dict):
             continue
         name = f.get("name")
         if name is None:
             continue
-        field_values[name] = _format_field_value(f.get("value"))
+        if name.lower() in STRUCTURED_LIST_FIELDS:
+            field_values[name] = _trim_linked_items(f.get("value"))
+        else:
+            field_values[name] = _format_field_value(f.get("value"))
 
-    result: Dict[str, str] = {}
+    result: Dict[str, Any] = {}
 
     for name in field_names:
         if name.lower() in ("node id", "node_id"):
@@ -207,7 +230,12 @@ def _format_item(item: Dict[str, Any], field_names: List[str]) -> Dict[str, str]
                     result[name] = v
                     break
             else:
-                result[name] = ""
+                # Structured list fields stay arrays even when the REST API
+                # omits the field (no linked items); never "" for these.
+                if name.lower() in STRUCTURED_LIST_FIELDS:
+                    result[name] = []
+                else:
+                    result[name] = ""
 
     # Always include item node_id for mutation reference
     result["_node_id"] = item.get("node_id") or item.get("id") or ""
@@ -351,7 +379,7 @@ def get_item(
     org: str,
     project_number: int,
     item_ref: str,
-) -> Optional[Dict[str, str]]:
+) -> Optional[Dict[str, Any]]:
     """
     Get details of a specific project item by reference.
 

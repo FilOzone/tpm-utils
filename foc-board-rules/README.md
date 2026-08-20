@@ -22,7 +22,7 @@ When applying rules (whether by LLM or human):
 
    **Phase 1 — lightweight per-repo fetch.** For each repo that has open PRs on the board, run `gh pr list -R <repo> --state open --json number,author,isDraft,reviewDecision,reviewRequests`. Run calls in parallel — one per repo. **Do NOT include `reviews`** — full review bodies are the main source of context blowout (repos like `filecoin-project/curio` have many open PRs with lengthy review threads, most of which aren't on the board). Phase 1 handles:
    - R-PR-001: `author` → assignee
-   - R-PR-002/003/004: `author` → bot/release detection
+   - R-PR-002/003/004: `author` → bot/release detection. **`author.is_bot` alone under-detects:** `gh pr list --json author` reports `is_bot: false` for `FilOzzy` (a bot-operated user account, not a GitHub App), even though R-PR-001 explicitly lists it as a skip case. When building an automated "unassigned/bot PR" bucket with jq, match on login (`app/dependabot`, `FilOzzy`, `app/*`) in addition to `is_bot`, or these accounts slip into the human-assignment path. (Added after the 2026-07-11 sweep manually caught 3 open `FilOzzy` release PRs that a pure `is_bot` filter would have routed to author-assignment.)
    - R-PR-005: `isDraft`
    - R-PR-007: `reviewRequests` → identifies Phase 2 candidates (empty `reviewRequests` is ambiguous — pending requests are consumed when a review is submitted, so empty ≠ "no engagement")
    - Initial triage for R-PR-006, R-SL-001, R-SL-007: `reviewDecision` gives the quick signal for which PRs need Phase 2. **Caveat:** `reviewDecision: ""` (empty) is ambiguous — it does NOT mean "no reviews". COMMENTED reviews, approvals from non-CODEOWNERS, and reviews that don't satisfy branch protection all leave `reviewDecision` empty. Never treat empty as "no engagement" — but **only Phase 2 if a status change is actually under consideration**. A PR already in Awaiting Review with pending `reviewRequests` and no competing rule trigger (R-SL-001, R-SL-007) is correctly placed — skip Phase 2.
@@ -53,7 +53,7 @@ When applying rules (whether by LLM or human):
 
 10. **Prefer `GET .../items` with extra fields over individual item lookups.** When you need additional fields (e.g., Parent issue, Milestone) for a set of items, re-query `GET .../items` including those fields rather than fetching each item individually via `GET .../items/{ref}`. One call with `fields=Repository,Id,Title,Status,Milestone` replaces N individual lookups. Reserve the single-item endpoint for when you need the full detail on one specific item.
 
-   **Note:** `GET .../items` returns relationship fields (Parent issue, Linked pull requests) as display strings (e.g., `"Cleanup epic"`, not `"dealbot#271"`). To get a durable identifier (repo#number), search for the item by title on the board. Don't treat a title-only string as a dead end — it's enough to look up the item.
+   **Note:** `GET .../items` returns "Parent issue" as a display string (e.g., `"Cleanup epic"`, not `"dealbot#271"`). To get a durable identifier (repo#number), search for the item by title on the board. Don't treat a title-only string as a dead end — it's enough to look up the item. "Linked pull requests" is always a real JSON array of compact objects (`{repo, number, state, draft, title, author}`), `[]` when there are no linked PRs — filtering with `select(.["Linked pull requests"] == [])` works directly, no `fromjson` needed. (This field's type flip-flopped across sweeps in 2026-07 due to a client bug; fixed 2026-08 so `_format_item` always returns a structured array for this field instead of round-tripping it through the generic string formatter. If you see a JSON-encoded string again, that's a regression — check `github_projects_client/items.py`'s `STRUCTURED_LIST_FIELDS` handling.)
 
 11. **Check reviewer permissions before acting on approvals.** Some rules (R-SL-001) require confirming that a reviewer has sufficient access (write, maintain, or admin) before treating their approval as authoritative. Use `gh api repos/{owner}/{repo}/collaborators/{username}/permission --jq '.permission'` to check — look for `write`, `maintain`, or `admin`. An approval from a user with only `read` or `triage` access doesn't unblock a PR for merge. When checking multiple reviewers across repos, batch by repo to minimize API calls (one permission check per unique reviewer-repo pair).
 
@@ -96,6 +96,10 @@ When applying rules (whether by LLM or human):
 
 15. **Cross-reference with relative links.** When a rule references another rule or section in a different file, use a relative markdown hyperlink (e.g., `[R-FC-004](field-completeness.md#r-fc-004-cycle-theme-defaults-by-repository)`). This removes ambiguity about where a cross-reference lives and helps both humans and LLMs navigate. Within the same file, links are optional since the reader is already there. **Exception:** `sweep-playbook.md` references rules by ID on nearly every line — don't hyperlink rule IDs there. The playbook is a dense operational checklist; adding links would hurt readability. Rule IDs are unique and searchable.
 
+16. **Investigate before flagging.** Before adding any item to the "flags for human" list, read its comment stream (via GraphQL batch or `gh issue view --json comments`). Comments frequently explain why an item is in its current state (e.g., "keeping open for dashboard updates" on an issue whose linked PR merged). If the comments answer the question, resolve it yourself instead of flagging. If you still need to flag, include the relevant comment context so the human can decide without investigating further. False flags waste human attention and erode trust in sweep output.
+
+17. **Milestone mutations require native GitHub tools, not the board REST API.** The board REST API rejects `PUT items/field/Milestone` with `Unsupported field type: MILESTONE` — milestones live on the issue/PR itself, not as a project-board field value. Use `gh issue edit <number> -R <owner>/<repo> --milestone "<title>"` (milestones are referenced by title, not number). Unlike `gh pr edit`, `gh issue edit --milestone` does **not** fail on Projects Classic repos, so the `gh api` workaround from [general behavior rule 13](#general-behavior) is not required. The board REST API accepts Status, Cycle, and Cycle Theme writes; assignees, milestones, reviewers, and labels must go through `gh`/`gh api`. (Added after 2026-06-23 sweep where `PUT items/field/Milestone` failed on infra#255.)
+
 ## How to use
 
 These rules can be applied manually or referenced by an LLM when performing board maintenance tasks. Each rule file describes:
@@ -109,6 +113,7 @@ These rules can be applied manually or referenced by an LLM when performing boar
 - [sweep-playbook.md](sweep-playbook.md) — Stage-by-stage workflow for a full board sweep
 - [sweep-agent-prompt.md](sweep-agent-prompt.md) — Prompt for running sweeps in fresh LLM sessions
 - [pr-hygiene.md](pr-hygiene.md) — Rules for keeping PR items well-formed
+- [pr-status-table.md](pr-status-table.md) — Canonical decision table for PR status routing (consumed by R-PR-006, R-SL-001, R-SL-007)
 - [status-lifecycle.md](status-lifecycle.md) — Rules for status transitions
 - [field-completeness.md](field-completeness.md) — Rules for required fields by status
 - [future-ideas.md](future-ideas.md) — Ideas for improving the tooling

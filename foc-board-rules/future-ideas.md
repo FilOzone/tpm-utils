@@ -2,6 +2,26 @@
 
 Ideas for improving the FOC board tooling, collected during rule application sessions.
 
+## Move the mechanical rules out of the LLM entirely
+
+Roughly 60% of the 2026-07-07 sweep's ~395 mutations (dependabot theme/status/cycle via R-PR-002/003 and R-FC-006, release-PR moves via R-PR-004, merged/closed to Done via R-PR-008/009) are pure functions of observable state with zero judgment. A small script (cron job, GitHub Action, or an endpoint on the existing REST server) could run these hourly. The LLM sweep would then start from a clean board and spend its entire budget on the judgment calls (R-PR-006 routing, staleness, flag triage), which is where it actually adds value.
+
+**Spec already exists:** [pr-status-table.md](pr-status-table.md) defines the routing logic as a pure function (inputs in, target status out) with regression cases; the mechanical subset (rows 1-2 plus R-PR-008/009) is the natural first slice to script.
+
+**Consistency note:** this matches the repo tenet of retiring custom LLM-driven capability when a simpler tool suffices. It should still log old → new values to the audit log so sweep reports stay complete.
+
+**Triggered by:** agent feedback after the 2026-07-07 full sweep (~395 mutations across 6 stages).
+
+## Sweep journal for incremental sweeps
+
+Each sweep re-derives the whole board from scratch. Persist the final item-state snapshot at the end of each sweep (one JSON file per sweep, ~200 bytes/item: ref, status, cycle, theme, assignee, board `updated`, GitHub `updatedAt`, flags raised). The next sweep can then run incrementally: only items whose GitHub/board `updated` changed since the snapshot need evaluation.
+
+**Second benefit, regression detection:** the journal records what was flagged last sweep. If an item was flagged and a human dismissed the flag (no state change), the next sweep can skip re-flagging it instead of re-litigating. Today only R-SL-008's comment-check guidance protects against re-flagging things a human consciously left alone.
+
+**Open questions:** where snapshots live (repo, `$SWEEP` archive dir, or served by the REST server), and how to avoid trusting a stale snapshot after board schema changes.
+
+**Triggered by:** agent feedback after the 2026-07-07 full sweep.
+
 ## Augmented PR metadata endpoint in REST API
 
 Add a REST API endpoint (or option on `GET .../items`) that returns GitHub PR metadata (author, isDraft, reviewDecision, reviewRequests) alongside board field data, so the agent doesn't need to make separate `gh pr list` calls per repo.
@@ -12,6 +32,8 @@ Add a REST API endpoint (or option on `GET .../items`) that returns GitHub PR me
 - **Eliminate cross-referencing.** The agent currently has to join board data with GitHub data across 70+ items via `jq`. The server could return a single unified view.
 
 **Estimated impact:** Would replace ~10 parallel `gh pr list` calls + ~5 targeted `gh pr view` calls with a single API call, and eliminate the most error-prone step of the sweep (cross-referencing two data sources across 70 items).
+
+**Update (2026-07-09, post-sweep feedback):** still the single highest-leverage server change. Concretely: an `enrich=pr` query parameter on `GET .../items` that adds `isDraft`, `reviewDecision`, `author`, `reviewRequests`, `closedAt`, and `stateReason` to PR items. The server already holds a GitHub token. This would collapse Stage 1 from ~10 orchestrated tool calls to 2 and delete roughly a third of the playbook's prose (Phase 1 per-repo `gh pr list`, the Phase 2/2b batch jq join, and three pitfalls about parallel output interleaving exist solely because the board API lacks these fields). `closedAt`/`stateReason` would also remove the GraphQL side-trip Stage 5's R-FC-008 guard requires.
 
 ## ~~Async result refs for large query results~~ — Solved
 
