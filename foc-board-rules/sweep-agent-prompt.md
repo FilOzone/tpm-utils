@@ -13,8 +13,8 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `sweep-playbook.md` — The stage-by-stage workflow you will follow
    - `pr-hygiene.md` — Rules R-PR-001 through R-PR-009
    - `pr-status-table.md` — Canonical decision table for PR status routing (R-PR-006 and related rules defer to it)
-   - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
-   - `field-completeness.md` — Rules R-FC-001 through R-FC-010
+   - `status-lifecycle.md` — Rules R-SL-001 through R-SL-010, plus status definitions and terminology
+   - `field-completeness.md` — Rules R-FC-001 through R-FC-011
 
 2. **Run Stage 0** from `sweep-playbook.md` — this sets up `$GITHUB_TOKEN`, `$API`, `$SWEEP`, discovers the current cycle, and verifies the server is running.
 

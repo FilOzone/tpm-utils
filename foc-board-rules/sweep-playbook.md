@@ -327,8 +327,8 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 - R-SL-008: Issues with linked PRs → set status based on PR state (Issue awaiting PR merge, In Progress, or Done), inherit assignee/cycle/milestone
 - R-SL-008 (unlinked PR discovery): Triage issues with no formal linked PRs (`LP=[]`) → batch-fetch `closedByPullRequestsReferences` and `timelineItems(CROSS_REFERENCED_EVENT)` via GraphQL to catch informal references and board-field lag. See below.
 - R-FC-004: Set Cycle Theme from repo defaults
-- R-FC-003: Ensure Milestone is set (check parent issue for inheritance)
-- R-SL-004: Move to Todo if both Cycle Theme and Milestone are set (and no linked PRs)
+- R-FC-003: **Paused** (see [field-completeness.md](field-completeness.md#r-fc-003-all-open-issues-should-have-a-milestone)) — do not check or flag Milestone gaps
+- R-SL-004: Move to Todo if both Cycle Theme and Milestone are set (and no linked PRs) — Milestone may already be absent for reasons unrelated to R-FC-003's pause; this rule's own condition is unchanged
 
 **Discovering unlinked PRs on Triage issues:**
 Triage issues are especially likely to have unlinked PRs — a developer may jump on a freshly filed issue before it's even triaged. After processing formal linked PRs above, check Triage issues where `LP=[]`:
@@ -339,20 +339,19 @@ Triage issues are especially likely to have unlinked PRs — a developer may jum
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme (R-FC-004), Status → Todo (R-SL-004 when both fields are set), linked-PR status transitions (R-SL-008)
-- Flagged for human: Missing Milestone when no parent to inherit from, Triage issues with cross-referencing PRs discovered via GraphQL
+- Flagged for human: Triage issues with cross-referencing PRs discovered via GraphQL (Missing Milestone flagging is paused with R-FC-003)
 
 ## Stage 3: Non-Done issues — field completeness
 
-**Goal:** Ensure all non-Done issues have Cycle Theme and Milestone.
+**Goal:** Ensure all non-Done issues have Cycle Theme. (Milestone completeness is paused — see R-FC-003.)
 
 **Queries:**
 - `is:issue -status:"🎉 Done" no:cycle-theme`
-- `is:issue -status:"🎉 Done" no:milestone`
 
 **Exclude:** Items with Cycle Theme "zOrganizing Item" (meta/tracking items, not real work).
 
 **Rules applied:**
-- R-FC-003: All open issues should have a Milestone
+- R-FC-003: **Paused** (see [field-completeness.md](field-completeness.md#r-fc-003-all-open-issues-should-have-a-milestone)) — skip the `no:milestone` query and do not flag Milestone gaps
 - R-FC-004: Infer Cycle Theme from repository
 - R-FC-011: Flag unrecognized Cycle Theme values
 
@@ -360,7 +359,7 @@ Triage issues are especially likely to have unlinked PRs — a developer may jum
 
 **Automated vs. flagged:**
 - Automated: Cycle Theme from repo defaults (R-FC-004)
-- Flagged for human: Missing Milestone on items without a parent to inherit from, items in external repos where milestone can't be set, unrecognized Cycle Theme values (R-FC-011)
+- Flagged for human: unrecognized Cycle Theme values (R-FC-011)
 
 ## Stage 4: Active items — health check
 

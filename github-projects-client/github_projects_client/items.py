@@ -379,7 +379,7 @@ def get_item(
     org: str,
     project_number: int,
     item_ref: str,
-) -> Optional[Dict[str, str]]:
+) -> Optional[Dict[str, Any]]:
     """
     Get details of a specific project item by reference.
 

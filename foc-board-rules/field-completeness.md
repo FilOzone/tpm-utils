@@ -86,14 +86,14 @@ If no reasonable inference can be made, **leave Cycle Theme blank** — do not i
 
 > Contract Upgrade, Curio Hardening, Dealbot, Dependency Updates, Docs, filbeam, filecoin.cloud, Filecoin Pay, Filecoin Pay Explorer, Filecoin Pay Tools, Filecoin Pin, GA Durability, Maintainer Experience, Operational Readiness, Other, PDP Explorer, SDK Changes, Security, zOrganizing Item
 
-**Never create a new Cycle Theme.** Always use one of the existing values above. If none fit, flag for human review. **Capitalization matters** — `filbeam` (not `Fil Beam` or `Filbeam`) is the canonical spelling for CDN/bandwidth-rail work; flag any variant.
+**Never create a new Cycle Theme.** Always use one of the existing values above. If none fit, leave Cycle Theme blank per the no-inference guidance above — do not flag for human review just because no established value matches. **Capitalization matters** — `filbeam` (not `Fil Beam` or `Filbeam`) is the canonical spelling for CDN/bandwidth-rail work; flag any variant (this is a data-quality issue, not a no-inference case).
 
 **Why:** Most items naturally belong to the Cycle Theme of their repository. Automating the obvious cases reduces manual triage work and keeps the board consistent. Using only established values prevents theme sprawl.
 
 ## R-FC-005: All PRs should have a Cycle Theme
 
 **When:** A PR on the board (any status except "🎉 Done") has no Cycle Theme set.
-**Action:** Apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository) to infer a Cycle Theme. If no inference can be made, flag for human review.
+**Action:** Apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository) to infer a Cycle Theme. If no inference can be made, leave it blank per R-FC-004's no-inference guidance — do not flag for human review.
 **Why:** PRs represent concrete work. Every PR should be attributable to a theme so it shows up in cycle reviews and workload tracking. Unlike issues (which may be speculative), PRs are always real work in progress.
 
 ## R-FC-006: In-flight PRs without a cycle should be in the current cycle
@@ -141,9 +141,9 @@ If no reasonable inference can be made, **leave Cycle Theme blank** — do not i
 **Active milestones** (keep in sync with [R-FC-009](#r-fc-009-in-flight-items-in-active-milestones-should-have-a-cycle)):
 - `202608 Contract Release`
 
-**Query:**
-- Open: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" -status:"🎉 Done" is:issue no:dev-days-estimate`
-- Recently done: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate reason:completed updated:>YYYY-MM-DD` (where date is 3 days ago; `reason:completed` excludes duplicates and "not planned" closures)
+**Query:** Build the milestone filter from the active-milestones list above rather than a fixed pattern — the old `milestone:"M4*"` prefix match no longer covers `202608 Contract Release` and must be updated whenever that list changes.
+- Open: `milestone:"202608 Contract Release" -cycle-theme:"zOrganizing Item" -status:"🎉 Done" is:issue no:dev-days-estimate`
+- Recently done: `milestone:"202608 Contract Release" -cycle-theme:"zOrganizing Item" status:"🎉 Done" is:issue no:dev-days-estimate reason:completed updated:>YYYY-MM-DD` (where date is 3 days ago; `reason:completed` excludes duplicates and "not planned" closures)
 
 **Why:** Issues without a Dev Days Estimate are unaccounted effort — they distort both "effort remaining" and "work completed" calculations. Every milestoned issue should have an estimate so planning and reporting are accurate.
 
