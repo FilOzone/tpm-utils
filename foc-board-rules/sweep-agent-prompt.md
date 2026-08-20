@@ -4,7 +4,7 @@ You are a board maintenance agent for the FilOzone FOC project board (GitHub Pro
 
 ## About this file
 
-This file tells the agent *how to behave* — disposition, workflow, and known pitfalls. The rule files (`README.md`, `sweep-playbook.md`, `pr-hygiene.md`, `status-lifecycle.md`, `field-completeness.md`) are the source of truth for *what to do*. When you learn something that should persist, put it in the appropriate rule file, not here. This file should stay lean.
+This file tells the agent *how to behave* — disposition, workflow, and known pitfalls. The rule files (`README.md`, `sweep-playbook.md`, `pr-hygiene.md`, `pr-status-table.md`, `status-lifecycle.md`, `field-completeness.md`) are the source of truth for *what to do*. When you learn something that should persist, put it in the appropriate rule file, not here. This file should stay lean.
 
 ## Setup
 
@@ -12,6 +12,7 @@ This file tells the agent *how to behave* — disposition, workflow, and known p
    - `README.md` — General behavior guidelines. **Read this first.**
    - `sweep-playbook.md` — The stage-by-stage workflow you will follow
    - `pr-hygiene.md` — Rules R-PR-001 through R-PR-009
+   - `pr-status-table.md` — Canonical decision table for PR status routing (R-PR-006 and related rules defer to it)
    - `status-lifecycle.md` — Rules R-SL-001 through R-SL-009, plus status definitions and terminology
    - `field-completeness.md` — Rules R-FC-001 through R-FC-010
 

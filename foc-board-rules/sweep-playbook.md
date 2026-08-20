@@ -4,6 +4,8 @@ Prescribed stage-by-stage workflow for a full board sweep. Each stage uses targe
 
 Work through stages in order. Complete all actions and reporting for one stage before moving to the next.
 
+**The board is live during a sweep.** Humans and automations keep mutating items while stages run, so an item can legitimately appear with contradictory states in different stage queries (e.g., Triage in Stage 2, Done in Stage 5). Before flagging such a contradiction as a data anomaly, re-fetch the single item (`GET .../items/{ref}`) and check GitHub (`closedAt`, `updatedAt`) — it usually just changed under you. (Added 2026-07-07 after filecoin-cloud#140 was closed by a human 10 minutes into a sweep.)
+
 ## Stage 0: Create sweep workspace
 
 Before any queries, set up the sweep workspace and discover the board API:
@@ -111,6 +113,15 @@ gh api graphql -f query='{
 
 The first iteration in the list whose date range contains today is the current cycle.
 
+**Record the result in this exact shape** (in your progress notes and the final report) so later stages and the human can use it without re-derivation:
+
+```
+Current cycle: <title> (<startDate> → <end date>, <duration> days)
+# e.g.  Current cycle: 202607-1 (2026-07-06 → 2026-07-19, 14 days)
+```
+
+The `<title>` string (e.g., `202607-1`) is the value to pass to Cycle field mutations; the end date is `startDate + duration - 1` days. If today falls in no iteration's range (gap between cycles), report that explicitly and flag for the human instead of guessing.
+
 `$SWEEP` holds all working files for this run (avoids collisions with prior sweeps). `$API` is the board REST API prefix — all board queries and mutations go through it via `curl`.
 
 All examples in this playbook use `$SWEEP/` as shorthand for this directory. Board API calls use `"$SWEEP/bin/foc_gh_get"` and `"$SWEEP/bin/foc_gh_put"` (scripts created in step 3). **Always use the full path** — each Bash tool call is a fresh shell, so `PATH` and `export` don't persist. Set `SWEEP=<path>` at the start of each Bash call (the scripts handle `$API` and `$GITHUB_TOKEN` internally via `env.sh`).
@@ -144,7 +155,7 @@ All examples in this playbook use `$SWEEP/` as shorthand for this directory. Boa
 - R-PR-003: Dependabot PRs in Triage → Todo
 - R-PR-004: Release PRs in Triage → Todo
 - R-PR-005: Draft PRs in review/approval statuses → In Progress
-- R-PR-006: Non-draft, non-bot PRs in Triage or In Progress → correct status (Awaiting Review, In Progress, or Approved based on review state)
+- R-PR-006: Non-draft, non-bot PRs in Triage or In Progress → correct status (route via the decision table in `pr-status-table.md`)
 - R-PR-007: Awaiting Review PRs must have human reviewer engagement (flag if not)
 - R-PR-008: Merged PRs → Done
 - R-PR-009: Closed PRs → Done
@@ -300,6 +311,8 @@ done
 
 This gives you a clean, small dataset to reason about — typically 15-30 items instead of 100+.
 
+**Pitfall — never use `//` to default boolean fields when joining.** When copying Phase 1 fields into the joined record, `{isDraft: ($gh.isDraft // null)}` silently turns `isDraft: false` into `null`, because jq's `//` treats `false` as empty. This makes every `select(.isDraft == false ...)` bucket (notably the R-PR-006 candidate list) come back empty, so non-draft Triage/In Progress PRs are missed entirely. Guard the whole lookup instead: `isDraft: (if $gh then $gh.isDraft else null end)`. The same applies to any other field whose legitimate value can be `false` or `0`. (Added after the 2026-07-15 sweep, where `pr006_candidates` initially returned 0 despite 8 real candidates.)
+
 **Automated vs. flagged:**
 - Automated: Status transitions (R-PR-002–009, R-SL-001, R-SL-007), Cycle Theme (R-FC-004/005), Cycle (R-FC-006), assignee (R-PR-001 for PRs)
 - Flagged for human: Missing reviewers (R-PR-007), R-SL-001 when permissions are unclear, R-SL-006 PRs in wrong status
@@ -319,7 +332,7 @@ This gives you a clean, small dataset to reason about — typically 15-30 items 
 
 **Discovering unlinked PRs on Triage issues:**
 Triage issues are especially likely to have unlinked PRs — a developer may jump on a freshly filed issue before it's even triaged. After processing formal linked PRs above, check Triage issues where `LP=[]`:
-1. Filter the Stage 2 query results to Triage issues with empty "Linked pull requests". Exclude zOrganizing Items.
+1. Filter the Stage 2 query results to Triage issues with empty "Linked pull requests" (the field is always a JSON array, so `jq '[.items[] | select(.["Linked pull requests"] == [])]'` works directly). Exclude zOrganizing Items.
 2. Batch-fetch `closedByPullRequestsReferences` and `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` via GraphQL (general behavior rule 12). Include `closedByPullRequestsReferences` because the board's "Linked pull requests" field can lag — a formal reference may exist on GitHub but not yet appear in board data.
 3. For each cross-referencing or closing PR found: flag for human with the PR reference, its state (open/merged/closed), and whether it's on the board. If the PR is merged, note that the issue may be ready for Done (per R-SL-003).
 4. Do not auto-transition — the human confirms whether the reference is a true closing relationship. (Added after filecoin-pin#557 was missed in Triage despite having a merged closing PR #560, 2026-06-07 sweep.)

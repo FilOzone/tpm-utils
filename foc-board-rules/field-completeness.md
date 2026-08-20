@@ -37,6 +37,8 @@ Rules for ensuring board items have the right fields populated based on their st
 
 ## R-FC-003: All open issues should have a Milestone
 
+**Status: paused (2026-08-19).** Do not flag Milestone gaps during sweeps until this note is removed — milestones can be ignored for now.
+
 **When:** An **issue** on the board (any status except "🎉 Done") has no milestone set. Exclude items with Cycle Theme "zOrganizing Item" (meta/tracking items), [external items](status-lifecycle.md#terminology) (milestones can't be set), and **project notes** (draft items with no repository — milestones are a repo-level field and don't exist for notes).
 **Action:** First, check if the issue has a parent issue (via `GET .../items/{ref}` — look for "Parent issue" field). If the parent has a milestone, inherit it. Otherwise, flag for human review, grouped by Cycle Theme or repository. Report the item's current status, assignee, and Cycle Theme to help the human decide.
 **Scope:** Issues only. **Milestones on PRs are optional** — PRs often inherit their delivery context from the issue they close, and many repos don't milestone PRs at all.
@@ -69,6 +71,8 @@ Rules for ensuring board items have the right fields populated based on their st
 | `FilOzone/pdp` | Contract Upgrade | |
 | `FilOzone/security-triage` | Security | |
 | `FilOzone/infra` | Other | Unless a better theme applies (see below) |
+| `FilOzone/github-mgmt` | Maintainer Experience | GitHub org/project management tooling |
+| `FilOzone/foc-gh` | Maintainer Experience | GitHub helper tooling (added 2026-07-07; confirm) |
 | `filbeam/*` | filbeam | Anything in the `filbeam` GitHub org. |
 
 For repositories not listed above, check the item title and description for context clues. In particular:
@@ -76,7 +80,7 @@ For repositories not listed above, check the item title and description for cont
 - **infra** items that reference a specific product in the title or description (e.g., "dealbot" in the title) should inherit that product's Cycle Theme. Otherwise default to "Other" — including for `docs:`-prefixed PRs (see above).
 - **Stacked PRs**: Check if the item's description or comments reference related PRs/issues. If it's stacked on or related to another item that already has a Cycle Theme, use the same theme.
 
-If no reasonable inference can be made, flag for human review — do not invent a new Cycle Theme value.
+If no reasonable inference can be made, **leave Cycle Theme blank** — do not invent a new Cycle Theme value, and do not propose adding a new value to the established list (even for high-volume new repos). It's fine for items to have no Cycle Theme. (Clarified 2026-08-19: a sweep should not treat unrecognized repos as a decision the human needs to make — just leave the field empty and move on.)
 
 **Existing Cycle Theme values** (as of 2026-06-18):
 
@@ -106,10 +110,11 @@ If no reasonable inference can be made, flag for human review — do not invent 
 **Scope:** Does **not** apply to items in "📌 Triage" or "🐱 Todo" — those are backlog items planned for the milestone but not yet started. Adding them to the current cycle would overstate the cycle's scope. They'll get a cycle when work begins.
 
 **Active milestones** (update this list as milestones are retired/created):
-- `M4.1: mainnet ready`
-- `M4.2: mainnet GA`
+- `202608 Contract Release`
 
-**Why:** Items actively being worked on should appear in cycle planning views so nothing slips. But a milestone like M4.2 may contain dozens of Todo items that span multiple future cycles — pulling them all into the current cycle creates noise. Items in future or retired milestones (e.g., `M4.5`, `MX`) don't need a cycle yet — they'll get one when their milestone becomes active.
+(Updated 2026-08-18 sweep: `M4.1: mainnet ready` and `M4.2: mainnet GA` no longer appear on any open board item — a board-wide scan for `has:milestone` on open issues returned only `202608 Contract Release`, `M4.5: GA Fast Follows`, and `MX: Priority and sequencing TBD`. Both M4.1 and M4.2 appear to have been retired/closed and superseded. If M4.1/M4.2 return in a future milestone cycle, re-add them here.)
+
+**Why:** Items actively being worked on should appear in cycle planning views so nothing slips. But an active milestone may contain dozens of Todo items that span multiple future cycles — pulling them all into the current cycle creates noise. Items in future or retired milestones (e.g., `M4.5`, `MX`) don't need a cycle yet — they'll get one when their milestone becomes active.
 
 ## R-FC-007: Items in Triage need minimal fields (except PRs)
 
@@ -121,6 +126,10 @@ If no reasonable inference can be made, flag for human review — do not invent 
 
 **When:** An item is in "🎉 Done" and was updated within the last 7 days (use `updated:>YYYY-MM-DD` filter).
 **Action:** Ensure the item has a Cycle Theme (apply [R-FC-004](#r-fc-004-cycle-theme-defaults-by-repository)), a Cycle (set to the current cycle if missing), and an Assignee (for PRs, use the PR author per [R-PR-001](pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author)). Skip bot-authored PRs for assignee (R-PR-001 skip rules apply).
+**Guard — verify the close is real and recent before backfilling Cycle/Assignee:** The board `updated` timestamp reflects board-row touches, not the GitHub close. Before backfilling, batch-check `closedAt` and `stateReason` via GraphQL:
+- **`closedAt` outside the window** (item closed long ago but board row touched recently, e.g., by a project-automation workflow) → skip backfill; the reporting window for that work has passed.
+- **`stateReason` of `NOT_PLANNED` or `DUPLICATE`** → skip Cycle and Assignee backfill; these represent no actual effort and backfilling attributes phantom work to the current cycle. Cycle Theme is still fine to set.
+(Added 2026-07-07 after a backlog-cleanup wave: ~20 old issues bulk-closed showed up as "recently done"; github-mgmt#10 had `closedAt` 2025-07-18, and dealbot#415 / filecoin-pay-explorer#52 were NOT_PLANNED/DUPLICATE.)
 **Why:** Recently-completed items need proper tagging so periodic reporting captures the work. Without Cycle Theme, Cycle, and Assignee, done items fall through the cracks in cycle reviews and workload summaries. Older done items (beyond the 7-day window) are not worth backfilling — the reporting window has passed.
 
 ## R-FC-010: Issues in active milestones should have a Dev Days Estimate
@@ -130,8 +139,7 @@ If no reasonable inference can be made, flag for human review — do not invent 
 **Scope:** Issues only — PRs inherit effort context from their parent issue.
 
 **Active milestones** (keep in sync with [R-FC-009](#r-fc-009-in-flight-items-in-active-milestones-should-have-a-cycle)):
-- `M4.1: mainnet ready`
-- `M4.2: mainnet GA`
+- `202608 Contract Release`
 
 **Query:**
 - Open: `milestone:"M4*" -milestone:"M4.5: GA Fast Follows" -cycle-theme:"zOrganizing Item" -status:"🎉 Done" is:issue no:dev-days-estimate`
