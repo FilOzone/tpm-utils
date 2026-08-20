@@ -40,6 +40,58 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
 # ---------------------------------------------------------------------------
 _BATCH_SIZE = 25
 
+FIELD_VALUE_BY_NAME_QUERY = """
+query($ids: [ID!]!, $field: String!) {
+    nodes(ids: $ids) {
+        ... on ProjectV2Item {
+            id
+            fieldValueByName(name: $field) {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+                ... on ProjectV2ItemFieldTextValue { text }
+                ... on ProjectV2ItemFieldNumberValue { number }
+                ... on ProjectV2ItemFieldDateValue { date }
+                ... on ProjectV2ItemFieldIterationValue { title }
+            }
+        }
+    }
+}
+"""
+
+
+def _fetch_old_values_by_node_id(
+    session: requests.Session,
+    *,
+    node_ids: List[str],
+    field_name: str,
+) -> Dict[str, str]:
+    """Fetch current field values for project item node IDs in one query per 100.
+
+    Best-effort: any lookup failure leaves the affected IDs out of the result,
+    so callers fall back to an empty old_value rather than failing the mutation.
+    """
+    old_values: Dict[str, str] = {}
+    for start in range(0, len(node_ids), 100):
+        chunk = node_ids[start : start + 100]
+        try:
+            data = graphql_query(
+                session,
+                FIELD_VALUE_BY_NAME_QUERY,
+                {"ids": chunk, "field": field_name},
+            )
+        except Exception:
+            continue
+        for node in data.get("nodes") or []:
+            if not isinstance(node, dict) or "id" not in node:
+                continue
+            value = node.get("fieldValueByName") or {}
+            for key in ("name", "text", "title", "date", "number"):
+                if value.get(key) is not None:
+                    old_values[node["id"]] = str(value[key])
+                    break
+            else:
+                old_values[node["id"]] = ""
+    return old_values
+
 
 def _resolve_field_and_value(
     session: requests.Session,
@@ -65,7 +117,7 @@ def _resolve_field_and_value(
     if not fields:
         return {"success": False, "error": f"Field not found: {field_name}"}
 
-    field_info = next(iter(fields.values()))
+    canonical_name, field_info = next(iter(fields.items()))
     field_id = field_info["id"]
     field_type = field_info.get("type", "unknown")
 
@@ -126,6 +178,7 @@ def _resolve_field_and_value(
         "success": True,
         "project_id": project_id,
         "field_id": field_id,
+        "canonical_name": canonical_name,
         "mutation_value": mutation_value,
     }
 
@@ -153,10 +206,15 @@ def _resolve_field_only(
     if not fields:
         return {"success": False, "error": f"Field not found: {field_name}"}
 
-    field_info = next(iter(fields.values()))
+    canonical_name, field_info = next(iter(fields.items()))
     field_id = field_info["id"]
 
-    return {"success": True, "project_id": project_id, "field_id": field_id}
+    return {
+        "success": True,
+        "project_id": project_id,
+        "field_id": field_id,
+        "canonical_name": canonical_name,
+    }
 
 
 def _execute_clear_batch(
@@ -289,12 +347,29 @@ def set_field_value_bulk(
     field_id = field_info["field_id"]
     mutation_value = field_info.get("mutation_value")  # None for clear
 
+    # For raw node IDs there is no per-item lookup, so batch-fetch the current
+    # field values up front; old_value would otherwise be empty in results.
+    pvti_refs = [ref for ref in item_refs if ref.startswith("PVTI_")]
+    pvti_old_values: Dict[str, str] = {}
+    if pvti_refs:
+        pvti_old_values = _fetch_old_values_by_node_id(
+            session,
+            node_ids=pvti_refs,
+            field_name=field_info.get("canonical_name", field_name),
+        )
+
     # Resolve each item — collect node IDs and old values
     resolved_items: List[Dict[str, Any]] = []
     for ref in item_refs:
         # If the ref is a raw project item node ID (starts with PVTI_), skip lookup
         if ref.startswith("PVTI_"):
-            resolved_items.append({"ref": ref, "node_id": ref, "old_value": ""})
+            resolved_items.append(
+                {
+                    "ref": ref,
+                    "node_id": ref,
+                    "old_value": pvti_old_values.get(ref, ""),
+                }
+            )
             continue
         details = get_item(
             session, org=org, project_number=project_number, item_ref=ref

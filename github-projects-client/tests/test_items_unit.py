@@ -283,6 +283,55 @@ class TestFormatFieldValueLinkedPRs:
         assert _format_field_value(users) == "alice, bob"
 
 
+class TestFormatItemLinkedPRs:
+    """'Linked pull requests' must always be a real JSON array, never a
+    JSON-encoded string and never ""; jq consumers need one consistent shape.
+    (Added 2026-07-09 after a sweep retry caused by the string/array split.)"""
+
+    ITEM_WITH_LINKED = {
+        "node_id": "PVTI_linked1",
+        "content": {
+            "url": "https://api.github.com/repos/FilOzone/dealbot/issues/500",
+            "number": 500,
+            "title": "an issue",
+            "assignees": [],
+        },
+        "fields": [
+            {
+                "name": "Linked pull requests",
+                "data_type": "linked_pull_requests",
+                "value": TestFormatFieldValueLinkedPRs.LINKED_PRS,
+            },
+        ],
+    }
+
+    def test_returns_real_array(self):
+        result = _format_item(self.ITEM_WITH_LINKED, ["Linked pull requests"])
+        value = result["Linked pull requests"]
+        assert isinstance(value, list)
+        assert value[0]["number"] == 487
+        assert value[0]["repo"] == "dealbot"
+        assert value[0]["author"] == "alice"
+
+    def test_empty_value_returns_empty_array(self):
+        item = dict(self.ITEM_WITH_LINKED)
+        item["fields"] = [
+            {
+                "name": "Linked pull requests",
+                "data_type": "linked_pull_requests",
+                "value": [],
+            }
+        ]
+        result = _format_item(item, ["Linked pull requests"])
+        assert result["Linked pull requests"] == []
+
+    def test_absent_field_returns_empty_array(self):
+        """When the REST API omits the field entirely (no linked PRs), the
+        requested field must still come back as [], not ""."""
+        result = _format_item(MOCK_ITEM, ["Linked pull requests"])
+        assert result["Linked pull requests"] == []
+
+
 # ---------------------------------------------------------------------------
 # _format_item tests — full item formatting with real field shapes
 # ---------------------------------------------------------------------------
