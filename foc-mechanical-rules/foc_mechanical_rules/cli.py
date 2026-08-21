@@ -7,10 +7,22 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
 
 from .github_api import FILOZ_ORG, PROJECT_NUMBER, build_session
+from .mutation_log import MutationLog, read_tsv, write_tsv
 from .registry import default_rules
 from .runner import render_summary, run_all
+
+# Default path for the persisted mutation log. Read at start, written at
+# end. *How* this file survives between separate CLI invocations (e.g.
+# hourly CI runs) is entirely up to whoever runs this command -- see
+# README.md's "Mutation log" section. In CI that's GitHub Actions cache
+# restoring/saving this same path; that's a workflow-file concern, not
+# something this module needs to know about.
+_DEFAULT_MUTATION_LOG_PATH = (
+    Path(__file__).resolve().parent.parent / "state" / "mutations.tsv"
+)
 
 
 def main() -> None:
@@ -44,6 +56,12 @@ def main() -> None:
         action="store_true",
         help="Suppress per-item progress logging (only print the final summary)",
     )
+    parser.add_argument(
+        "--mutation-log",
+        default=str(_DEFAULT_MUTATION_LOG_PATH),
+        help="Path to the persisted mutation-history TSV, read at start and "
+        "written at end (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -63,13 +81,19 @@ def main() -> None:
         rule.org = args.org
         rule.project_number = args.project_number
 
-    runs = run_all(session, rules, dry_run=args.dry_run)
+    mutation_log_path = Path(args.mutation_log)
+    mutation_log = MutationLog(read_tsv(mutation_log_path))
+
+    runs = run_all(session, rules, dry_run=args.dry_run, mutation_log=mutation_log)
     summary = render_summary(rules, runs)
     print(summary)
 
     if args.output:
         with open(args.output, "a", encoding="utf-8") as f:
             f.write(summary)
+
+    if not args.dry_run:
+        write_tsv(mutation_log_path, mutation_log.all())
 
     if any(r.status == "error" for run in runs for r in run.results):
         sys.exit(1)

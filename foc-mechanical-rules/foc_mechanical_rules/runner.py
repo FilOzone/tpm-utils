@@ -7,17 +7,22 @@ from typing import List
 import requests
 from github_projects_client.audit_log import log_action
 
+from .mutation_log import MutationLog
 from .rule import Rule, RuleRun
 
 CALLER = "foc-mechanical-rules"
 
 
 def run_all(
-    session: requests.Session, rules: List[Rule], *, dry_run: bool
+    session: requests.Session,
+    rules: List[Rule],
+    *,
+    dry_run: bool,
+    mutation_log: MutationLog,
 ) -> List[RuleRun]:
     runs = []
     for rule in rules:
-        run = rule.run(session, dry_run=dry_run)
+        run = rule.run(session, dry_run=dry_run, mutation_log=mutation_log)
         for result in run.results:
             if result.status not in ("applied", "flagged", "error"):
                 continue

@@ -33,6 +33,20 @@ jobs:
         run: uv sync
         working-directory: foc-mechanical-rules
 
+      # Some rules (e.g. R-FC-012) depend on the mutation log described in
+      # foc-mechanical-rules/README.md#mutation-log. The library itself is
+      # agnostic about persistence; this cache step is the runtime decision
+      # that makes the CLI's --mutation-log file survive across hourly runs.
+      # Restore via a key prefix (most recent run's cache) and always save
+      # under a fresh run-scoped key so updates are never lost.
+      - name: Restore mutation history cache
+        uses: actions/cache/restore@v4
+        with:
+          path: foc-mechanical-rules/state
+          key: foc-mechanical-rules-state-${{ github.run_id }}
+          restore-keys: |
+            foc-mechanical-rules-state-
+
       - name: Apply mechanical rules
         env:
           GITHUB_TOKEN: ${{ secrets.FILOZZY_CI_ADD_TO_PROJECT }}
@@ -45,3 +59,10 @@ jobs:
           fi
           uv run foc-mechanical-rules $ARGS -o "$GITHUB_STEP_SUMMARY"
         working-directory: foc-mechanical-rules
+
+      - name: Save mutation history cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: foc-mechanical-rules/state
+          key: foc-mechanical-rules-state-${{ github.run_id }}

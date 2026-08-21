@@ -11,3 +11,7 @@ dist/
 
 # MCP action audit log (append-only, runtime-generated)
 action_log.jsonl
+
+# foc-mechanical-rules' persisted mutation history (restored/saved via GitHub
+# Actions cache in CI, not committed)
+foc-mechanical-rules/state/
