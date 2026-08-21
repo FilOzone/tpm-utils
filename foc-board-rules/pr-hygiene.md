@@ -4,6 +4,8 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 ## R-PR-001: Unassigned PRs should be assigned to their author
 
+**Enforced mechanically, hourly:** this rule is a pure function of observable state, so it runs automatically via [`foc-mechanical-rules`](../foc-mechanical-rules/) (see [R-PR-001's implementation](../foc-mechanical-rules/foc_mechanical_rules/rules/assignee.py)), scheduled by [`.github/workflows/foc-board-mechanical-rules.yml`](../.github/workflows/foc-board-mechanical-rules.yml). A sweep no longer needs to apply it by hand — the prose below stays canonical for *what* the rule does and *why*; the linked module is canonical for exactly how it's evaluated.
+
 **When:** A PR on the board has no assignee.
 **Action:** Set the assignee to the PR author (look up via GitHub API).
 **Skip if:** The author is a bot (`app/dependabot`, `FilOzzy`, or any `app/*` author) — with one exception: **merged release PRs** (e.g., `chore(master): release ...`, `chore: release to production (main)`) should be assigned to the person who merged or approved them, since that human is accountable for the release. Use `gh api repos/{owner}/{repo}/pulls/{number} --jq '.merged_by.login'` to find the merger. Dependabot PRs can be left unassigned.

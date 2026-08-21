@@ -117,3 +117,4 @@ These rules can be applied manually or referenced by an LLM when performing boar
 - [status-lifecycle.md](status-lifecycle.md) — Rules for status transitions
 - [field-completeness.md](field-completeness.md) — Rules for required fields by status
 - [future-ideas.md](future-ideas.md) — Ideas for improving the tooling
+- [../foc-mechanical-rules/](../foc-mechanical-rules/) — Periodic automated enforcement of the subset of rules above that require zero judgment.

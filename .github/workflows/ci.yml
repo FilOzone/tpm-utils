@@ -30,6 +30,7 @@ jobs:
           - foc-pr-report
           - foc-review-stats
           - github-project-export
+          - foc-mechanical-rules
     steps:
       - uses: actions/checkout@v4
 

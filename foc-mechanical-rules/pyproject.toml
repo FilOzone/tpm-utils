@@ -1,0 +1,26 @@
+[project]
+name = "foc-mechanical-rules"
+version = "0.1.0"
+description = "Hourly mechanical enforcement of FOC board rules that require zero judgment"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "requests>=2.31",
+    "github-projects-client",
+]
+
+[project.scripts]
+foc-mechanical-rules = "foc_mechanical_rules.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
+[build-system]
+requires = ["hatchling>=1.24.2"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+markers = ["integration: hits live GitHub API (requires GITHUB_TOKEN)"]
+
+[tool.uv.sources]
+github-projects-client = { path = "../github-projects-client", editable = true }
