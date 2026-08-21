@@ -60,9 +60,18 @@ class MutationLog:
         self._by_item[mutation.item].append(mutation)
 
     def all(self) -> List[MutationRecord]:
-        """Every mutation across every item (grouped by item, not globally
-        time-ordered — nothing here depends on cross-item ordering)."""
-        return [m for records in self._by_item.values() for m in records]
+        """Every mutation across every item, oldest first.
+
+        Sorted by timestamp (ISO-8601, so lexicographic order is
+        chronological) rather than returned in item-grouped insertion
+        order — this is what write_tsv persists, and a rewritten TSV
+        should read the same chronologically on every run, not get
+        reshuffled into item clusters each time.
+        """
+        return sorted(
+            (m for records in self._by_item.values() for m in records),
+            key=lambda m: m.timestamp,
+        )
 
 
 def read_tsv(path: Path) -> List[MutationRecord]:

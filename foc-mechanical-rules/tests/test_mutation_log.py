@@ -51,6 +51,20 @@ def test_all_returns_every_record_across_items():
     assert len(log.all()) == 2
 
 
+def test_all_orders_by_timestamp_not_by_item():
+    # Regression: all() used to group by item (dict iteration order), which
+    # silently reshuffled the persisted TSV on every rewrite. It should stay
+    # chronological regardless of how items interleave.
+    log = MutationLog(
+        [
+            _record(item="a#1", timestamp="2026-08-21T00:00:00+00:00"),
+            _record(item="b#2", timestamp="2026-08-21T00:00:01+00:00"),
+            _record(item="a#1", timestamp="2026-08-21T00:00:02+00:00"),
+        ]
+    )
+    assert [r.item for r in log.all()] == ["a#1", "b#2", "a#1"]
+
+
 def test_tsv_round_trip(tmp_path):
     path = tmp_path / "mutations.tsv"
     records = [_record(item="a#1"), _record(item="b#2", new_value="202608-3")]
