@@ -17,11 +17,18 @@ Rules are registered in `registry.py`. Adding a new rule means adding a new modu
 
 Every `applied`, `flagged`, or `error` outcome is written to the shared [`action_log.jsonl`](../github-projects-client/action_log.jsonl) audit log used by LLM sweeps, so a sweep report stays complete even when some of the work happened here instead.
 
+## Persisted mutation history
+
+GitHub has no change-history API for most Projects v2 custom fields — only the Status field gets a timeline event. So a rule that needs to know "did I already set this, and has a human since undone it" can't ask GitHub; it has to remember. `state.py` keeps a small append-only TSV (`state/mutations.tsv`, one row per real mutation: `timestamp`, `rule`, `item`, `field`, `old_value`, `new_value`) that every rule's `applied` outcomes are recorded to automatically (via the base `Rule.run()`), and that any rule can query back (see `rules/cycle.py` for an example — it checks whether it previously set an item's Cycle to the current cycle before deciding to re-set it).
+
+This file is not committed — in CI it's restored/saved across hourly runs via GitHub Actions cache (see the workflow file). That's good enough for now; if the cache proves unreliable, `future-ideas.md` is the place to propose something more durable.
+
 ## Rules implemented
 
 | Rule | Field | Description |
 | --- | --- | --- |
 | [R-PR-001](../foc-board-rules/pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author) | assignee | Unassigned open PRs are assigned to their author (skipping bots, with a merged-release-PR carve-out, and skipping PRs where a human explicitly removed the assignee) |
+| [R-FC-012](../foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle) | cycle | Issues/PRs updated in the last 3 days with no Cycle get the current cycle, unless this tool previously set that item's Cycle to the current one and a human has since cleared it |
 
 ## Usage
 

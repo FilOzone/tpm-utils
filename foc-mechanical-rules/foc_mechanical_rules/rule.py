@@ -9,11 +9,14 @@ explanation so the two never drift apart silently.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import requests
+
+from .state import MutationRecord, append_mutation
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,19 @@ class Rule:
         for i, item in enumerate(items, start=1):
             result = self.apply_one(session, item, dry_run=dry_run)
             results.append(result)
+
+            if not dry_run and result.status == "applied":
+                append_mutation(
+                    MutationRecord(
+                        timestamp=dt.datetime.now(dt.timezone.utc).isoformat(),
+                        rule=self.id,
+                        item=result.item_ref,
+                        field=self.field_name,
+                        old_value=result.old_value,
+                        new_value=result.new_value,
+                    )
+                )
+
             logger.info(
                 "[%s] %d/%d %s -> %s%s",
                 self.id,

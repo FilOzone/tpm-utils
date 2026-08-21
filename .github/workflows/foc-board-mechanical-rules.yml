@@ -33,6 +33,19 @@ jobs:
         run: uv sync
         working-directory: foc-mechanical-rules
 
+      # Rules like R-FC-012 (cycle) need to remember mutations they made in
+      # earlier runs -- GitHub has no change-history API for most Projects v2
+      # custom fields, so foc_mechanical_rules/state.py is the only record.
+      # Restore via a key prefix (most recent run's cache) and always save
+      # under a fresh run-scoped key so updates are never lost.
+      - name: Restore mutation history cache
+        uses: actions/cache/restore@v4
+        with:
+          path: foc-mechanical-rules/state
+          key: foc-mechanical-rules-state-${{ github.run_id }}
+          restore-keys: |
+            foc-mechanical-rules-state-
+
       - name: Apply mechanical rules
         env:
           GITHUB_TOKEN: ${{ secrets.FILOZZY_CI_ADD_TO_PROJECT }}
@@ -45,3 +58,10 @@ jobs:
           fi
           uv run foc-mechanical-rules $ARGS -o "$GITHUB_STEP_SUMMARY"
         working-directory: foc-mechanical-rules
+
+      - name: Save mutation history cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: foc-mechanical-rules/state
+          key: foc-mechanical-rules-state-${{ github.run_id }}
