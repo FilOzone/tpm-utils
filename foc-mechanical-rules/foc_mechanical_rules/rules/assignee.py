@@ -25,7 +25,7 @@ from ..github_api import (
     get_pull_request,
     parse_repo_ref,
 )
-from ..rule import ActionResult
+from ..rule import ActionResult, Rule
 
 # Matches R-PR-004's release-PR detection regex.
 RELEASE_PR_TITLE_RE = re.compile(r"^chore\((master|main)\):?\s*release|^chore: release")
@@ -38,7 +38,7 @@ def _is_bot_author(login: str) -> bool:
     return lower in BOT_LOGINS or lower.startswith("app/") or lower.endswith("[bot]")
 
 
-class AssigneeRule:
+class AssigneeRule(Rule):
     id = "R-PR-001"
     field_name = "assignee"
     doc_url = (

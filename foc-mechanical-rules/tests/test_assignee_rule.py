@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from foc_mechanical_rules.rule import Rule
 from foc_mechanical_rules.rules.assignee import AssigneeRule
 
 ITEM = {
@@ -108,3 +109,27 @@ def test_dry_run_does_not_mutate(mock_get_pr, mock_get_events, mock_add_assignee
     assert result.status == "applied"
     assert result.new_value == "alice"
     mock_add_assignee.assert_not_called()
+
+
+def test_assignee_rule_is_a_rule_and_run_works():
+    # Regression: AssigneeRule must inherit from Rule to pick up run(), or
+    # the runner's rule.run(session, dry_run=...) call blows up at runtime
+    # with an AttributeError that apply_one-only tests never exercise.
+    rule = AssigneeRule()
+    assert isinstance(rule, Rule)
+
+    with (
+        patch.object(rule, "select", return_value=[ITEM]),
+        patch(
+            "foc_mechanical_rules.rules.assignee.get_pull_request",
+            return_value=_pr(author="alice"),
+        ),
+        patch(
+            "foc_mechanical_rules.rules.assignee.get_issue_events",
+            return_value=[],
+        ),
+    ):
+        run = rule.run(MagicMock(), dry_run=True)
+
+    assert run.rule_id == "R-PR-001"
+    assert [r.status for r in run.results] == ["applied"]

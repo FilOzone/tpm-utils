@@ -9,10 +9,13 @@ explanation so the two never drift apart silently.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,6 +68,22 @@ class Rule:
 
     def run(self, session: requests.Session, *, dry_run: bool) -> RuleRun:
         """Select candidates and apply the rule to each of them."""
+        logger.info("[%s] querying board for candidates...", self.id)
         items = self.select(session)
-        results = [self.apply_one(session, item, dry_run=dry_run) for item in items]
+        logger.info("[%s] %d candidate(s) found; evaluating...", self.id, len(items))
+
+        results = []
+        for i, item in enumerate(items, start=1):
+            result = self.apply_one(session, item, dry_run=dry_run)
+            results.append(result)
+            logger.info(
+                "[%s] %d/%d %s -> %s%s",
+                self.id,
+                i,
+                len(items),
+                result.item_ref,
+                result.status,
+                f" ({result.reason})" if result.reason else "",
+            )
+
         return RuleRun(rule_id=self.id, results=results)

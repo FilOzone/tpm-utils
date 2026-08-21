@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 
@@ -37,7 +38,19 @@ def main() -> None:
         help="Write the Markdown summary to this file in addition to stdout "
         "(e.g. $GITHUB_STEP_SUMMARY)",
     )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress per-item progress logging (only print the final summary)",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.WARNING if args.quiet else logging.INFO,
+        format="%(message)s",
+        stream=sys.stderr,
+    )
 
     token = args.token or os.environ.get("GITHUB_TOKEN")
     if not token:
