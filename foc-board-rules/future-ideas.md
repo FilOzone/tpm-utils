@@ -4,6 +4,8 @@ Ideas for improving the FOC board tooling, collected during rule application ses
 
 ## Move the mechanical rules out of the LLM entirely
 
+**Status: In progress.** [`foc-mechanical-rules`](../foc-mechanical-rules/) now runs R-PR-001 (unassigned PR -> author) hourly via GitHub Actions. The rule-per-field, decision-table design is meant to grow: R-PR-002/003/004 (dependabot/release-PR theme+status) and R-PR-008/009 (merged/closed -> Done) are the natural next slice, following the same `Rule` pattern (`select` + `apply_one`, registered in `registry.py`).
+
 Roughly 60% of the 2026-07-07 sweep's ~395 mutations (dependabot theme/status/cycle via R-PR-002/003 and R-FC-006, release-PR moves via R-PR-004, merged/closed to Done via R-PR-008/009) are pure functions of observable state with zero judgment. A small script (cron job, GitHub Action, or an endpoint on the existing REST server) could run these hourly. The LLM sweep would then start from a clean board and spend its entire budget on the judgment calls (R-PR-006 routing, staleness, flag triage), which is where it actually adds value.
 
 **Spec already exists:** [pr-status-table.md](pr-status-table.md) defines the routing logic as a pure function (inputs in, target status out) with regression cases; the mechanical subset (rows 1-2 plus R-PR-008/009) is the natural first slice to script.

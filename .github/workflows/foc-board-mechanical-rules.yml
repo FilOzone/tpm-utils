@@ -1,0 +1,48 @@
+name: FOC Board Mechanical Rules
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (report only, no mutations)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  apply-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+        working-directory: foc-mechanical-rules
+
+      - name: Apply mechanical rules
+        env:
+          GITHUB_TOKEN: ${{ secrets.FILOZZY_CI_ADD_TO_PROJECT }}
+        run: |
+          # Scheduled runs default to dry-run until the rule set has been
+          # observed for a few cycles; flip via workflow_dispatch to go live.
+          DRY_RUN="${{ github.event.inputs.dry_run || 'true' }}"
+          ARGS=""
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          uv run foc-mechanical-rules $ARGS -o "$GITHUB_STEP_SUMMARY"
+        working-directory: foc-mechanical-rules
