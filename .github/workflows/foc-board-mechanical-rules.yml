@@ -8,7 +8,7 @@ on:
       dry_run:
         description: 'Dry run (report only, no mutations)'
         required: false
-        default: 'true'
+        default: 'false'
         type: choice
         options:
           - 'true'
@@ -37,9 +37,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.FILOZZY_CI_ADD_TO_PROJECT }}
         run: |
-          # Scheduled runs default to dry-run until the rule set has been
-          # observed for a few cycles; flip via workflow_dispatch to go live.
-          DRY_RUN="${{ github.event.inputs.dry_run || 'true' }}"
+          # Live by default; pass dry_run=true via workflow_dispatch to preview.
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           ARGS=""
           if [ "$DRY_RUN" = "true" ]; then
             ARGS="--dry-run"
