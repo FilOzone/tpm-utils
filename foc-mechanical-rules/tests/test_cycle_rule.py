@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+from foc_mechanical_rules.mutation_log import MutationLog, MutationRecord
 from foc_mechanical_rules.rule import Rule
 from foc_mechanical_rules.rules.cycle import CycleRule, get_current_cycle_title
-from foc_mechanical_rules.state import MutationRecord
 
 ITEM = {
     "Repository": "FilOzone/dealbot",
@@ -62,17 +62,16 @@ def test_get_current_cycle_title_returns_none_for_gap():
     assert title is None
 
 
-@patch("foc_mechanical_rules.rules.cycle.load_mutations", return_value=[])
 @patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_item_without_prior_history_gets_current_cycle(
-    mock_get_cycle, mock_set, mock_load
-):
+def test_item_without_prior_history_gets_current_cycle(mock_get_cycle, mock_set):
     mock_set.return_value = {"success": True, "old_value": ""}
 
-    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = CycleRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "applied"
     assert result.new_value == "202608-2"
@@ -84,63 +83,67 @@ def test_item_without_prior_history_gets_current_cycle(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
 def test_item_previously_cleared_by_us_is_flagged_not_reset(mock_get_cycle, mock_set):
-    prior = [
-        MutationRecord(
-            timestamp="2026-08-18T00:00:00+00:00",
-            rule="R-FC-012",
-            item="FilOzone/dealbot#458",
-            field="cycle",
-            old_value="",
-            new_value="202608-2",
-        )
-    ]
-    with patch("foc_mechanical_rules.rules.cycle.load_mutations", return_value=prior):
-        result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    log = MutationLog(
+        [
+            MutationRecord(
+                timestamp="2026-08-18T00:00:00+00:00",
+                rule="R-FC-012",
+                item="FilOzone/dealbot#458",
+                field="cycle",
+                old_value="",
+                new_value="202608-2",
+            )
+        ]
+    )
+
+    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False, mutation_log=log)
 
     assert result.status == "flagged"
     mock_set.assert_not_called()
 
 
-@patch("foc_mechanical_rules.rules.cycle.load_mutations", return_value=[])
 @patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_prior_history_for_a_different_cycle_does_not_block(
-    mock_get_cycle, mock_set, mock_load
-):
+def test_prior_history_for_a_different_cycle_does_not_block(mock_get_cycle, mock_set):
     # We set it to an earlier cycle before; that's not the removal signal —
     # only a prior mutation to the *current* cycle counts.
-    mock_load.return_value = [
-        MutationRecord(
-            timestamp="2026-07-01T00:00:00+00:00",
-            rule="R-FC-012",
-            item="FilOzone/dealbot#458",
-            field="cycle",
-            old_value="",
-            new_value="202607-2",
-        )
-    ]
+    log = MutationLog(
+        [
+            MutationRecord(
+                timestamp="2026-07-01T00:00:00+00:00",
+                rule="R-FC-012",
+                item="FilOzone/dealbot#458",
+                field="cycle",
+                old_value="",
+                new_value="202607-2",
+            )
+        ]
+    )
     mock_set.return_value = {"success": True, "old_value": ""}
 
-    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False, mutation_log=log)
 
     assert result.status == "applied"
 
 
 @patch("foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value=None)
 def test_no_active_cycle_is_an_error(mock_get_cycle):
-    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = CycleRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
     assert result.status == "error"
 
 
-@patch("foc_mechanical_rules.rules.cycle.load_mutations", return_value=[])
 @patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_dry_run_does_not_mutate(mock_get_cycle, mock_set, mock_load):
-    result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=True)
+def test_dry_run_does_not_mutate(mock_get_cycle, mock_set):
+    result = CycleRule().apply_one(
+        MagicMock(), ITEM, dry_run=True, mutation_log=MutationLog()
+    )
 
     assert result.status == "applied"
     assert result.new_value == "202608-2"

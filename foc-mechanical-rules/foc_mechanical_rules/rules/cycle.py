@@ -6,15 +6,9 @@ foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-c
 This module is that rule's canonical implementation — see rules/assignee.py's
 docstring for why the markdown and this module link back to each other.
 
-GitHub has no change-history API for Projects v2 custom fields (only the
-Status field gets a timeline event, ``ProjectV2ItemStatusChangedEvent`` —
-confirmed by GraphQL schema introspection and by checking a real item's
-timeline; ``IssueFieldChangedEvent`` and friends belong to a separate,
-unrelated "Issue Fields" GitHub feature). So there's no way to ask GitHub
-"was this item's Cycle field cleared after being set." To honor "don't
-re-add a cycle a human removed," this rule checks its own mutation history
-(``state.py``) instead: if it previously set Cycle to the current cycle on
-this item and the item now has no cycle, that's the removal signal.
+The "don't re-add a cycle a human removed" guard relies on the mutation
+log (see mutation_log.py and README.md's "Mutation log" section for why
+that's necessary and how it works) rather than anything GitHub-provided.
 """
 
 from __future__ import annotations
@@ -26,8 +20,8 @@ import requests
 from github_projects_client import graphql_query, list_items, set_field_value
 
 from ..github_api import FILOZ_ORG, PROJECT_NUMBER
+from ..mutation_log import MutationLog
 from ..rule import ActionResult, Rule
-from ..state import load_mutations
 
 CURRENT_CYCLE_QUERY = """
 query($org: String!, $number: Int!) {
@@ -113,7 +107,12 @@ class CycleRule(Rule):
         return items
 
     def apply_one(
-        self, session: requests.Session, item: Dict[str, Any], *, dry_run: bool
+        self,
+        session: requests.Session,
+        item: Dict[str, Any],
+        *,
+        dry_run: bool,
+        mutation_log: MutationLog,
     ) -> ActionResult:
         repository = item.get("Repository", "")
         number = str(item.get("Id", ""))
@@ -130,10 +129,8 @@ class CycleRule(Rule):
             )
 
         previously_set_to_current = any(
-            r.item == item_ref
-            and r.field == self.field_name
-            and r.new_value == current_cycle
-            for r in load_mutations()
+            m.field == self.field_name and m.new_value == current_cycle
+            for m in mutation_log.for_item(item_ref)
         )
         if previously_set_to_current:
             return ActionResult(

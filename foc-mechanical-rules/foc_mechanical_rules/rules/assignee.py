@@ -25,6 +25,7 @@ from ..github_api import (
     get_pull_request,
     parse_repo_ref,
 )
+from ..mutation_log import MutationLog
 from ..rule import ActionResult, Rule
 
 # Matches R-PR-004's release-PR detection regex.
@@ -69,8 +70,16 @@ class AssigneeRule(Rule):
         return items
 
     def apply_one(
-        self, session: requests.Session, item: Dict[str, Any], *, dry_run: bool
+        self,
+        session: requests.Session,
+        item: Dict[str, Any],
+        *,
+        dry_run: bool,
+        mutation_log: MutationLog,
     ) -> ActionResult:
+        # R-PR-001 doesn't need mutation history -- GitHub's own
+        # `unassigned` issue event already tells it what it needs.
+        del mutation_log
         repository = item.get("Repository", "")
         number = str(item.get("Id", ""))
         title = item.get("Title", "")

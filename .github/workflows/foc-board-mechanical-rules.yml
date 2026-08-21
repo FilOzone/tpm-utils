@@ -33,9 +33,10 @@ jobs:
         run: uv sync
         working-directory: foc-mechanical-rules
 
-      # Rules like R-FC-012 (cycle) need to remember mutations they made in
-      # earlier runs -- GitHub has no change-history API for most Projects v2
-      # custom fields, so foc_mechanical_rules/state.py is the only record.
+      # Some rules (e.g. R-FC-012) depend on the mutation log described in
+      # foc-mechanical-rules/README.md#mutation-log. The library itself is
+      # agnostic about persistence; this cache step is the runtime decision
+      # that makes the CLI's --mutation-log file survive across hourly runs.
       # Restore via a key prefix (most recent run's cache) and always save
       # under a fresh run-scoped key so updates are never lost.
       - name: Restore mutation history cache

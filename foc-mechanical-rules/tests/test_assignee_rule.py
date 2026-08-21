@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from foc_mechanical_rules.mutation_log import MutationLog
 from foc_mechanical_rules.rule import Rule
 from foc_mechanical_rules.rules.assignee import AssigneeRule
 
@@ -29,7 +30,9 @@ def test_human_author_gets_assigned(mock_get_pr, mock_get_events):
     mock_get_pr.return_value = _pr(author="alice")
     mock_get_events.return_value = []
 
-    result = AssigneeRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = AssigneeRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "applied"
     assert result.new_value == "alice"
@@ -42,7 +45,9 @@ def test_dependabot_pr_is_skipped(mock_get_pr, mock_get_events):
     mock_get_pr.return_value = _pr(author="dependabot[bot]")
     mock_get_events.return_value = []
 
-    result = AssigneeRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = AssigneeRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "skipped"
     mock_get_events.assert_not_called()
@@ -57,7 +62,9 @@ def test_merged_release_pr_from_bot_assigned_to_merger(mock_get_pr, mock_get_eve
     )
     mock_get_events.return_value = []
 
-    result = AssigneeRule().apply_one(MagicMock(), item, dry_run=False)
+    result = AssigneeRule().apply_one(
+        MagicMock(), item, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "applied"
     assert result.new_value == "release-captain"
@@ -70,7 +77,9 @@ def test_merged_release_pr_without_merger_is_flagged(mock_get_pr, mock_get_event
     mock_get_pr.return_value = _pr(author="FilOzzy", merged=True, merged_by=None)
     mock_get_events.return_value = []
 
-    result = AssigneeRule().apply_one(MagicMock(), item, dry_run=False)
+    result = AssigneeRule().apply_one(
+        MagicMock(), item, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "flagged"
 
@@ -81,7 +90,9 @@ def test_prior_unassigned_event_is_flagged_not_reassigned(mock_get_pr, mock_get_
     mock_get_pr.return_value = _pr(author="alice")
     mock_get_events.return_value = [{"event": "unassigned", "actor": {"login": "bob"}}]
 
-    result = AssigneeRule().apply_one(MagicMock(), ITEM, dry_run=False)
+    result = AssigneeRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
 
     assert result.status == "flagged"
     assert "unassigned" in result.reason
@@ -91,7 +102,9 @@ def test_external_item_is_skipped_without_api_calls():
     item = {**ITEM, "Repository": "someoutsideorg/repo"}
 
     with patch("foc_mechanical_rules.rules.assignee.get_pull_request") as mock_get_pr:
-        result = AssigneeRule().apply_one(MagicMock(), item, dry_run=False)
+        result = AssigneeRule().apply_one(
+            MagicMock(), item, dry_run=False, mutation_log=MutationLog()
+        )
 
     assert result.status == "skipped"
     mock_get_pr.assert_not_called()
@@ -104,7 +117,9 @@ def test_dry_run_does_not_mutate(mock_get_pr, mock_get_events, mock_add_assignee
     mock_get_pr.return_value = _pr(author="alice")
     mock_get_events.return_value = []
 
-    result = AssigneeRule().apply_one(MagicMock(), ITEM, dry_run=True)
+    result = AssigneeRule().apply_one(
+        MagicMock(), ITEM, dry_run=True, mutation_log=MutationLog()
+    )
 
     assert result.status == "applied"
     assert result.new_value == "alice"
@@ -129,7 +144,7 @@ def test_assignee_rule_is_a_rule_and_run_works():
             return_value=[],
         ),
     ):
-        run = rule.run(MagicMock(), dry_run=True)
+        run = rule.run(MagicMock(), dry_run=True, mutation_log=MutationLog())
 
     assert run.rule_id == "R-PR-001"
     assert [r.status for r in run.results] == ["applied"]
