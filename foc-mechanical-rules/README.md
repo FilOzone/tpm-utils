@@ -39,6 +39,8 @@ Neither `mutation_log.py` nor any rule module knows or cares how the log survive
 uv run foc-mechanical-rules --dry-run          # preview, no mutations
 uv run foc-mechanical-rules                    # apply
 uv run foc-mechanical-rules -o "$GITHUB_STEP_SUMMARY"
+uv run foc-mechanical-rules --dry-run --rule R-FC-013                # only this rule
+uv run foc-mechanical-rules --dry-run --rule R-FC-013 --rule R-PR-001  # or a few
 ```
 
 Requires a `GITHUB_TOKEN` (or `--token`) with `read:project` (board reads) and issue/PR write access (`repo` scope, or fine-grained `Issues: write` + `Pull requests: write`) on the blessed orgs. CI uses the org's `FILOZZY_CI_ADD_TO_PROJECT` secret (also used by [`add-issues-and-prs-to-fs-project-board.yml`](../.github/workflows/add-issues-and-prs-to-fs-project-board.yml)).

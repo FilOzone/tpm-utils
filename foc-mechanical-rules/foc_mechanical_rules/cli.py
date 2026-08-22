@@ -62,6 +62,13 @@ def main() -> None:
         help="Path to the persisted mutation-history TSV, read at start and "
         "written at end (default: %(default)s)",
     )
+    parser.add_argument(
+        "--rule",
+        action="append",
+        metavar="RULE_ID",
+        help="Only run this rule (e.g. R-FC-013). Repeatable to run several. "
+        "Default: run every registered rule.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -77,6 +84,19 @@ def main() -> None:
 
     session = build_session(token)
     rules = default_rules()
+
+    if args.rule:
+        known_ids = {rule.id for rule in rules}
+        unknown = sorted(set(args.rule) - known_ids)
+        if unknown:
+            print(
+                f"Error: unknown rule id(s): {', '.join(unknown)}. "
+                f"Known rules: {', '.join(sorted(known_ids))}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        rules = [rule for rule in rules if rule.id in args.rule]
+
     for rule in rules:
         rule.org = args.org
         rule.project_number = args.project_number
