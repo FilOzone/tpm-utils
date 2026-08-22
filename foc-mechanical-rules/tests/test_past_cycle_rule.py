@@ -18,6 +18,7 @@ ITEM = {
     "Title": "fix: something",
     "url": "https://github.com/FilOzone/dealbot/pull/458",
     "Cycle": "202607-2",
+    "_node_id": "PVTI_abc123",
 }
 
 ITERATIONS = {
@@ -79,6 +80,9 @@ def test_get_current_and_past_cycle_titles():
     return_value=("202608-2", {"202607-2", "202608-1"}),
 )
 def test_open_item_in_past_cycle_moves_to_current(mock_get, mock_set):
+    # The API-observed old_value can differ from what select() saw (a human
+    # could have edited it in between) -- the result should reflect that,
+    # not the stale value read at selection time.
     mock_set.return_value = {"success": True, "old_value": "202607-2"}
 
     result = PastCycleRule().apply_one(
@@ -89,6 +93,27 @@ def test_open_item_in_past_cycle_moves_to_current(mock_get, mock_set):
     assert result.old_value == "202607-2"
     assert result.new_value == "202608-2"
     mock_set.assert_called_once()
+    # Passes the node ID, not "owner/repo#number" -- skips set_field_value's
+    # internal per-item get_item lookup.
+    assert mock_set.call_args.kwargs["item_ref"] == "PVTI_abc123"
+
+
+@patch("foc_mechanical_rules.rules.cycle.set_field_value")
+@patch(
+    "foc_mechanical_rules.rules.cycle.get_current_and_past_cycle_titles",
+    return_value=("202608-2", {"202607-2", "202608-1"}),
+)
+def test_draft_note_with_no_repository_is_skipped(mock_get, mock_set):
+    # A draft note (board item with no linked repo issue/PR) matches
+    # `has:cycle` too but has no Repository/Id to build a mutable ref from.
+    item = {**ITEM, "Repository": "", "Id": ""}
+
+    result = PastCycleRule().apply_one(
+        MagicMock(), item, dry_run=False, mutation_log=MutationLog()
+    )
+
+    assert result.status == "skipped"
+    mock_set.assert_not_called()
 
 
 @patch("foc_mechanical_rules.rules.cycle.set_field_value")

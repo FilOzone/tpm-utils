@@ -279,6 +279,18 @@ class PastCycleRule(Rule):
         title = item.get("Title", "")
         item_ref = f"{repository}#{number}"
         item_cycle = item.get("Cycle", "")
+        node_id = item.get("_node_id", "")
+
+        if not repository or not number:
+            # Draft notes (project items with no linked repo issue/PR) match
+            # `has:cycle` too but have no repository/number to build a
+            # mutable item_ref from -- R-FC-013 is scoped to issues and PRs.
+            return ActionResult(
+                item_ref=item_ref,
+                title=title,
+                status="skipped",
+                reason="not an issue or PR (likely a draft note) -- no repository/number",
+            )
 
         current_cycle, past_cycles = self._resolve(session)
         if not current_cycle:
@@ -336,7 +348,12 @@ class PastCycleRule(Rule):
             session,
             org=self.org,
             project_number=self.project_number,
-            item_ref=item_ref,
+            # Pass the node ID (from select()'s list_items call) instead of
+            # the "owner/repo#number" ref: set_field_value_bulk skips its
+            # per-item get_item lookup for a raw node ID and instead
+            # batch-fetches old_value, which is also more accurate (the API's
+            # current value, not the value we saw at selection time).
+            item_ref=node_id or item_ref,
             field_name="Cycle",
             value=current_cycle,
         )
@@ -352,6 +369,6 @@ class PastCycleRule(Rule):
             item_ref=item_ref,
             title=title,
             status="applied",
-            old_value=item_cycle,
+            old_value=result.get("old_value", item_cycle),
             new_value=current_cycle,
         )
