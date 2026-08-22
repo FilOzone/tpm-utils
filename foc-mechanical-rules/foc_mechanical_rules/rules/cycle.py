@@ -119,14 +119,18 @@ def get_current_and_past_cycle_titles(
 class _CycleFieldRule(Rule):
     """Shared batched-write logic for rules that set the Cycle field.
 
-    Both R-FC-012 and R-FC-013 only ever move an item's Cycle to *this
-    run's* current cycle, so every "pending" mutation queued by either
-    rule in a given run shares the same target value -- exactly the
-    shape ``set_field_value_bulk`` batches well: many node IDs, one
-    value, one GraphQL request per 25 items instead of one request per
-    item. Grouping by ``new_value`` below is defensive (so this still
-    behaves correctly if that ever stops being true) rather than
-    load-bearing today.
+    Each of R-FC-012 and R-FC-013 only ever moves an item's Cycle to
+    *its own run's* current cycle, so every "pending" mutation one rule
+    queues in one run shares the same target value -- exactly the shape
+    ``set_field_value_bulk`` batches well: many node IDs, one value, one
+    GraphQL request per 25 items instead of one request per item.
+    Grouping by ``new_value`` below is defensive (so this still behaves
+    correctly if that ever stops being true) rather than load-bearing
+    today. Note this only batches *within* one rule's own run --
+    ``runner.run_all`` calls each registered rule's ``run()`` to
+    completion (including its own pending flush) before moving to the
+    next, so R-FC-012's and R-FC-013's writes are never combined into
+    one batch even though they share this class.
     """
 
     field_name = "cycle"

@@ -213,10 +213,14 @@ def test_dry_run_does_not_queue_a_mutation(mock_get):
 
 
 @patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
-def test_mutate_pending_batches_items_from_both_cycle_rules(mock_bulk):
-    # CycleRule and PastCycleRule share _CycleFieldRule.mutate_pending, so a
-    # single batch call can carry pending mutations queued by either rule in
-    # the same run, as long as they target the same current cycle.
+def test_mutate_pending_via_past_cycle_rule_batches_multiple_items(mock_bulk):
+    # PastCycleRule uses the shared _CycleFieldRule.mutate_pending -- this
+    # covers it through PastCycleRule specifically (test_cycle_rule.py covers
+    # it through CycleRule). NOTE: this only exercises one rule's own pending
+    # list; runner.run_all() calls each registered rule's run() (including
+    # its own pending flush) to completion before moving to the next, so
+    # R-FC-012's and R-FC-013's writes are never combined into one real batch
+    # even though both rules share this method.
     mock_bulk.return_value = {
         "results": [
             {"item_ref": "PVTI_1", "success": True, "old_value": ""},
