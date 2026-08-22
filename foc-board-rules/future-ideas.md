@@ -16,13 +16,11 @@ Roughly 60% of the 2026-07-07 sweep's ~395 mutations (dependabot theme/status/cy
 
 **Triggered by:** agent feedback after the 2026-07-07 full sweep (~395 mutations across 6 stages).
 
-## Batch mutations in foc-mechanical-rules
+## ~~Batch mutations in foc-mechanical-rules~~ — Solved
 
-**Status: Not started.** `github_projects_client`'s `set_field_value_bulk` already batches GraphQL mutations 25-at-a-time via aliased queries — but every rule calls `set_field_value`, a thin wrapper that always passes a 1-item list, so the batching path never actually batches anything today. A live R-FC-013 dry-run against the real board (2026-08-22) found 179 items needing a mutation; at 1 GraphQL request per item that's 179 round trips this run alone, versus ~8 if they were batched.
+**Status: Done.** `github_projects_client`'s `set_field_value_bulk` already batched GraphQL mutations 25-at-a-time via aliased queries, but every rule called `set_field_value`, a thin wrapper that always passed a 1-item list, so the batching path never actually batched anything. A live R-FC-013 dry-run against the real board (2026-08-22) found 179 items needing a mutation; at 1 GraphQL request per item that's 179 round trips in one run, versus ~8 batched.
 
-**Why it's not just a drop-in fix:** the shared `Rule.run()`/`apply_one` contract (see README.md's "Design" section) interleaves per-item decision logic (skip/flag/error, mutation-log guards) with the actual mutation call, one item at a time. Batching means splitting that into two phases — decide which items to mutate (unchanged, still per-item), then mutate all of them in one `set_field_value_bulk` call — which is a change to the shared base class every rule (current and future) goes through, not something scoped to one rule. `AssigneeRule` doesn't call `set_field_value` at all (it's REST issue/PR endpoints, not board-field mutations), so it gets no benefit but needs to keep working under whatever the new shape is.
-
-**Triggered by:** implementing R-FC-013 and auditing its API call pattern (see README.md's "API call pattern per rule" section) after a live dry-run.
+**Fix:** `apply_one` can now return `status="pending"` (with `node_id` set) instead of mutating immediately; `Rule.run()` collects every "pending" result across the whole rule and calls the rule's `mutate_pending(session, pending)` once at the end. `CycleRule` (R-FC-012) and `PastCycleRule` (R-FC-013) share this via a new `_CycleFieldRule` base class, which groups pending mutations by target value and batches each group through `set_field_value_bulk`. `AssigneeRule` (R-PR-001) is untouched — it never returns "pending", so `mutate_pending` is never called for it; see README.md's "API call pattern per rule" section for the current shape.
 
 ## Sweep journal for incremental sweeps
 
