@@ -21,7 +21,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
 import requests
-from github_projects_client import graphql_query, list_items, set_field_value
+from github_projects_client import graphql_query, list_items, set_field_value_bulk
 
 from ..github_api import FILOZ_ORG, PROJECT_NUMBER
 from ..mutation_log import MutationLog
@@ -116,9 +116,70 @@ def get_current_and_past_cycle_titles(
     return current, past
 
 
-class CycleRule(Rule):
-    id = "R-FC-012"
+class _CycleFieldRule(Rule):
+    """Shared batched-write logic for rules that set the Cycle field.
+
+    Each of R-FC-012 and R-FC-013 only ever moves an item's Cycle to
+    *its own run's* current cycle, so every "pending" mutation one rule
+    queues in one run shares the same target value -- exactly the shape
+    ``set_field_value_bulk`` batches well: many node IDs, one value, one
+    GraphQL request per 25 items instead of one request per item.
+    Grouping by ``new_value`` below is defensive (so this still behaves
+    correctly if that ever stops being true) rather than load-bearing
+    today. Note this only batches *within* one rule's own run --
+    ``runner.run_all`` calls each registered rule's ``run()`` to
+    completion (including its own pending flush) before moving to the
+    next, so R-FC-012's and R-FC-013's writes are never combined into
+    one batch even though they share this class.
+    """
+
     field_name = "cycle"
+
+    def mutate_pending(
+        self, session: requests.Session, pending: List[ActionResult]
+    ) -> List[ActionResult]:
+        finalized: List[ActionResult] = []
+        by_value: Dict[str, List[ActionResult]] = {}
+        for p in pending:
+            by_value.setdefault(p.new_value, []).append(p)
+
+        for new_value, group in by_value.items():
+            bulk_result = set_field_value_bulk(
+                session,
+                org=self.org,
+                project_number=self.project_number,
+                item_refs=[p.node_id for p in group],
+                field_name="Cycle",
+                value=new_value,
+            )
+            by_node_id = {r["item_ref"]: r for r in bulk_result["results"]}
+            for p in group:
+                r = by_node_id.get(p.node_id)
+                if not r or not r.get("success"):
+                    error = (r or {}).get("error", "no result for this item")
+                    finalized.append(
+                        ActionResult(
+                            item_ref=p.item_ref,
+                            title=p.title,
+                            status="error",
+                            reason=f"failed to set cycle: {error}",
+                        )
+                    )
+                else:
+                    finalized.append(
+                        ActionResult(
+                            item_ref=p.item_ref,
+                            title=p.title,
+                            status="applied",
+                            old_value=r.get("old_value", p.old_value),
+                            new_value=new_value,
+                        )
+                    )
+        return finalized
+
+
+class CycleRule(_CycleFieldRule):
+    id = "R-FC-012"
     doc_url = (
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle"
@@ -204,37 +265,21 @@ class CycleRule(Rule):
                 new_value=current_cycle,
             )
 
-        result = set_field_value(
-            session,
-            org=self.org,
-            project_number=self.project_number,
-            # Node ID, not "owner/repo#number" -- see the matching comment in
-            # PastCycleRule.apply_one for why (skips set_field_value_bulk's
-            # per-item get_item lookup).
-            item_ref=node_id or item_ref,
-            field_name="Cycle",
-            value=current_cycle,
-        )
-        if not result.get("success"):
-            return ActionResult(
-                item_ref=item_ref,
-                title=title,
-                status="error",
-                reason=f"failed to set cycle: {result.get('error')}",
-            )
-
+        # Node ID, not "owner/repo#number" -- lets mutate_pending batch this
+        # with every other item's write instead of set_field_value_bulk doing
+        # a per-item get_item lookup for each one individually.
         return ActionResult(
             item_ref=item_ref,
             title=title,
-            status="applied",
-            old_value=result.get("old_value", ""),
+            status="pending",
+            old_value="",
             new_value=current_cycle,
+            node_id=node_id or item_ref,
         )
 
 
-class PastCycleRule(Rule):
+class PastCycleRule(_CycleFieldRule):
     id = "R-FC-013"
-    field_name = "cycle"
     doc_url = (
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "field-completeness.md#r-fc-013-open-items-in-a-past-cycle-should-move-to-the-current-cycle"
@@ -351,31 +396,15 @@ class PastCycleRule(Rule):
                 new_value=current_cycle,
             )
 
-        result = set_field_value(
-            session,
-            org=self.org,
-            project_number=self.project_number,
-            # Pass the node ID (from select()'s list_items call) instead of
-            # the "owner/repo#number" ref: set_field_value_bulk skips its
-            # per-item get_item lookup for a raw node ID and instead
-            # batch-fetches old_value, which is also more accurate (the API's
-            # current value, not the value we saw at selection time).
-            item_ref=node_id or item_ref,
-            field_name="Cycle",
-            value=current_cycle,
-        )
-        if not result.get("success"):
-            return ActionResult(
-                item_ref=item_ref,
-                title=title,
-                status="error",
-                reason=f"failed to set cycle: {result.get('error')}",
-            )
-
+        # Node ID, not "owner/repo#number" -- lets mutate_pending batch this
+        # with every other item's write in one GraphQL request per 25 items
+        # instead of set_field_value_bulk doing a per-item get_item lookup
+        # (and per-item request) for each one individually.
         return ActionResult(
             item_ref=item_ref,
             title=title,
-            status="applied",
-            old_value=result.get("old_value", item_cycle),
+            status="pending",
+            old_value=item_cycle,
             new_value=current_cycle,
+            node_id=node_id or item_ref,
         )

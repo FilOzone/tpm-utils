@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 from foc_mechanical_rules.mutation_log import MutationLog, MutationRecord
-from foc_mechanical_rules.rule import Rule
+from foc_mechanical_rules.rule import ActionResult, Rule
 from foc_mechanical_rules.rules.cycle import CycleRule, get_current_cycle_title
 
 ITEM = {
@@ -63,30 +63,26 @@ def test_get_current_cycle_title_returns_none_for_gap():
     assert title is None
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_item_without_prior_history_gets_current_cycle(mock_get_cycle, mock_set):
-    mock_set.return_value = {"success": True, "old_value": ""}
-
+def test_item_without_prior_history_is_queued_pending(mock_get_cycle):
+    # apply_one decides but doesn't mutate -- the actual write is batched by
+    # mutate_pending (see test_mutate_pending below), so a real candidate for
+    # a real move comes back "pending", not "applied".
     result = CycleRule().apply_one(
         MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
     )
 
-    assert result.status == "applied"
+    assert result.status == "pending"
     assert result.new_value == "202608-2"
-    mock_set.assert_called_once()
-    # Passes the node ID, not "owner/repo#number" -- skips set_field_value's
-    # internal per-item get_item lookup.
-    assert mock_set.call_args.kwargs["item_ref"] == "PVTI_abc123"
+    assert result.node_id == "PVTI_abc123"
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_item_previously_cleared_by_us_is_flagged_not_reset(mock_get_cycle, mock_set):
+def test_item_previously_cleared_by_us_is_flagged_not_reset(mock_get_cycle):
     log = MutationLog(
         [
             MutationRecord(
@@ -103,14 +99,12 @@ def test_item_previously_cleared_by_us_is_flagged_not_reset(mock_get_cycle, mock
     result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False, mutation_log=log)
 
     assert result.status == "flagged"
-    mock_set.assert_not_called()
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_prior_history_for_a_different_cycle_does_not_block(mock_get_cycle, mock_set):
+def test_prior_history_for_a_different_cycle_does_not_block(mock_get_cycle):
     # We set it to an earlier cycle before; that's not the removal signal —
     # only a prior mutation to the *current* cycle counts.
     log = MutationLog(
@@ -125,11 +119,10 @@ def test_prior_history_for_a_different_cycle_does_not_block(mock_get_cycle, mock
             )
         ]
     )
-    mock_set.return_value = {"success": True, "old_value": ""}
 
     result = CycleRule().apply_one(MagicMock(), ITEM, dry_run=False, mutation_log=log)
 
-    assert result.status == "applied"
+    assert result.status == "pending"
 
 
 @patch("foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value=None)
@@ -140,18 +133,73 @@ def test_no_active_cycle_is_an_error(mock_get_cycle):
     assert result.status == "error"
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value")
 @patch(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
-def test_dry_run_does_not_mutate(mock_get_cycle, mock_set):
+def test_dry_run_does_not_queue_a_mutation(mock_get_cycle):
     result = CycleRule().apply_one(
         MagicMock(), ITEM, dry_run=True, mutation_log=MutationLog()
     )
 
     assert result.status == "applied"
     assert result.new_value == "202608-2"
-    mock_set.assert_not_called()
+
+
+@patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
+def test_mutate_pending_batches_same_value_items_in_one_call(mock_bulk):
+    mock_bulk.return_value = {
+        "results": [
+            {"item_ref": "PVTI_1", "success": True, "old_value": ""},
+            {"item_ref": "PVTI_2", "success": True, "old_value": ""},
+        ]
+    }
+    pending = [
+        ActionResult(
+            item_ref="FilOzone/dealbot#1",
+            title="a",
+            status="pending",
+            new_value="202608-2",
+            node_id="PVTI_1",
+        ),
+        ActionResult(
+            item_ref="FilOzone/dealbot#2",
+            title="b",
+            status="pending",
+            new_value="202608-2",
+            node_id="PVTI_2",
+        ),
+    ]
+
+    finalized = CycleRule().mutate_pending(MagicMock(), pending)
+
+    assert len(finalized) == 2
+    assert all(r.status == "applied" for r in finalized)
+    # One GraphQL call for both items, not one per item.
+    mock_bulk.assert_called_once()
+    assert mock_bulk.call_args.kwargs["item_refs"] == ["PVTI_1", "PVTI_2"]
+    assert mock_bulk.call_args.kwargs["value"] == "202608-2"
+
+
+@patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
+def test_mutate_pending_reports_per_item_failure(mock_bulk):
+    mock_bulk.return_value = {
+        "results": [{"item_ref": "PVTI_1", "success": False, "error": "boom"}]
+    }
+    pending = [
+        ActionResult(
+            item_ref="FilOzone/dealbot#1",
+            title="a",
+            status="pending",
+            new_value="202608-2",
+            node_id="PVTI_1",
+        )
+    ]
+
+    finalized = CycleRule().mutate_pending(MagicMock(), pending)
+
+    assert len(finalized) == 1
+    assert finalized[0].status == "error"
+    assert "boom" in finalized[0].reason
 
 
 def test_cycle_rule_is_a_rule():

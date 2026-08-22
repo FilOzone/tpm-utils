@@ -9,7 +9,8 @@ Some board rules are pure functions of observable state (an unassigned PR should
 Each rule targets a single board field (assignee, status, cycle theme, ...) and is implemented as a `Rule` subclass in `foc_mechanical_rules/rules/`:
 
 - `select(session)` — find candidate board items via a targeted board query
-- `apply_one(session, item, dry_run=..., mutation_log=...)` — evaluate the rule against one item and (unless dry-run) mutate it, returning an `ActionResult` (`applied` / `skipped` / `flagged` / `error`)
+- `apply_one(session, item, dry_run=..., mutation_log=...)` — decide what to do with one item, returning an `ActionResult` (`applied` / `skipped` / `flagged` / `error`). It may mutate immediately and return `applied`, or return `pending` to have the write batched (see below and "API call pattern per rule")
+- `mutate_pending(session, pending)` — optional; only needed if `apply_one` ever returns `pending`. Executes every pending mutation from the run, ideally batched, and returns one finished result per input
 
 Rules are registered in `registry.py`. Adding a new rule means adding a new module under `rules/` and one line in the registry — the runner, audit logging, and CLI are shared.
 
@@ -35,17 +36,18 @@ Neither `mutation_log.py` nor any rule module knows or cares how the log survive
 
 ## API call pattern per rule
 
-Board size (~180 open items and growing) makes it easy for a rule to accidentally turn an O(1)-per-run cost into an O(items) one. Three conventions keep that in check, and every rule should follow them:
+Board size (~180 open items and growing) makes it easy for a rule to accidentally turn an O(1)-per-run cost into an O(items) one. Four conventions keep that in check, and every rule should follow them:
 
 1. **`select()` issues exactly one board query**, paginated via `list_items`'s cursor — never a query per candidate.
 2. **Anything that's the same for the whole run (e.g. "what's the current cycle?") is resolved once and memoized** on the rule instance (see `CycleRule`/`PastCycleRule`'s `_resolve*` methods), not refetched in every `apply_one` call.
 3. **Mutations pass the item's node ID** (`item.get("_node_id")` — `list_items` always includes it, regardless of the requested `fields`), not an `"owner/repo#number"` ref. `github_projects_client`'s `set_field_value`/`set_field_value_bulk` silently does an extra `get_item` read per plain ref to resolve it to a node ID; a node ID skips that lookup entirely and also gets its `old_value` from a batched API read instead of whatever `select()` saw earlier (which can be stale by the time the mutation runs).
+4. **When many items would get the same write, batch the mutation.** `apply_one` can return `status="pending"` (with `node_id` set) instead of mutating immediately; `Rule.run()` collects every "pending" result across the whole rule and calls the rule's `mutate_pending(session, pending)` once at the end, so the rule itself decides how to batch (see `_CycleFieldRule.mutate_pending` in `rules/cycle.py`, which groups by target value and calls `set_field_value_bulk` — 25 items per GraphQL request instead of 1). A rule whose writes are cheap or heterogeneous enough that batching isn't worth it can just keep mutating inline in `apply_one` and return "applied" directly, like `AssigneeRule` does — `mutate_pending` only needs implementing if `apply_one` ever returns "pending".
 
-| Rule | `select()` (once per run) | Per-run, memoized | Per-item reads | Per-item writes |
+| Rule | `select()` (once per run) | Per-run, memoized | Per-item reads | Writes |
 | --- | --- | --- | --- | --- |
-| R-PR-001 (assignee) | 1 paginated board query | — | 1 REST `GET` (PR metadata) per candidate; **+1 REST `GET`** (issue events, paginated) unless skipped as a bot author | 1 REST `POST` per applied item |
-| R-FC-012 (cycle) | 1 paginated board query | 1 GraphQL query (iterations) | none | 1 GraphQL mutation per applied item (node ID) |
-| R-FC-013 (cycle) | 1 paginated board query (Cycle field included, so no separate read is needed to know an item's current cycle) | 1 GraphQL query (iterations, shared helper with R-FC-012) | none | 1 GraphQL mutation per applied item (node ID) |
+| R-PR-001 (assignee) | 1 paginated board query | — | 1 REST `GET` (PR metadata) per candidate; **+1 REST `GET`** (issue events, paginated) unless skipped as a bot author | 1 REST `POST` per applied item (not batched — see gap below) |
+| R-FC-012 (cycle) | 1 paginated board query | 1 GraphQL query (iterations) | none | Batched: all applied items in the run share 1 GraphQL mutation per 25 items (`_CycleFieldRule.mutate_pending`) |
+| R-FC-013 (cycle) | 1 paginated board query (Cycle field included, so no separate read is needed to know an item's current cycle) | 1 GraphQL query (iterations, shared helper with R-FC-012) | none | Batched, same mechanism as R-FC-012 (via the shared `_CycleFieldRule.mutate_pending`) |
 
 **Known gap, not yet worth fixing:** R-PR-001's 1-2 REST reads per candidate PR are real per-item calls with no batched equivalent used today, unlike the two cycle rules. At current volume (dozens of candidates per hourly run, most REST GETs) it's well within GitHub's rate limits and not worth the complexity, but if candidate volume grows a lot, `github_projects_client`'s `nodes(ids: [ID!]!)` batching pattern (used by `set_field_value_bulk`'s old-value fetch) generalizes: a GraphQL `nodes()` query keyed by PR node IDs could fetch author + merge state for many PRs in one call, cutting the metadata `GET` to near-zero; issue-events (used only to detect a human `unassigned` event) would need a similar `timelineItems` batch to fully close the gap.
 

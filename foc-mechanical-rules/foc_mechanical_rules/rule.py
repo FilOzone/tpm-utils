@@ -23,14 +23,23 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ActionResult:
-    """Outcome of evaluating one rule against one board item."""
+    """Outcome of evaluating one rule against one board item.
+
+    ``status="pending"`` is an internal, transient state: a rule's
+    ``apply_one`` returns it instead of "applied" when it has decided to
+    mutate the item but wants that write batched with other items' writes
+    rather than issued immediately (see ``Rule.run()`` and
+    ``Rule.mutate_pending``). It never appears in a finished ``RuleRun`` --
+    ``run()`` always resolves it to "applied" or "error" before returning.
+    """
 
     item_ref: str
     title: str
-    status: str  # "applied" | "skipped" | "flagged" | "error"
+    status: str  # "applied" | "skipped" | "flagged" | "error" | "pending"
     reason: str = ""
     old_value: str = ""
     new_value: str = ""
+    node_id: str = ""  # only meaningful for status="pending"; see mutate_pending
 
 
 @dataclass
@@ -71,7 +80,15 @@ class Rule:
         dry_run: bool,
         mutation_log: MutationLog,
     ) -> ActionResult:
-        """Evaluate and (unless dry_run) mutate a single candidate item.
+        """Decide what to do with a single candidate item.
+
+        Return a finished result ("skipped" / "flagged" / "error", or
+        "applied" for a dry-run) directly. If the rule has decided to
+        mutate the item for real, it may either mutate it immediately and
+        return "applied", or return "pending" (with ``node_id`` set) to
+        have the write batched with other items' writes by
+        ``mutate_pending`` -- see that method's docstring for when to do
+        which.
 
         ``mutation_log`` is this tool's own history of past mutations (see
         mutation_log.py) — not guaranteed complete, but the best available
@@ -79,6 +96,22 @@ class Rule:
         don't need history can ignore it.
         """
         raise NotImplementedError
+
+    def mutate_pending(
+        self, session: requests.Session, pending: List[ActionResult]
+    ) -> List[ActionResult]:
+        """Execute every "pending" mutation from this run in as few API calls as possible.
+
+        Only called if ``apply_one`` ever returned a "pending" result, and
+        only with those. Must return one finished result ("applied" or
+        "error", never "pending") per input result. Base implementation
+        raises: a rule that never returns "pending" doesn't need to
+        override this, and one that does must.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} returned a 'pending' ActionResult but "
+            "doesn't implement mutate_pending"
+        )
 
     def run(
         self, session: requests.Session, *, dry_run: bool, mutation_log: MutationLog
@@ -88,25 +121,25 @@ class Rule:
         items = self.select(session)
         logger.info("[%s] %d candidate(s) found; evaluating...", self.id, len(items))
 
-        results = []
+        results: List[ActionResult] = []
+        pending: List[ActionResult] = []
         for i, item in enumerate(items, start=1):
             result = self.apply_one(
                 session, item, dry_run=dry_run, mutation_log=mutation_log
             )
-            results.append(result)
-
-            if not dry_run and result.status == "applied":
-                mutation_log.record(
-                    MutationRecord(
-                        timestamp=dt.datetime.now(dt.timezone.utc).isoformat(),
-                        rule=self.id,
-                        item=result.item_ref,
-                        field=self.field_name,
-                        old_value=result.old_value,
-                        new_value=result.new_value,
-                    )
+            if result.status == "pending":
+                pending.append(result)
+                logger.info(
+                    "[%s] %d/%d %s -> pending (batched)",
+                    self.id,
+                    i,
+                    len(items),
+                    result.item_ref,
                 )
+                continue
 
+            results.append(result)
+            self._finish(result, mutation_log, dry_run)
             logger.info(
                 "[%s] %d/%d %s -> %s%s",
                 self.id,
@@ -117,4 +150,37 @@ class Rule:
                 f" ({result.reason})" if result.reason else "",
             )
 
+        if pending:
+            logger.info(
+                "[%s] flushing %d pending mutation(s) in batch...",
+                self.id,
+                len(pending),
+            )
+            for result in self.mutate_pending(session, pending):
+                results.append(result)
+                self._finish(result, mutation_log, dry_run)
+                logger.info(
+                    "[%s] %s -> %s%s",
+                    self.id,
+                    result.item_ref,
+                    result.status,
+                    f" ({result.reason})" if result.reason else "",
+                )
+
         return RuleRun(rule_id=self.id, results=results)
+
+    def _finish(
+        self, result: ActionResult, mutation_log: MutationLog, dry_run: bool
+    ) -> None:
+        """Record a finished (non-"pending") result to the mutation log, if applicable."""
+        if not dry_run and result.status == "applied":
+            mutation_log.record(
+                MutationRecord(
+                    timestamp=dt.datetime.now(dt.timezone.utc).isoformat(),
+                    rule=self.id,
+                    item=result.item_ref,
+                    field=self.field_name,
+                    old_value=result.old_value,
+                    new_value=result.new_value,
+                )
+            )
