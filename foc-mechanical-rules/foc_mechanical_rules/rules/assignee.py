@@ -6,6 +6,9 @@ foc-board-rules/pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-thei
 This module is that rule's canonical implementation — the markdown links
 back here, and this docstring links back to the markdown, so the two stay
 in sync instead of drifting apart silently.
+
+API call pattern: see README.md's "API call pattern per rule" table. If you
+change what this rule reads or writes per item, update that table too.
 """
 
 from __future__ import annotations

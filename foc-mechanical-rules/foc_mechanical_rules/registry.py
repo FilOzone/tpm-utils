@@ -9,8 +9,8 @@ from typing import List
 
 from .rule import Rule
 from .rules.assignee import AssigneeRule
-from .rules.cycle import CycleRule
+from .rules.cycle import CycleRule, PastCycleRule
 
 
 def default_rules() -> List[Rule]:
-    return [AssigneeRule(), CycleRule()]
+    return [AssigneeRule(), CycleRule(), PastCycleRule()]

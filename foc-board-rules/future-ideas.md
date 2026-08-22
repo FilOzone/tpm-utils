@@ -4,7 +4,7 @@ Ideas for improving the FOC board tooling, collected during rule application ses
 
 ## Move the mechanical rules out of the LLM entirely
 
-**Status: In progress.** [`foc-mechanical-rules`](../foc-mechanical-rules/) now runs hourly via GitHub Actions: R-PR-001 (unassigned PR -> author) and R-FC-012 (recently-active item with no Cycle -> current cycle). The rule-per-field, decision-table design is meant to grow: R-PR-002/003/004 (dependabot/release-PR theme+status) and R-PR-008/009 (merged/closed -> Done) are the natural next slice, following the same `Rule` pattern (`select` + `apply_one`, registered in `registry.py`).
+**Status: In progress.** [`foc-mechanical-rules`](../foc-mechanical-rules/) now runs hourly via GitHub Actions: R-PR-001 (unassigned PR -> author), R-FC-012 (recently-active item with no Cycle -> current cycle), and R-FC-013 (open item in a past cycle -> current cycle). The rule-per-field, decision-table design is meant to grow: R-PR-002/003/004 (dependabot/release-PR theme+status) and R-PR-008/009 (merged/closed -> Done) are the natural next slice, following the same `Rule` pattern (`select` + `apply_one`, registered in `registry.py`).
 
 **New sub-problem this surfaced:** rules that need their own mutation history (see [`foc-mechanical-rules`'s "Mutation log" section](../foc-mechanical-rules/README.md#mutation-log) for why) currently get it persisted via GitHub Actions cache, which isn't a truly durable store (eviction after ~7 days unused, no cross-repo/cross-workflow access). That's an acceptable v1 tradeoff since the library itself doesn't assume any particular persistence mechanism — only the CLI/workflow-level wiring would need to change. If more rules end up depending on this history, or cache eviction ever causes a visible miss, worth moving it somewhere durable: a small persisted store the REST API server owns, for example.
 
@@ -15,6 +15,14 @@ Roughly 60% of the 2026-07-07 sweep's ~395 mutations (dependabot theme/status/cy
 **Consistency note:** this matches the repo tenet of retiring custom LLM-driven capability when a simpler tool suffices. It should still log old → new values to the audit log so sweep reports stay complete.
 
 **Triggered by:** agent feedback after the 2026-07-07 full sweep (~395 mutations across 6 stages).
+
+## Batch mutations in foc-mechanical-rules
+
+**Status: Not started.** `github_projects_client`'s `set_field_value_bulk` already batches GraphQL mutations 25-at-a-time via aliased queries — but every rule calls `set_field_value`, a thin wrapper that always passes a 1-item list, so the batching path never actually batches anything today. A live R-FC-013 dry-run against the real board (2026-08-22) found 179 items needing a mutation; at 1 GraphQL request per item that's 179 round trips this run alone, versus ~8 if they were batched.
+
+**Why it's not just a drop-in fix:** the shared `Rule.run()`/`apply_one` contract (see README.md's "Design" section) interleaves per-item decision logic (skip/flag/error, mutation-log guards) with the actual mutation call, one item at a time. Batching means splitting that into two phases — decide which items to mutate (unchanged, still per-item), then mutate all of them in one `set_field_value_bulk` call — which is a change to the shared base class every rule (current and future) goes through, not something scoped to one rule. `AssigneeRule` doesn't call `set_field_value` at all (it's REST issue/PR endpoints, not board-field mutations), so it gets no benefit but needs to keep working under whatever the new shape is.
+
+**Triggered by:** implementing R-FC-013 and auditing its API call pattern (see README.md's "API call pattern per rule" section) after a live dry-run.
 
 ## Sweep journal for incremental sweeps
 

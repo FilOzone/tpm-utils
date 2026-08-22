@@ -19,7 +19,7 @@ Every `applied`, `flagged`, or `error` outcome is written to the shared [`action
 
 ## Mutation log
 
-Some rules need to know what this tool has already done to an item — R-FC-012 (cycle) is the first example: it won't re-add a cycle it previously set if the item now has no cycle, because that's a human's deliberate signal to descope it, not something to silently override. Getting that from GitHub directly isn't possible: GitHub has no change-history API for Projects v2 custom fields other than Status (confirmed by GraphQL schema introspection — `ProjectV2ItemStatusChangedEvent` is the only such timeline event that exists; a separate, similarly-named `IssueFieldChangedEvent` family turned out to belong to an unrelated "Issue Fields" GitHub feature and returned nothing when checked against a real item with a multi-cycle history).
+Some rules need to know what this tool has already done to an item — R-FC-012 (cycle) is the first example: it won't re-add a cycle it previously set if the item now has no cycle, because that's a human's deliberate signal to descope it, not something to silently override. R-FC-013 uses the same log the other direction: it won't re-move an item off a past cycle if this tool already moved it off that exact cycle once and the item is back there now — that's a human's deliberate signal to leave it, not something to fight. Getting that from GitHub directly isn't possible: GitHub has no change-history API for Projects v2 custom fields other than Status (confirmed by GraphQL schema introspection — `ProjectV2ItemStatusChangedEvent` is the only such timeline event that exists; a separate, similarly-named `IssueFieldChangedEvent` family turned out to belong to an unrelated "Issue Fields" GitHub feature and returned nothing when checked against a real item with a multi-cycle history).
 
 So this tool keeps its own record instead, and treats it explicitly as an *input* to rules rather than an assumption baked into how they run: `mutation_log.py` defines `MutationLog`, an item -> mutations multimap (`for_item(item_ref)` for O(1) lookup, `record(...)` to append). The base `Rule.run()` builds one record per real (non-dry-run) `applied` outcome automatically and adds it to whatever `MutationLog` it's given; any rule's `apply_one` can read it back via `mutation_log.for_item(...)` (see `rules/cycle.py`). **It is not guaranteed comprehensive** — it only knows what was fed in plus what's happened this run — so a rule using it should treat a miss as "no known history," not as proof nothing happened.
 
@@ -31,6 +31,23 @@ Neither `mutation_log.py` nor any rule module knows or cares how the log survive
 | --- | --- | --- |
 | [R-PR-001](../foc-board-rules/pr-hygiene.md#r-pr-001-unassigned-prs-should-be-assigned-to-their-author) | assignee | Unassigned open PRs are assigned to their author (skipping bots, with a merged-release-PR carve-out, and skipping PRs where a human explicitly removed the assignee) |
 | [R-FC-012](../foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle) | cycle | Issues/PRs updated in the last 3 days with no Cycle get the current cycle, unless this tool previously set that item's Cycle to the current one and a human has since cleared it |
+| [R-FC-013](../foc-board-rules/field-completeness.md#r-fc-013-open-items-in-a-past-cycle-should-move-to-the-current-cycle) | cycle | Open issues/PRs whose Cycle is a past iteration move to the current cycle, unless this tool previously moved that item off the same past cycle and a human has since moved it back |
+
+## API call pattern per rule
+
+Board size (~180 open items and growing) makes it easy for a rule to accidentally turn an O(1)-per-run cost into an O(items) one. Three conventions keep that in check, and every rule should follow them:
+
+1. **`select()` issues exactly one board query**, paginated via `list_items`'s cursor — never a query per candidate.
+2. **Anything that's the same for the whole run (e.g. "what's the current cycle?") is resolved once and memoized** on the rule instance (see `CycleRule`/`PastCycleRule`'s `_resolve*` methods), not refetched in every `apply_one` call.
+3. **Mutations pass the item's node ID** (`item.get("_node_id")` — `list_items` always includes it, regardless of the requested `fields`), not an `"owner/repo#number"` ref. `github_projects_client`'s `set_field_value`/`set_field_value_bulk` silently does an extra `get_item` read per plain ref to resolve it to a node ID; a node ID skips that lookup entirely and also gets its `old_value` from a batched API read instead of whatever `select()` saw earlier (which can be stale by the time the mutation runs).
+
+| Rule | `select()` (once per run) | Per-run, memoized | Per-item reads | Per-item writes |
+| --- | --- | --- | --- | --- |
+| R-PR-001 (assignee) | 1 paginated board query | — | 1 REST `GET` (PR metadata) per candidate; **+1 REST `GET`** (issue events, paginated) unless skipped as a bot author | 1 REST `POST` per applied item |
+| R-FC-012 (cycle) | 1 paginated board query | 1 GraphQL query (iterations) | none | 1 GraphQL mutation per applied item (node ID) |
+| R-FC-013 (cycle) | 1 paginated board query (Cycle field included, so no separate read is needed to know an item's current cycle) | 1 GraphQL query (iterations, shared helper with R-FC-012) | none | 1 GraphQL mutation per applied item (node ID) |
+
+**Known gap, not yet worth fixing:** R-PR-001's 1-2 REST reads per candidate PR are real per-item calls with no batched equivalent used today, unlike the two cycle rules. At current volume (dozens of candidates per hourly run, most REST GETs) it's well within GitHub's rate limits and not worth the complexity, but if candidate volume grows a lot, `github_projects_client`'s `nodes(ids: [ID!]!)` batching pattern (used by `set_field_value_bulk`'s old-value fetch) generalizes: a GraphQL `nodes()` query keyed by PR node IDs could fetch author + merge state for many PRs in one call, cutting the metadata `GET` to near-zero; issue-events (used only to detect a human `unassigned` event) would need a similar `timelineItems` batch to fully close the gap.
 
 ## Usage
 
@@ -38,6 +55,8 @@ Neither `mutation_log.py` nor any rule module knows or cares how the log survive
 uv run foc-mechanical-rules --dry-run          # preview, no mutations
 uv run foc-mechanical-rules                    # apply
 uv run foc-mechanical-rules -o "$GITHUB_STEP_SUMMARY"
+uv run foc-mechanical-rules --dry-run --rule R-FC-013                # only this rule
+uv run foc-mechanical-rules --dry-run --rule R-FC-013 --rule R-PR-001  # or a few
 ```
 
 Requires a `GITHUB_TOKEN` (or `--token`) with `read:project` (board reads) and issue/PR write access (`repo` scope, or fine-grained `Issues: write` + `Pull requests: write`) on the blessed orgs. CI uses the org's `FILOZZY_CI_ADD_TO_PROJECT` secret (also used by [`add-issues-and-prs-to-fs-project-board.yml`](../.github/workflows/add-issues-and-prs-to-fs-project-board.yml)).

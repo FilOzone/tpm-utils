@@ -14,6 +14,15 @@ on:
           - 'true'
           - 'false'
 
+# Serialize runs rather than letting them overlap: two concurrent runs would
+# both restore the same mutation-log cache snapshot, could both move the same
+# item, and the later cache save could silently drop the other run's
+# mutations. cancel-in-progress stays false so a run in flight (which may
+# already be mid-mutation) always finishes rather than being cut off.
+concurrency:
+  group: foc-board-mechanical-rules
+  cancel-in-progress: false
+
 jobs:
   apply-rules:
     runs-on: ubuntu-latest
