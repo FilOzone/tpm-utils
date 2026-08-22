@@ -33,6 +33,22 @@ Neither `mutation_log.py` nor any rule module knows or cares how the log survive
 | [R-FC-012](../foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle) | cycle | Issues/PRs updated in the last 3 days with no Cycle get the current cycle, unless this tool previously set that item's Cycle to the current one and a human has since cleared it |
 | [R-FC-013](../foc-board-rules/field-completeness.md#r-fc-013-open-items-in-a-past-cycle-should-move-to-the-current-cycle) | cycle | Open issues/PRs whose Cycle is a past iteration move to the current cycle, unless this tool previously moved that item off the same past cycle and a human has since moved it back |
 
+## API call pattern per rule
+
+Board size (~180 open items and growing) makes it easy for a rule to accidentally turn an O(1)-per-run cost into an O(items) one. Three conventions keep that in check, and every rule should follow them:
+
+1. **`select()` issues exactly one board query**, paginated via `list_items`'s cursor — never a query per candidate.
+2. **Anything that's the same for the whole run (e.g. "what's the current cycle?") is resolved once and memoized** on the rule instance (see `CycleRule`/`PastCycleRule`'s `_resolve*` methods), not refetched in every `apply_one` call.
+3. **Mutations pass the item's node ID** (`item.get("_node_id")` — `list_items` always includes it, regardless of the requested `fields`), not an `"owner/repo#number"` ref. `github_projects_client`'s `set_field_value`/`set_field_value_bulk` silently does an extra `get_item` read per plain ref to resolve it to a node ID; a node ID skips that lookup entirely and also gets its `old_value` from a batched API read instead of whatever `select()` saw earlier (which can be stale by the time the mutation runs).
+
+| Rule | `select()` (once per run) | Per-run, memoized | Per-item reads | Per-item writes |
+| --- | --- | --- | --- | --- |
+| R-PR-001 (assignee) | 1 paginated board query | — | 1 REST `GET` (PR metadata) per candidate; **+1 REST `GET`** (issue events, paginated) unless skipped as a bot author | 1 REST `POST` per applied item |
+| R-FC-012 (cycle) | 1 paginated board query | 1 GraphQL query (iterations) | none | 1 GraphQL mutation per applied item (node ID) |
+| R-FC-013 (cycle) | 1 paginated board query (Cycle field included, so no separate read is needed to know an item's current cycle) | 1 GraphQL query (iterations, shared helper with R-FC-012) | none | 1 GraphQL mutation per applied item (node ID) |
+
+**Known gap, not yet worth fixing:** R-PR-001's 1-2 REST reads per candidate PR are real per-item calls with no batched equivalent used today, unlike the two cycle rules. At current volume (dozens of candidates per hourly run, most REST GETs) it's well within GitHub's rate limits and not worth the complexity, but if candidate volume grows a lot, `github_projects_client`'s `nodes(ids: [ID!]!)` batching pattern (used by `set_field_value_bulk`'s old-value fetch) generalizes: a GraphQL `nodes()` query keyed by PR node IDs could fetch author + merge state for many PRs in one call, cutting the metadata `GET` to near-zero; issue-events (used only to detect a human `unassigned` event) would need a similar `timelineItems` batch to fully close the gap.
+
 ## Usage
 
 ```bash

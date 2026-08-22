@@ -14,6 +14,7 @@ ITEM = {
     "Id": "458",
     "Title": "fix: something",
     "url": "https://github.com/FilOzone/dealbot/pull/458",
+    "_node_id": "PVTI_abc123",
 }
 
 ITERATIONS = {
@@ -76,6 +77,9 @@ def test_item_without_prior_history_gets_current_cycle(mock_get_cycle, mock_set)
     assert result.status == "applied"
     assert result.new_value == "202608-2"
     mock_set.assert_called_once()
+    # Passes the node ID, not "owner/repo#number" -- skips set_field_value's
+    # internal per-item get_item lookup.
+    assert mock_set.call_args.kwargs["item_ref"] == "PVTI_abc123"
 
 
 @patch("foc_mechanical_rules.rules.cycle.set_field_value")

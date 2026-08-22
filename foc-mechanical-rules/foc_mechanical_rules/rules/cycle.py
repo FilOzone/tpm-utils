@@ -10,6 +10,9 @@ docstring for why the markdown and this module link back to each other.
 The "don't re-add/re-move a cycle a human undid" guards rely on the mutation
 log (see mutation_log.py and README.md's "Mutation log" section for why
 that's necessary and how it works) rather than anything GitHub-provided.
+
+API call pattern: see README.md's "API call pattern per rule" table. If you
+change what either rule reads or writes per item, update that table too.
 """
 
 from __future__ import annotations
@@ -165,6 +168,7 @@ class CycleRule(Rule):
         number = str(item.get("Id", ""))
         title = item.get("Title", "")
         item_ref = f"{repository}#{number}"
+        node_id = item.get("_node_id", "")
 
         current_cycle = self._resolve_current_cycle(session)
         if not current_cycle:
@@ -204,7 +208,10 @@ class CycleRule(Rule):
             session,
             org=self.org,
             project_number=self.project_number,
-            item_ref=item_ref,
+            # Node ID, not "owner/repo#number" -- see the matching comment in
+            # PastCycleRule.apply_one for why (skips set_field_value_bulk's
+            # per-item get_item lookup).
+            item_ref=node_id or item_ref,
             field_name="Cycle",
             value=current_cycle,
         )
