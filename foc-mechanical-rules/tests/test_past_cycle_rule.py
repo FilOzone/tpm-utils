@@ -25,17 +25,12 @@ ITERATIONS = {
         "projectV2": {
             "field": {
                 "configuration": {
+                    # GitHub's GraphQL schema splits current/future iterations
+                    # from completed ones -- ``iterations`` alone never
+                    # includes a truly past cycle. Mirror that split here so
+                    # a regression back to reading only ``iterations`` fails
+                    # this test instead of passing by accident.
                     "iterations": [
-                        {
-                            "title": "202607-2",
-                            "startDate": "2026-07-20",
-                            "duration": 14,
-                        },
-                        {
-                            "title": "202608-1",
-                            "startDate": "2026-08-03",
-                            "duration": 14,
-                        },
                         {
                             "title": "202608-2",
                             "startDate": "2026-08-17",
@@ -46,7 +41,19 @@ ITERATIONS = {
                             "startDate": "2026-08-31",
                             "duration": 14,
                         },
-                    ]
+                    ],
+                    "completedIterations": [
+                        {
+                            "title": "202608-1",
+                            "startDate": "2026-08-03",
+                            "duration": 14,
+                        },
+                        {
+                            "title": "202607-2",
+                            "startDate": "2026-07-20",
+                            "duration": 14,
+                        },
+                    ],
                 }
             }
         }

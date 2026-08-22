@@ -32,6 +32,7 @@ query($org: String!, $number: Int!) {
         ... on ProjectV2IterationField {
           configuration {
             iterations { title startDate duration }
+            completedIterations { title startDate duration }
           }
         }
       }
@@ -44,11 +45,23 @@ query($org: String!, $number: Int!) {
 def _fetch_iterations(
     session: requests.Session, *, org: str, project_number: int
 ) -> List[Dict[str, Any]]:
+    """Every iteration GitHub knows about for the Cycle field, current/future and completed.
+
+    ``configuration.iterations`` alone only returns the current and future
+    iterations -- completed ones live under the separate
+    ``completedIterations`` field and won't appear otherwise. R-FC-012 only
+    needs the iteration containing today, so this omission didn't matter
+    there, but R-FC-013 needs the full history to tell a past cycle from an
+    unknown one, so both iteration lists are combined here.
+    """
     data = graphql_query(
         session, CURRENT_CYCLE_QUERY, {"org": org, "number": project_number}
     )
     field = ((data.get("organization") or {}).get("projectV2") or {}).get("field") or {}
-    return (field.get("configuration") or {}).get("iterations") or []
+    configuration = field.get("configuration") or {}
+    return (configuration.get("iterations") or []) + (
+        configuration.get("completedIterations") or []
+    )
 
 
 def get_current_cycle_title(
