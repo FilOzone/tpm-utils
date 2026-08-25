@@ -13,7 +13,6 @@ change what this rule reads or writes per item, update that table too.
 
 from __future__ import annotations
 
-import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -23,23 +22,15 @@ from ..github_api import (
     BLESSED_ORGS,
     FILOZ_ORG,
     PROJECT_NUMBER,
+    RELEASE_PR_TITLE_RE,
     add_assignee,
     get_issue_events,
     get_pull_request,
+    is_bot_author,
     parse_repo_ref,
 )
 from ..mutation_log import MutationLog
 from ..rule import ActionResult, Rule
-
-# Matches R-PR-004's release-PR detection regex.
-RELEASE_PR_TITLE_RE = re.compile(r"^chore\((master|main)\):?\s*release|^chore: release")
-
-BOT_LOGINS = {"dependabot", "filozzy"}
-
-
-def _is_bot_author(login: str) -> bool:
-    lower = login.lower()
-    return lower in BOT_LOGINS or lower.startswith("app/") or lower.endswith("[bot]")
 
 
 class AssigneeRule(Rule):
@@ -112,7 +103,7 @@ class AssigneeRule(Rule):
         merged_by = (pr.get("merged_by") or {}).get("login")
         is_release_pr = bool(RELEASE_PR_TITLE_RE.match(title))
 
-        if _is_bot_author(author):
+        if is_bot_author(author):
             if merged and is_release_pr:
                 if not merged_by:
                     return ActionResult(

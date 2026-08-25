@@ -35,16 +35,31 @@ Rules for keeping pull request items on the FOC board well-formed.
 
 ## R-PR-005: Draft PRs should be In Progress
 
+**Enforced mechanically for the Triage case, hourly:** see [R-PR-010](#r-pr-010-triage-prs-should-be-routed-to-the-correct-status) below — a sweep no longer needs to move a draft PR out of Triage by hand. Non-Triage cases (Awaiting review, Approved, Issue awaiting PR merge) are still sweep-applied.
+
 **When:** A PR is a draft and its status is "📌 Triage", "🔎 Awaiting review", "✔️ Approved by reviewer", or "⌚️ Issue awaiting PR merge".
 **Action:** Set Status to `⌨️ In Progress`.
 **Why:** A draft PR is not ready for review or approval. If it's in Triage, it should move to In Progress since someone is actively working on it. If it's in Awaiting Review or later, the author likely converted it back to draft after feedback — the board should reflect that it's back in active development. Draft PRs in Todo or In Progress are fine as-is.
 
 ## R-PR-006: Non-draft, non-bot PRs in Triage or In Progress — determine correct status
 
+**Enforced mechanically for the Triage case, hourly:** see [R-PR-010](#r-pr-010-triage-prs-should-be-routed-to-the-correct-status) below. The In Progress re-evaluation case is still sweep-applied.
+
 **When:** A PR is not a draft, not authored by a bot, not a release PR, and its status is "📌 Triage" or "⌨️ In Progress".
 **Action:** Compute the derived inputs and apply the [PR status determination table](pr-status-table.md); it is the canonical routing logic (this rule's former prose cases 1-4, the comments-count-as-reviews paragraph, and the carve-outs from pdp-explorer#118, dealbot#638, and filecoin-services#522 all live there now, alongside the R-SL-001/007 routing they interact with).
 **How to check:** Use `gh pr view -R <repo> <number> --json reviews,commits,comments --jq '{reviews: [.reviews[] | {author: .author.login, state: .state, submittedAt: .submittedAt}], comments: [.comments[] | {author: .author.login, authorAssociation: .authorAssociation, body: .body, createdAt: .createdAt}], lastCommit: .commits[-1].committedDate}'` to get the timestamps and comment data the table's `last_feedback` input needs — Phase 1 (`gh pr list`) never includes `comments`, so this Phase 2 call is required for every R-PR-006 candidate, not just ones where Phase 1 shows formal review engagement. A PR with only substantive comments and no formal review looks identical to a PR with zero engagement in Phase 1 data, and skipping Phase 2 there would miss it.
 **Why:** Non-draft, non-bot PRs should always leave Triage, and In Progress PRs may need re-evaluation. But the destination depends on review state; not every PR goes to Awaiting Review. A PR with unaddressed feedback belongs in In Progress, a PR with a merge-authority approval belongs in Approved, and a PR with no feedback or addressed feedback belongs in Awaiting Review. This is the counterpart to R-PR-005: when a draft PR becomes non-draft, it advances, but the destination depends on what reviewers have already said.
+
+## R-PR-010: Triage PRs should be routed to the correct status
+
+**Enforced mechanically, hourly:** this rule is a pure function of observable state, so it runs automatically via [`foc-mechanical-rules`](../foc-mechanical-rules/) (see [R-PR-010's implementation](../foc-mechanical-rules/foc_mechanical_rules/rules/pr_status.py)), scheduled by [`.github/workflows/foc-board-mechanical-rules.yml`](../.github/workflows/foc-board-mechanical-rules.yml). A sweep no longer needs to apply the Triage case of R-PR-005/R-PR-006 by hand — the prose there stays canonical for what those rules do and why; this module is canonical for exactly how the Triage case is evaluated.
+
+**When:** A PR on the board has status "📌 Triage".
+**Action:** Compute the [PR status determination table](pr-status-table.md)'s target status (row 1: draft → In Progress; row 2: bot/release → Todo; row 3: authoritative approval and no blocking changes-requested → Approved by reviewer; rows 4-6: based on formal reviews vs. last commit → In Progress or Awaiting review) and set Status to it.
+**Guard — respect an explicit return to Triage:** Before computing a target, check the PR's Status field change history (GitHub's `ProjectV2ItemStatusChangedEvent` timeline — the one project field with real GitHub-provided history; see [R-FC-012](field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle)'s note on why Cycle needs its own log but Status doesn't). If the most recent status change moved the item *into* Triage from some other status (Todo, In Progress, Awaiting review, etc.) rather than the initial add-to-project default, a human deliberately moved it back — flag instead of auto-routing it back out.
+**Simplification vs. the full table — comments:** unlike the full table, this rule never treats informal PR *comments* as feedback (`last_feedback` only comes from formal reviews: APPROVED / CHANGES_REQUESTED / COMMENTED) — judging whether a comment is substantive feedback or coordination chatter requires reading it, which isn't a pure function of structured state. If a Triage PR has qualifying human comments after its last commit, this rule flags it instead of auto-routing so a human applies R-PR-006/R-SL-010 judgment.
+**Simplification vs. R-SL-001 — approval language:** `authoritative_approval` doesn't parse approval text for conditional language ("approving assuming you address X"); any qualifying APPROVED review counts. R-SL-001's language-based superseding nuance is a judgment call, not a fact lookup, so it's out of scope here.
+**Why:** Triage PRs should never sit there once someone starts real work on them (draft) or once they're ready for eyes (non-draft) — see R-PR-005/R-PR-006. But automation shouldn't fight a human who deliberately re-triaged something; the status-history guard makes that distinction on real GitHub data instead of guessing from board state alone.
 
 ## R-PR-007: Awaiting Review PRs must have human reviewer engagement
 
