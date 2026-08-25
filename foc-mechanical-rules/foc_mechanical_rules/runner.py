@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import List
 
 import requests
@@ -43,6 +44,22 @@ def run_all(
     return runs
 
 
+_ITEM_REF_RE = re.compile(r"^([\w.-]+/[\w.-]+)#(\d+)$")
+
+
+def _link_item_ref(item_ref: str) -> str:
+    """Render `owner/repo#123` as a markdown link to the issue/PR on GitHub.
+
+    GitHub's `/issues/{n}` URL resolves for both issues and PRs, so this
+    doesn't need to know which one `item_ref` points to.
+    """
+    match = _ITEM_REF_RE.match(item_ref)
+    if not match:
+        return f"`{item_ref}`"
+    repo, number = match.groups()
+    return f"[`{item_ref}`](https://github.com/{repo}/issues/{number})"
+
+
 def render_summary(rules: List[Rule], runs: List[RuleRun]) -> str:
     lines: List[str] = []
     for rule, run in zip(rules, runs):
@@ -56,7 +73,7 @@ def render_summary(rules: List[Rule], runs: List[RuleRun]) -> str:
         for result in run.results:
             if result.status == "skipped":
                 continue
-            detail = f"- `{result.item_ref}` **{result.status}**"
+            detail = f"- {_link_item_ref(result.item_ref)} **{result.status}**"
             if result.old_value or result.new_value:
                 detail += f": `{result.old_value}` -> `{result.new_value}`"
             if result.reason:
