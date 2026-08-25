@@ -42,7 +42,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
-from github_projects_client import list_items, set_field_value_bulk
+from github_projects_client import GitHubAPIError, list_items, set_field_value_bulk
 
 from ..github_api import (
     FILOZ_ORG,
@@ -120,11 +120,14 @@ class PRStatusRule(Rule):
     def _explicitly_returned_to_triage(self, timeline: List[Dict[str, Any]]) -> bool:
         """True if the most recent status change moved the item INTO Triage from
         some other status (as opposed to the initial add-to-project default).
+
+        ``timeline`` holds at most one event -- ``get_pr_review_context``'s
+        query already asks for just the last (most recent) status-changed
+        event, since that's the only one this guard cares about.
         """
-        events = sorted(timeline, key=lambda e: e.get("createdAt", ""))
-        if not events:
+        if not timeline:
             return False
-        last = events[-1]
+        last = timeline[-1]
         return last.get("status") == STATUS_TRIAGE and bool(last.get("previousStatus"))
 
     def apply_one(
@@ -148,7 +151,7 @@ class PRStatusRule(Rule):
 
         try:
             pr = get_pr_review_context(session, owner=owner, repo=repo, number=number)
-        except requests.HTTPError as exc:
+        except (requests.HTTPError, GitHubAPIError) as exc:
             return ActionResult(
                 item_ref=item_ref,
                 title=title,
@@ -310,13 +313,27 @@ class PRStatusRule(Rule):
                 new_value=target,
             )
 
+        if not node_id:
+            # Per README.md's "API call pattern per rule" #3, mutations
+            # should always carry the item's real node ID -- list_items
+            # always includes it, so a miss here means something upstream
+            # is broken and silently falling back to item_ref would just
+            # mask that (and cost set_field_value_bulk an extra per-item
+            # lookup, or fail outright if the ref format ever changes).
+            return ActionResult(
+                item_ref=item_ref,
+                title=title,
+                status="error",
+                reason="no node ID for this item -- cannot queue a mutation",
+            )
+
         return ActionResult(
             item_ref=item_ref,
             title=title,
             status="pending",
             old_value=STATUS_TRIAGE,
             new_value=target,
-            node_id=node_id or item_ref,
+            node_id=node_id,
         )
 
     def mutate_pending(

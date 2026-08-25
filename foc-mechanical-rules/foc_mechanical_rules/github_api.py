@@ -149,7 +149,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
       comments(last: 30) {
         nodes { author { login __typename } createdAt }
       }
-      timelineItems(first: 100, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT]) {
+      timelineItems(last: 1, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT]) {
         nodes {
           ... on ProjectV2ItemStatusChangedEvent {
             createdAt

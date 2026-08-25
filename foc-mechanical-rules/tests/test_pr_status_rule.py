@@ -15,17 +15,14 @@ ITEM = {
     "_node_id": "PVTI_abc123",
 }
 
+# get_pr_review_context's query asks GitHub for just the last (most recent)
+# status-changed event via `timelineItems(last: 1, ...)`, so these fixtures
+# hold at most one element, matching what the real query returns.
 NEVER_LEFT_TRIAGE = [
     {"createdAt": "2026-08-01T00:00:00Z", "previousStatus": "", "status": "📌 Triage"},
 ]
 
 RETURNED_TO_TRIAGE = [
-    {"createdAt": "2026-08-01T00:00:00Z", "previousStatus": "", "status": "📌 Triage"},
-    {
-        "createdAt": "2026-08-05T00:00:00Z",
-        "previousStatus": "📌 Triage",
-        "status": "⌨️ In Progress",
-    },
     {
         "createdAt": "2026-08-10T00:00:00Z",
         "previousStatus": "⌨️ In Progress",
