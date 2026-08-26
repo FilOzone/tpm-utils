@@ -1,8 +1,9 @@
-"""R-FC-012 / R-FC-013: keep an item's Cycle pointed at the current iteration.
+"""R-FC-012 / R-FC-013 / R-FC-014: keep an item's Cycle pointed at the current iteration.
 
 Canonical English rules:
 - foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle
 - foc-board-rules/field-completeness.md#r-fc-013-open-items-in-a-past-cycle-should-move-to-the-current-cycle
+- foc-board-rules/field-completeness.md#r-fc-014-recently-completed-items-without-a-cycle-get-the-current-cycle
 
 This module is that rule's canonical implementation — see rules/assignee.py's
 docstring for why the markdown and this module link back to each other.
@@ -179,11 +180,20 @@ class _CycleFieldRule(Rule):
 
 
 class CycleRule(_CycleFieldRule):
+    """Recently-active items with no Cycle get the current cycle.
+
+    ``_STATUS_FILTER`` is the only thing ``DoneCycleRule`` (R-FC-014)
+    overrides to change its selection query -- both rules share the same
+    "no cycle in the last 3 days" query shape, just scoped to Done vs.
+    not-Done items.
+    """
+
     id = "R-FC-012"
     doc_url = (
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle"
     )
+    _STATUS_FILTER = '-status:"🎉 Done"'
 
     def __init__(self, org: str = FILOZ_ORG, project_number: int = PROJECT_NUMBER):
         self.org = org
@@ -207,7 +217,7 @@ class CycleRule(_CycleFieldRule):
                 session,
                 org=self.org,
                 project_number=self.project_number,
-                query='-status:"🎉 Done" no:cycle updated:>@today-3d',
+                query=f"{self._STATUS_FILTER} no:cycle updated:>@today-3d",
                 fields=["Repository", "Id", "Title", "url"],
                 cursor=cursor,
             )
@@ -276,6 +286,24 @@ class CycleRule(_CycleFieldRule):
             new_value=current_cycle,
             node_id=node_id or item_ref,
         )
+
+
+class DoneCycleRule(CycleRule):
+    """Same "no cycle -> assign current cycle" logic as R-FC-012, scoped to
+    items currently in Done instead of items that are still active.
+
+    Subclasses ``CycleRule`` and only overrides ``_STATUS_FILTER`` to
+    change its selection query (plus ``id``/``doc_url`` for identity) --
+    ``select()``'s query shape, ``apply_one``, and the mutation-log guard
+    are otherwise identical between the two rules.
+    """
+
+    id = "R-FC-014"
+    doc_url = (
+        "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
+        "field-completeness.md#r-fc-014-recently-completed-items-without-a-cycle-get-the-current-cycle"
+    )
+    _STATUS_FILTER = 'status:"🎉 Done"'
 
 
 class PastCycleRule(_CycleFieldRule):

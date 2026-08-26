@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 
 from foc_mechanical_rules.mutation_log import MutationLog, MutationRecord
 from foc_mechanical_rules.rule import ActionResult, Rule
-from foc_mechanical_rules.rules.cycle import CycleRule, get_current_cycle_title
+from foc_mechanical_rules.rules.cycle import (
+    CycleRule,
+    DoneCycleRule,
+    get_current_cycle_title,
+)
 
 ITEM = {
     "Repository": "FilOzone/dealbot",
@@ -204,3 +208,39 @@ def test_mutate_pending_reports_per_item_failure(mock_bulk):
 
 def test_cycle_rule_is_a_rule():
     assert isinstance(CycleRule(), Rule)
+
+
+@patch("foc_mechanical_rules.rules.cycle.list_items")
+def test_done_cycle_rule_queries_done_items_with_the_same_window_as_cycle_rule(
+    mock_list_items,
+):
+    mock_list_items.return_value = {"items": [], "has_more": False, "next_cursor": None}
+
+    DoneCycleRule().select(MagicMock())
+
+    query = mock_list_items.call_args.kwargs["query"]
+    assert 'status:"🎉 Done"' in query
+    assert '-status:"🎉 Done"' not in query
+    assert "no:cycle" in query
+    assert "updated:>@today-3d" in query
+
+
+@patch(
+    "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
+)
+def test_done_cycle_rule_reuses_cycle_rules_apply_one(mock_get_cycle):
+    # DoneCycleRule only overrides the status filter used by select() --
+    # apply_one's behavior (queue a pending mutation for a candidate with no
+    # prior history) should match CycleRule's exactly.
+    rule = DoneCycleRule()
+    result = rule.apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
+
+    assert result.status == "pending"
+    assert result.new_value == "202608-2"
+    assert rule.id == "R-FC-014"
+
+
+def test_done_cycle_rule_is_a_rule():
+    assert isinstance(DoneCycleRule(), Rule)

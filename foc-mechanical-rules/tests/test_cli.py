@@ -28,7 +28,7 @@ def test_no_rule_flag_runs_every_registered_rule(capsys):
     _run_cli(["--dry-run", "--token", "x"], run_all_mock)
 
     ran_ids = {rule.id for rule in run_all_mock.call_args.args[1]}
-    assert ran_ids == {"R-PR-001", "R-FC-012", "R-FC-013", "R-PR-010"}
+    assert ran_ids == {"R-PR-001", "R-FC-012", "R-FC-013", "R-FC-014", "R-PR-010"}
 
 
 def test_rule_flag_filters_to_the_named_rule(capsys):

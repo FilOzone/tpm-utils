@@ -9,9 +9,15 @@ from typing import List
 
 from .rule import Rule
 from .rules.assignee import AssigneeRule
-from .rules.cycle import CycleRule, PastCycleRule
+from .rules.cycle import CycleRule, DoneCycleRule, PastCycleRule
 from .rules.pr_status import PRStatusRule
 
 
 def default_rules() -> List[Rule]:
-    return [AssigneeRule(), CycleRule(), PastCycleRule(), PRStatusRule()]
+    return [
+        AssigneeRule(),
+        CycleRule(),
+        PastCycleRule(),
+        DoneCycleRule(),
+        PRStatusRule(),
+    ]
