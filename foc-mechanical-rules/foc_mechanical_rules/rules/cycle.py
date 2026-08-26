@@ -289,7 +289,7 @@ class CycleRule(_CycleFieldRule):
 
 class DoneCycleRule(CycleRule):
     """Same "no cycle -> assign current cycle" logic as R-FC-012, scoped to
-    items that just moved to Done instead of items that are still active.
+    items currently in Done instead of items that are still active.
 
     Subclasses ``CycleRule`` and only overrides ``_STATUS_FILTER`` --
     ``select()``'s query shape, ``apply_one``, and the mutation-log guard
