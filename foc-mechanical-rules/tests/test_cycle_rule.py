@@ -211,15 +211,18 @@ def test_cycle_rule_is_a_rule():
 
 
 @patch("foc_mechanical_rules.rules.cycle.list_items")
-def test_done_cycle_rule_queries_done_items_with_a_one_day_window(mock_list_items):
+def test_done_cycle_rule_queries_done_items_with_the_same_window_as_cycle_rule(
+    mock_list_items,
+):
     mock_list_items.return_value = {"items": [], "has_more": False, "next_cursor": None}
 
     DoneCycleRule().select(MagicMock())
 
     query = mock_list_items.call_args.kwargs["query"]
     assert 'status:"🎉 Done"' in query
+    assert '-status:"🎉 Done"' not in query
     assert "no:cycle" in query
-    assert "updated:>@today-1d" in query
+    assert "updated:>@today-3d" in query
 
 
 @patch(

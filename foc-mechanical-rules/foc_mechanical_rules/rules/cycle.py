@@ -180,11 +180,19 @@ class _CycleFieldRule(Rule):
 
 
 class CycleRule(_CycleFieldRule):
+    """Recently-active items with no Cycle get the current cycle.
+
+    ``_STATUS_FILTER`` is the only thing ``DoneCycleRule`` (R-FC-014)
+    overrides -- both rules share the same "no cycle in the last 3 days"
+    query shape, just scoped to Done vs. not-Done items.
+    """
+
     id = "R-FC-012"
     doc_url = (
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle"
     )
+    _STATUS_FILTER = '-status:"🎉 Done"'
 
     def __init__(self, org: str = FILOZ_ORG, project_number: int = PROJECT_NUMBER):
         self.org = org
@@ -208,7 +216,7 @@ class CycleRule(_CycleFieldRule):
                 session,
                 org=self.org,
                 project_number=self.project_number,
-                query='-status:"🎉 Done" no:cycle updated:>@today-3d',
+                query=f"{self._STATUS_FILTER} no:cycle updated:>@today-3d",
                 fields=["Repository", "Id", "Title", "url"],
                 cursor=cursor,
             )
@@ -283,9 +291,9 @@ class DoneCycleRule(CycleRule):
     """Same "no cycle -> assign current cycle" logic as R-FC-012, scoped to
     items that just moved to Done instead of items that are still active.
 
-    Subclasses ``CycleRule`` rather than ``_CycleFieldRule`` directly since
-    ``apply_one`` is identical -- only ``select``'s query differs (Done
-    instead of not-Done, a 1-day window instead of 3 days).
+    Subclasses ``CycleRule`` and only overrides ``_STATUS_FILTER`` --
+    ``select()``'s query shape, ``apply_one``, and the mutation-log guard
+    are otherwise identical between the two rules.
     """
 
     id = "R-FC-014"
@@ -293,24 +301,7 @@ class DoneCycleRule(CycleRule):
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "field-completeness.md#r-fc-014-recently-completed-items-without-a-cycle-get-the-current-cycle"
     )
-
-    def select(self, session: requests.Session) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
-        cursor: Optional[str] = None
-        while True:
-            result = list_items(
-                session,
-                org=self.org,
-                project_number=self.project_number,
-                query='status:"🎉 Done" no:cycle updated:>@today-1d',
-                fields=["Repository", "Id", "Title", "url"],
-                cursor=cursor,
-            )
-            items.extend(result["items"])
-            if not result["has_more"]:
-                break
-            cursor = result["next_cursor"]
-        return items
+    _STATUS_FILTER = 'status:"🎉 Done"'
 
 
 class PastCycleRule(_CycleFieldRule):
