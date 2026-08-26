@@ -183,8 +183,9 @@ class CycleRule(_CycleFieldRule):
     """Recently-active items with no Cycle get the current cycle.
 
     ``_STATUS_FILTER`` is the only thing ``DoneCycleRule`` (R-FC-014)
-    overrides -- both rules share the same "no cycle in the last 3 days"
-    query shape, just scoped to Done vs. not-Done items.
+    overrides to change its selection query -- both rules share the same
+    "no cycle in the last 3 days" query shape, just scoped to Done vs.
+    not-Done items.
     """
 
     id = "R-FC-012"
@@ -291,7 +292,8 @@ class DoneCycleRule(CycleRule):
     """Same "no cycle -> assign current cycle" logic as R-FC-012, scoped to
     items currently in Done instead of items that are still active.
 
-    Subclasses ``CycleRule`` and only overrides ``_STATUS_FILTER`` --
+    Subclasses ``CycleRule`` and only overrides ``_STATUS_FILTER`` to
+    change its selection query (plus ``id``/``doc_url`` for identity) --
     ``select()``'s query shape, ``apply_one``, and the mutation-log guard
     are otherwise identical between the two rules.
     """

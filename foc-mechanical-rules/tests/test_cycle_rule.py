@@ -229,9 +229,9 @@ def test_done_cycle_rule_queries_done_items_with_the_same_window_as_cycle_rule(
     "foc_mechanical_rules.rules.cycle.get_current_cycle_title", return_value="202608-2"
 )
 def test_done_cycle_rule_reuses_cycle_rules_apply_one(mock_get_cycle):
-    # DoneCycleRule only overrides select() -- apply_one's behavior (queue a
-    # pending mutation for a candidate with no prior history) should match
-    # CycleRule's exactly.
+    # DoneCycleRule only overrides the status filter used by select() --
+    # apply_one's behavior (queue a pending mutation for a candidate with no
+    # prior history) should match CycleRule's exactly.
     rule = DoneCycleRule()
     result = rule.apply_one(
         MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
