@@ -1,8 +1,9 @@
-"""R-FC-012 / R-FC-013: keep an item's Cycle pointed at the current iteration.
+"""R-FC-012 / R-FC-013 / R-FC-014: keep an item's Cycle pointed at the current iteration.
 
 Canonical English rules:
 - foc-board-rules/field-completeness.md#r-fc-012-recently-active-items-without-a-cycle-get-the-current-cycle
 - foc-board-rules/field-completeness.md#r-fc-013-open-items-in-a-past-cycle-should-move-to-the-current-cycle
+- foc-board-rules/field-completeness.md#r-fc-014-recently-completed-items-without-a-cycle-get-the-current-cycle
 
 This module is that rule's canonical implementation — see rules/assignee.py's
 docstring for why the markdown and this module link back to each other.
@@ -276,6 +277,40 @@ class CycleRule(_CycleFieldRule):
             new_value=current_cycle,
             node_id=node_id or item_ref,
         )
+
+
+class DoneCycleRule(CycleRule):
+    """Same "no cycle -> assign current cycle" logic as R-FC-012, scoped to
+    items that just moved to Done instead of items that are still active.
+
+    Subclasses ``CycleRule`` rather than ``_CycleFieldRule`` directly since
+    ``apply_one`` is identical -- only ``select``'s query differs (Done
+    instead of not-Done, a 1-day window instead of 3 days).
+    """
+
+    id = "R-FC-014"
+    doc_url = (
+        "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
+        "field-completeness.md#r-fc-014-recently-completed-items-without-a-cycle-get-the-current-cycle"
+    )
+
+    def select(self, session: requests.Session) -> List[Dict[str, Any]]:
+        items: List[Dict[str, Any]] = []
+        cursor: Optional[str] = None
+        while True:
+            result = list_items(
+                session,
+                org=self.org,
+                project_number=self.project_number,
+                query='status:"🎉 Done" no:cycle updated:>@today-1d',
+                fields=["Repository", "Id", "Title", "url"],
+                cursor=cursor,
+            )
+            items.extend(result["items"])
+            if not result["has_more"]:
+                break
+            cursor = result["next_cursor"]
+        return items
 
 
 class PastCycleRule(_CycleFieldRule):
