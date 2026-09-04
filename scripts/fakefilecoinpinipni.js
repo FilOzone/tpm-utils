@@ -1,4 +1,5 @@
 // Transitional Worker for the filecoinpin.contact decommission
+// See https://github.com/filecoin-project/filecoin-pin/issues/664
 //
 // Background: the filecoinpin.contact IPNI service is being shut down, but Curio's
 // codebase still hardcodes it as a default (Market.StorageMarketConfig.IPNI's
@@ -26,7 +27,7 @@
 //    error out, but treats the push as unsuccessful and retries the same head against
 //    every configured URL again a second later (including the URLs that already
 //    succeeded). So a persistently failing endpoint here causes unbounded repeated
-//    requests against the other, healthy IPNI services too. Returning 200
+//    requests against the other, healthy IPNI services too. Returning 204
 //    unconditionally avoids that noise.
 //
 // 2) GET /providers/{peerID}
@@ -54,8 +55,8 @@
 
 // ------- Adjust these as needed -------
 const REDIRECT_BASE = "https://cid.contact/cid/";  // Real target prefix /cid/xxx redirects to once its window has passed
-const WINDOW_SECONDS = 10;                         // How long to hold a newly-seen CID (seconds); always 404 during this window
-const REMEMBER_SECONDS = 2592000;                  // How long to remember a CID (seconds), currently 1 month — effectively "redirect forever once past the window". Deliberately not accounting for the CID being deleted / re-synced for now. The Cache API has no documented hard cap, but this is only an upper bound, not a guarantee — Cloudflare may evict earlier under cache pressure (which just re-triggers the 404 window, not an error)
+const WINDOW_SECONDS = 30;                         // How long to hold a newly-seen CID (seconds); always 404 during this window
+const REMEMBER_SECONDS = 600;                      // How long to remember a CID (seconds), currently 10 minutes. Kept short (rather than "redirect forever") so a client that comes back after a different SP has since advertised the same CID doesn't get redirected to cid.contact before that new SP's record shows up there. The Cache API has no documented hard cap, but this is only an upper bound, not a guarantee — Cloudflare may evict earlier under cache pressure (which just re-triggers the 404 window, not an error)
 const FAKE_HEAD_CID = "fake-head-not-in-curio-db";  // Placeholder value used in the /providers/{peerID} response; Curio only compares this as a plain string, no CID-format validation, so it's deliberately written to look nothing like a real CID
 // ---------------------------------------
 
@@ -134,20 +135,20 @@ export default {
         });
       }
 
-      const firstSeen = Number(await cached.text());
-      const elapsed = (now - firstSeen) / 1000;
+      const firstSeenMillis = Number(await cached.text());
+      const elapsedSeconds = (now - firstSeenMillis) / 1000;
 
-      if (elapsed < WINDOW_SECONDS) {
+      if (elapsedSeconds < WINDOW_SECONDS) {
         // Still inside the hold window — keep returning 404, and disallow caching this response too
-        const remaining = Math.ceil(WINDOW_SECONDS - elapsed);
-        return new Response(deprecationNotice(remaining), {
+        const remainingSeconds = Math.ceil(WINDOW_SECONDS - elapsedSeconds);
+        return new Response(deprecationNotice(remainingSeconds), {
           status: 404,
-          headers: { "Cache-Control": "no-store", "Retry-After": String(remaining) },
+          headers: { "Cache-Control": "no-store", "Retry-After": String(remainingSeconds) },
         });
       }
 
       // Window has passed — redirect normally
-      return Response.redirect(REDIRECT_BASE + cid, 307);
+      return Response.redirect(REDIRECT_BASE + encodeURIComponent(cid), 307);
     }
 
     return Response.redirect("https://cid.contact", 307);
