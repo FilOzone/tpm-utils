@@ -150,6 +150,6 @@ export default {
       return Response.redirect(REDIRECT_BASE + cid, 307);
     }
 
-    return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
+    return Response.redirect("https://cid.contact", 307);
   },
 };
