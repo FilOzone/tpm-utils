@@ -6,7 +6,7 @@
 // ServiceURL / DirectAnnounceURLs). That won't be fully clean until a future Curio
 // release removes those two defaults. Until then, if this domain simply stops
 // resolving, any Curio node still running the default config breaks in the ways
-// described in the three routes below. We still control this domain, so this Worker
+// described in the four routes below. We still control this domain, so this Worker
 // keeps it "alive" to close that gap for now.
 //
 // When this can actually be retired: not the moment the release ships, but some time
@@ -14,11 +14,11 @@
 // they upgrade and restart / reload config, and /cid/{cid} exists specifically to
 // backstop old clients that haven't upgraded — which tend to lag even further behind.
 // So before retiring, check this Worker's actual traffic (especially /announce,
-// /providers/*, /cid/*) and confirm both the fleet and old clients have mostly moved
-// on and traffic has dropped to an acceptable level before actually taking the domain
-// down.
+// /providers/*, /sync/status/ad/*, /cid/*) and confirm both the fleet and old clients
+// have mostly moved on and traffic has dropped to an acceptable level before actually
+// taking the domain down.
 //
-// The three routes serve three completely different callers. Come back to this list
+// The four routes serve different purposes. Come back to this list
 // when deleting one, or when it's unclear why a route exists:
 //
 // 1) PUT /announce
@@ -41,7 +41,18 @@
 //         with caching disabled — a cached stale response would freeze the timestamp
 //         in the past and eventually trigger the alert anyway.
 //
-// 3) GET /cid/{cid}
+// 3) GET /sync/status/ad/{adCid}
+//    Also backs Curio's ServiceURL config, but this one is deliberately NOT implemented.
+//    Curio's queryAdSyncStatus loops over every configured ServiceURL asking whether an ad
+//    has been indexed yet; storetheindex serves this (ipni/storetheindex#2898) and so does
+//    cid.contact, but there is nothing real behind this domain to answer it. Curio treats
+//    404 as the agreed "this indexer doesn't support the endpoint" signal and quietly moves
+//    on to the next service, so 404 is the correct answer here — not an error. Without this
+//    route the request would fall through to the catch-all redirect at the bottom; Curio's
+//    syncClient sets no CheckRedirect, so it would follow the 307 to the cid.contact root,
+//    get a non-JSON body back and log a warning for every single ad.
+//
+// 4) GET /cid/{cid}
 //    Unrelated to Curio's IPNI config — this is the content-resolution entry point for
 //    old clients that haven't upgraded. Redirecting a newly-seen CID straight to origin
 //    risks a 404 (origin not ready yet) that gets cached downstream as a negative
@@ -95,6 +106,16 @@ export default {
           // Disable caching at every layer — a cached stale response would freeze LastAdvertisementTime in the past
           "Cache-Control": "no-store",
         },
+      });
+    }
+
+    // Curio ServiceURL: GET /sync/status/ad/{adCid} — "has this ad been indexed yet?"
+    // Intentionally unsupported. 404 is the documented "service doesn't have this endpoint"
+    // answer, which makes Curio skip this service without an error or a warning-level log.
+    if (path.startsWith("/sync/status/ad/")) {
+      return new Response("ad sync status is not available on this endpoint", {
+        status: 404,
+        headers: { "Cache-Control": "no-store" },
       });
     }
 
