@@ -104,12 +104,28 @@ def get_issue_events(
 def add_assignee(
     session: requests.Session, *, owner: str, repo: str, number: str, login: str
 ) -> None:
-    """Add an assignee to an issue/PR."""
+    """Add an assignee to an issue/PR.
+
+    Raises requests.HTTPError. GitHub returns 404 here (never 403) both when
+    the calling token lacks write/triage access to `owner/repo` and when
+    `login` isn't a valid assignee on it -- the two cases are
+    indistinguishable from the response alone, but in this codebase's usage
+    (the target is always the PR's own author) it's almost always the
+    former, so the error is annotated with that hint rather than left as a
+    bare "Not Found".
+    """
     resp = session.post(
         f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/assignees",
         json={"assignees": [login]},
         timeout=30,
     )
+    if resp.status_code == 404:
+        raise requests.HTTPError(
+            f"{resp.status_code} {resp.reason} for url: {resp.url} -- likely a "
+            f"permissions issue: check that this token's account has "
+            f"triage+ access to {owner}/{repo} (see foc-mechanical-rules/README.md)",
+            response=resp,
+        )
     resp.raise_for_status()
 
 
