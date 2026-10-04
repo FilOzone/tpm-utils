@@ -3,6 +3,7 @@
 from .api import (
     GitHubAPIError,
     GitHubAuthError,
+    GitHubRateLimitError,
     graphql_query,
     list_field_ids_by_name,
     fetch_items_rest,
@@ -16,6 +17,7 @@ from .views import resolve_view_url
 __all__ = [
     "GitHubAPIError",
     "GitHubAuthError",
+    "GitHubRateLimitError",
     "graphql_query",
     "list_field_ids_by_name",
     "fetch_items_rest",

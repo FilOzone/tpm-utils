@@ -103,16 +103,16 @@ def get_issue_events(
 
 def add_assignee(
     session: requests.Session, *, owner: str, repo: str, number: str, login: str
-) -> None:
-    """Add an assignee to an issue/PR.
+) -> List[str]:
+    """Add an assignee to an issue/PR and return the issue's resulting assignee logins.
 
-    Raises requests.HTTPError. GitHub returns 404 here (never 403) both when
-    the calling token lacks write/triage access to `owner/repo` and when
-    `login` isn't a valid assignee on it -- the two cases are
-    indistinguishable from the response alone, but in this codebase's usage
-    (the target is always the PR's own author) it's almost always the
-    former, so the error is annotated with that hint rather than left as a
-    bare "Not Found".
+    Callers should check ``login`` is in the returned list: GitHub can
+    accept the request without assigning a user it considers unassignable.
+
+    Raises requests.HTTPError. A 404 is annotated with a permissions hint:
+    in practice it has meant the token's account lacks triage+ access to
+    the repo (FilOzone/team-skills#14, 2026-09), which a bare "Not Found"
+    hides.
     """
     resp = session.post(
         f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/assignees",
@@ -121,12 +121,13 @@ def add_assignee(
     )
     if resp.status_code == 404:
         raise requests.HTTPError(
-            f"{resp.status_code} {resp.reason} for url: {resp.url} -- likely a "
+            f"{resp.status_code} {resp.reason} for url: {resp.url}; likely a "
             f"permissions issue: check that this token's account has "
             f"triage+ access to {owner}/{repo} (see foc-mechanical-rules/README.md)",
             response=resp,
         )
     resp.raise_for_status()
+    return [a.get("login", "") for a in resp.json().get("assignees") or []]
 
 
 def get_collaborator_permission(

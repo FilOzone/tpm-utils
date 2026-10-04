@@ -30,12 +30,17 @@ class ActionResult:
     mutate the item but wants that write batched with other items' writes
     rather than issued immediately (see ``Rule.run()`` and
     ``Rule.mutate_pending``). It never appears in a finished ``RuleRun`` --
-    ``run()`` always resolves it to "applied" or "error" before returning.
+    ``run()`` always resolves it to "applied", "deferred", or "error"
+    before returning.
     """
 
     item_ref: str
     title: str
-    status: str  # "applied" | "skipped" | "flagged" | "error" | "pending"
+    # "applied" | "skipped" | "flagged" | "error" | "deferred" | "pending".
+    # "deferred" means GitHub rate-limited the run before this item's write
+    # was attempted; it doesn't fail the run because the next hourly run
+    # picks the item up again.
+    status: str
     reason: str = ""
     old_value: str = ""
     new_value: str = ""
@@ -54,6 +59,59 @@ class RuleRun:
         for r in self.results:
             counts[r.status] = counts.get(r.status, 0) + 1
         return counts
+
+
+def finalize_bulk_results(
+    group: List[ActionResult],
+    bulk_result: Dict[str, Any],
+    *,
+    new_value: str,
+    field_label: str,
+) -> List[ActionResult]:
+    """Turn ``set_field_value_bulk``'s per-item results into finished ActionResults.
+
+    ``group`` holds the "pending" results whose ``node_id``s were passed to
+    that one bulk call, all targeting ``new_value``.
+    """
+    by_node_id = {r["item_ref"]: r for r in bulk_result["results"]}
+    finalized: List[ActionResult] = []
+    for p in group:
+        r = by_node_id.get(p.node_id) or {}
+        if r.get("success"):
+            finalized.append(
+                ActionResult(
+                    item_ref=p.item_ref,
+                    title=p.title,
+                    status="applied",
+                    old_value=r.get("old_value", p.old_value),
+                    new_value=new_value,
+                )
+            )
+        elif r.get("rate_limited"):
+            finalized.append(
+                ActionResult(
+                    item_ref=p.item_ref,
+                    title=p.title,
+                    status="deferred",
+                    reason=(
+                        f"GitHub rate limit hit before {field_label} was set; "
+                        "next run will retry"
+                    ),
+                    old_value=p.old_value,
+                    new_value=new_value,
+                )
+            )
+        else:
+            error = r.get("error", "no result for this item")
+            finalized.append(
+                ActionResult(
+                    item_ref=p.item_ref,
+                    title=p.title,
+                    status="error",
+                    reason=f"failed to set {field_label}: {error}",
+                )
+            )
+    return finalized
 
 
 class Rule:

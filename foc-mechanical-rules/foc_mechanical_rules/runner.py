@@ -25,7 +25,7 @@ def run_all(
     for rule in rules:
         run = rule.run(session, dry_run=dry_run, mutation_log=mutation_log)
         for result in run.results:
-            if result.status not in ("applied", "flagged", "error"):
+            if result.status not in ("applied", "flagged", "error", "deferred"):
                 continue
             log_action(
                 caller=CALLER,

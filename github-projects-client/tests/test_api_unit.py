@@ -1,10 +1,9 @@
 """
 Unit tests for api.py's graphql_query -- no network access required.
 
-Focus: retry-with-backoff when GitHub's primary/secondary rate limit
-returns a 403 mid-run (see github_projects_client/api.py's
-_MAX_RATE_LIMIT_RETRIES docstring for why this matters -- a batched Cycle
-rollover can trip this after a burst of mutations).
+Focus: telling GitHub's rate limits (403 with a rate-limit message or an
+exhausted quota, or 429) apart from real failures, and surfacing GitHub's
+own error message instead of a bare "403 Forbidden".
 
 Run:
     cd github-projects-client
@@ -13,13 +12,16 @@ Run:
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock
 
 import pytest
 import requests
 
-from github_projects_client.api import GitHubAPIError, graphql_query
+from github_projects_client.api import (
+    GitHubAPIError,
+    GitHubRateLimitError,
+    graphql_query,
+)
 
 
 def _fake_response(
@@ -27,159 +29,66 @@ def _fake_response(
 ) -> MagicMock:
     resp = MagicMock(spec=requests.Response)
     resp.status_code = status_code
+    resp.ok = status_code < 400
+    resp.reason = "Forbidden" if status_code == 403 else "Error"
+    resp.url = "https://api.github.com/graphql"
     resp.headers = headers or {}
     resp.json.return_value = body
-
-    def raise_for_status():
-        if status_code >= 400:
-            err = requests.HTTPError(f"{status_code} error")
-            err.response = resp
-            raise err
-
-    resp.raise_for_status.side_effect = raise_for_status
     return resp
 
 
-class TestGraphqlQueryRateLimitRetry:
-    def test_succeeds_without_retry_when_not_rate_limited(self):
-        session = MagicMock()
-        session.post.return_value = _fake_response(200, {"data": {"ok": True}})
-        sleep = MagicMock()
+def _session_returning(resp: MagicMock) -> MagicMock:
+    session = MagicMock()
+    session.post.return_value = resp
+    return session
 
-        result = graphql_query(session, "query {}", sleep=sleep)
 
-        assert result == {"ok": True}
-        sleep.assert_not_called()
-        assert session.post.call_count == 1
+class TestGraphqlQueryErrors:
+    def test_returns_data_on_success(self):
+        session = _session_returning(_fake_response(200, {"data": {"ok": True}}))
+        assert graphql_query(session, "query {}") == {"ok": True}
 
-    def test_retries_on_secondary_rate_limit_then_succeeds(self):
-        session = MagicMock()
-        session.post.side_effect = [
+    def test_secondary_rate_limit_403_raises_rate_limit_error(self):
+        session = _session_returning(
             _fake_response(
-                403,
-                {"message": "You have exceeded a secondary rate limit ..."},
-                headers={"Retry-After": "5"},
-            ),
-            _fake_response(200, {"data": {"ok": True}}),
-        ]
-        sleep = MagicMock()
-
-        result = graphql_query(session, "query {}", sleep=sleep)
-
-        assert result == {"ok": True}
-        assert session.post.call_count == 2
-        sleep.assert_called_once_with(5.0)
-
-    def test_falls_back_to_a_minute_without_any_rate_limit_headers(self):
-        """Secondary rate limit with neither Retry-After nor quota headers:
-        GitHub's docs require waiting at least a minute, not a short
-        exponential backoff."""
-        session = MagicMock()
-        session.post.side_effect = [
-            _fake_response(
-                403, {"message": "You have exceeded a secondary rate limit"}
-            ),
-            _fake_response(200, {"data": {"ok": True}}),
-        ]
-        sleep = MagicMock()
-
-        graphql_query(session, "query {}", sleep=sleep)
-
-        sleep.assert_called_once_with(60.0)  # 60 * 2**0
-
-    def test_backoff_doubles_from_sixty_seconds_on_repeated_throttling(self):
-        session = MagicMock()
-        session.post.side_effect = [
-            _fake_response(403, {"message": "secondary rate limit"}),
-            _fake_response(403, {"message": "secondary rate limit"}),
-            _fake_response(200, {"data": {"ok": True}}),
-        ]
-        sleep = MagicMock()
-
-        graphql_query(session, "query {}", sleep=sleep)
-
-        assert sleep.call_args_list == [((60.0,),), ((120.0,),)]
-
-    def test_honors_rate_limit_reset_header_when_quota_exhausted(self):
-        """Primary rate limit (quota fully exhausted): wait until
-        X-RateLimit-Reset rather than guessing, per GitHub's own guidance."""
-        reset_at = time.time() + 90
-        session = MagicMock()
-        session.post.side_effect = [
-            _fake_response(
-                403,
-                {"message": "API rate limit exceeded for installation"},
-                headers={
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(reset_at),
-                },
-            ),
-            _fake_response(200, {"data": {"ok": True}}),
-        ]
-        sleep = MagicMock()
-
-        graphql_query(session, "query {}", sleep=sleep)
-
-        assert sleep.call_count == 1
-        (delay,), _ = sleep.call_args
-        assert 85 <= delay <= 90
-
-    def test_rate_limit_reset_delay_floors_at_sixty_seconds(self):
-        """A reset timestamp already in the past (or imminent) must still
-        wait a full minute, matching the no-headers fallback floor."""
-        reset_at = time.time() - 5
-        session = MagicMock()
-        session.post.side_effect = [
-            _fake_response(
-                403,
-                {"message": "API rate limit exceeded for installation"},
-                headers={
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(reset_at),
-                },
-            ),
-            _fake_response(200, {"data": {"ok": True}}),
-        ]
-        sleep = MagicMock()
-
-        graphql_query(session, "query {}", sleep=sleep)
-
-        sleep.assert_called_once_with(60.0)
-
-    def test_gives_up_after_max_retries(self):
-        session = MagicMock()
-        session.post.return_value = _fake_response(
-            403, {"message": "secondary rate limit"}
+                403, {"message": "You have exceeded a secondary rate limit."}
+            )
         )
-        sleep = MagicMock()
+        with pytest.raises(GitHubRateLimitError) as excinfo:
+            graphql_query(session, "query {}")
+        assert "secondary rate limit" in str(excinfo.value)
+        assert session.post.call_count == 1  # never retried here
 
+    def test_429_raises_rate_limit_error(self):
+        session = _session_returning(_fake_response(429, {}))
+        with pytest.raises(GitHubRateLimitError):
+            graphql_query(session, "query {}")
+
+    def test_exhausted_primary_quota_raises_rate_limit_error(self):
+        session = _session_returning(
+            _fake_response(403, {}, headers={"X-RateLimit-Remaining": "0"})
+        )
+        with pytest.raises(GitHubRateLimitError):
+            graphql_query(session, "query {}")
+
+    def test_rate_limit_error_is_still_an_http_error(self):
+        """Existing `except requests.HTTPError` callers must keep catching it."""
+        session = _session_returning(_fake_response(429, {}))
         with pytest.raises(requests.HTTPError):
-            graphql_query(session, "query {}", sleep=sleep)
+            graphql_query(session, "query {}")
 
-        # 1 initial attempt + 3 retries = 4 calls total.
-        assert session.post.call_count == 4
-        assert sleep.call_count == 3
-
-    def test_non_rate_limit_403_is_not_retried(self):
-        """A real auth/permissions 403 (no 'rate limit' in the message) must
-        fail immediately, not be mistaken for a throttling response."""
-        session = MagicMock()
-        session.post.return_value = _fake_response(
-            403, {"message": "Resource not accessible by integration"}
+    def test_permissions_403_is_plain_http_error_with_github_message(self):
+        session = _session_returning(
+            _fake_response(403, {"message": "Resource not accessible by integration"})
         )
-        sleep = MagicMock()
+        with pytest.raises(requests.HTTPError) as excinfo:
+            graphql_query(session, "query {}")
+        assert not isinstance(excinfo.value, GitHubRateLimitError)
+        assert "Resource not accessible by integration" in str(excinfo.value)
 
-        with pytest.raises(requests.HTTPError):
-            graphql_query(session, "query {}", sleep=sleep)
-
-        assert session.post.call_count == 1
-        sleep.assert_not_called()
-
-    def test_graphql_errors_still_raised_after_success(self):
-        session = MagicMock()
-        session.post.return_value = _fake_response(
-            200, {"errors": [{"message": "boom"}]}
+    def test_graphql_errors_still_raised_on_200(self):
+        session = _session_returning(
+            _fake_response(200, {"errors": [{"message": "boom"}]})
         )
-
         with pytest.raises(GitHubAPIError):
             graphql_query(session, "query {}")

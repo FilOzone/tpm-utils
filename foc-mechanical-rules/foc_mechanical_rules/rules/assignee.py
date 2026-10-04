@@ -163,13 +163,25 @@ class AssigneeRule(Rule):
             )
 
         try:
-            add_assignee(session, owner=owner, repo=repo, number=number, login=target)
+            assignees = add_assignee(
+                session, owner=owner, repo=repo, number=number, login=target
+            )
         except requests.HTTPError as exc:
             return ActionResult(
                 item_ref=item_ref,
                 title=title,
                 status="error",
                 reason=f"failed to set assignee: {exc}",
+            )
+        if target.lower() not in (a.lower() for a in assignees):
+            return ActionResult(
+                item_ref=item_ref,
+                title=title,
+                status="error",
+                reason=(
+                    f"GitHub accepted the request but did not assign '{target}' "
+                    "(not assignable on this repo?)"
+                ),
             )
 
         return ActionResult(

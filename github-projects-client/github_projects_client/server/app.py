@@ -10,9 +10,32 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from github_projects_client.api import GitHubAPIError, GitHubAuthError
+from github_projects_client.api import (
+    GitHubAPIError,
+    GitHubAuthError,
+    GitHubRateLimitError,
+    _is_rate_limited,
+)
 
 from .routes import items, fields, mutations
+
+
+def _rate_limited_response(response: requests.Response | None) -> JSONResponse:
+    headers = response.headers if response is not None else {}
+    retry_after = headers.get("Retry-After")
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limited",
+            "message": "GitHub API rate limit exceeded",
+            "details": {
+                "retry_after": int(retry_after) if retry_after else None,
+                "limit": headers.get("X-RateLimit-Limit"),
+                "remaining": 0,
+                "reset_at": headers.get("X-RateLimit-Reset"),
+            },
+        },
+    )
 
 
 def create_app() -> FastAPI:
@@ -83,28 +106,8 @@ def create_app() -> FastAPI:
                 },
             )
 
-        if status == 403 and response is not None:
-            body = {}
-            try:
-                body = response.json()
-            except Exception:
-                pass
-            if "rate limit" in body.get("message", "").lower():
-                retry_after = response.headers.get("Retry-After")
-                reset_at = response.headers.get("X-RateLimit-Reset")
-                return JSONResponse(
-                    status_code=429,
-                    content={
-                        "error": "rate_limited",
-                        "message": "GitHub API rate limit exceeded",
-                        "details": {
-                            "retry_after": int(retry_after) if retry_after else None,
-                            "limit": response.headers.get("X-RateLimit-Limit"),
-                            "remaining": 0,
-                            "reset_at": reset_at,
-                        },
-                    },
-                )
+        if response is not None and _is_rate_limited(response):
+            return _rate_limited_response(response)
 
         return JSONResponse(
             status_code=status,
@@ -140,6 +143,14 @@ def create_app() -> FastAPI:
                 "details": {},
             },
         )
+
+    # Needs its own handler: as a GitHubAPIError subclass listed before
+    # requests.HTTPError in its MRO, it would otherwise get the 502 below.
+    @app.exception_handler(GitHubRateLimitError)
+    async def github_rate_limit_handler(
+        request: Request, exc: GitHubRateLimitError
+    ) -> JSONResponse:
+        return _rate_limited_response(exc.response)
 
     @app.exception_handler(GitHubAPIError)
     async def github_api_error_handler(

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from github_projects_client.api import GitHubRateLimitError
+
 from github_projects_client.mutations import (
     _fetch_old_values_by_node_id,
     set_field_value_bulk,
@@ -134,3 +136,121 @@ class TestBulkOldValueForNodeIdRefs:
 
         assert result["success_count"] == 1
         assert result["results"][0]["old_value"] == ""
+
+
+def _node_ids(n: int) -> list[str]:
+    return [f"PVTI_{i}" for i in range(n)]
+
+
+def _run_bulk(fake_graphql, item_refs, value="🎉 Done"):
+    with (
+        patch(
+            "github_projects_client.mutations.list_field_options",
+            return_value=STATUS_FIELD_OPTIONS,
+        ),
+        patch(
+            "github_projects_client.mutations.graphql_query",
+            side_effect=fake_graphql,
+        ),
+        patch("github_projects_client.mutations.time.sleep") as sleep,
+    ):
+        result = set_field_value_bulk(
+            None,
+            org="TestOrg",
+            project_number=1,
+            item_refs=item_refs,
+            field_name="Status",
+            value=value,
+        )
+    return result, sleep
+
+
+class TestBulkRateLimiting:
+    def test_paces_mutation_batches(self):
+        def fake_graphql(session, query, variables=None):
+            return {"nodes": []} if "fieldValueByName" in query else {}
+
+        result, sleep = _run_bulk(fake_graphql, _node_ids(60))  # 3 batches
+
+        assert result["success_count"] == 60
+        assert sleep.call_count == 2  # between batches, not before the first
+        sleep.assert_called_with(1.0)
+
+    def test_stops_sending_after_rate_limit_and_skips_per_item_fallback(self):
+        mutation_calls = []
+
+        def fake_graphql(session, query, variables=None):
+            if "fieldValueByName" in query:
+                return {"nodes": []}
+            mutation_calls.append(variables)
+            if len(mutation_calls) == 2:
+                raise GitHubRateLimitError("secondary rate limit")
+            return {}
+
+        result, _ = _run_bulk(fake_graphql, _node_ids(60))
+
+        assert len(mutation_calls) == 2  # no fallback, no third batch
+        assert result["success_count"] == 25
+        limited = [r for r in result["results"] if r.get("rate_limited")]
+        assert len(limited) == 35
+        assert all(not r["success"] for r in limited)
+
+    def test_rate_limit_during_per_item_fallback_stops_immediately(self):
+        mutation_calls = []
+
+        def fake_graphql(session, query, variables=None):
+            if "fieldValueByName" in query:
+                return {"nodes": []}
+            mutation_calls.append(variables)
+            if len(mutation_calls) == 1:
+                raise RuntimeError("batch failed for a non-throttling reason")
+            if len(mutation_calls) == 3:
+                raise GitHubRateLimitError("secondary rate limit")
+            return {}
+
+        result, _ = _run_bulk(fake_graphql, _node_ids(5))
+
+        # 1 failed batch + 1 successful single + 1 throttled single.
+        assert len(mutation_calls) == 3
+        assert result["success_count"] == 1
+        assert sum(1 for r in result["results"] if r.get("rate_limited")) == 4
+
+    def test_non_rate_limit_failure_still_falls_back_per_item(self):
+        mutation_calls = []
+
+        def fake_graphql(session, query, variables=None):
+            if "fieldValueByName" in query:
+                return {"nodes": []}
+            mutation_calls.append(variables)
+            if len(mutation_calls) == 1:
+                raise RuntimeError("one bad item poisons the batch")
+            if variables["input"]["itemId"] == "PVTI_1":
+                raise RuntimeError("bad item")
+            return {}
+
+        result, _ = _run_bulk(fake_graphql, _node_ids(3))
+
+        assert result["success_count"] == 2
+        failed = [r for r in result["results"] if not r["success"]]
+        assert [r["item_ref"] for r in failed] == ["PVTI_1"]
+        assert not failed[0].get("rate_limited")
+
+    def test_clear_mode_batches_with_aliased_variables(self):
+        mutation_calls = []
+
+        def fake_graphql(session, query, variables=None):
+            if "fieldValueByName" in query:
+                return {"nodes": []}
+            mutation_calls.append((query, variables))
+            return {}
+
+        result, _ = _run_bulk(fake_graphql, _node_ids(2), value="")
+
+        assert result["success_count"] == 2
+        assert len(mutation_calls) == 1
+        query, variables = mutation_calls[0]
+        assert "clearProjectV2ItemFieldValue" in query
+        assert variables["itemId0"] == "PVTI_0"
+        assert variables["itemId1"] == "PVTI_1"
+        assert variables["projectId1"] == "PVT_project1"
+        assert variables["fieldId0"] == "PVTSSF_field1"

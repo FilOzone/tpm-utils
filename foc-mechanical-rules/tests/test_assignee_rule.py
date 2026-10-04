@@ -24,9 +24,10 @@ def _pr(author="alice", merged=False, merged_by=None):
     }
 
 
+@patch("foc_mechanical_rules.rules.assignee.add_assignee", return_value=["alice"])
 @patch("foc_mechanical_rules.rules.assignee.get_issue_events")
 @patch("foc_mechanical_rules.rules.assignee.get_pull_request")
-def test_human_author_gets_assigned(mock_get_pr, mock_get_events):
+def test_human_author_gets_assigned(mock_get_pr, mock_get_events, _mock_add):
     mock_get_pr.return_value = _pr(author="alice")
     mock_get_events.return_value = []
 
@@ -37,6 +38,23 @@ def test_human_author_gets_assigned(mock_get_pr, mock_get_events):
     assert result.status == "applied"
     assert result.new_value == "alice"
     assert result.item_ref == "FilOzone/dealbot#458"
+
+
+@patch("foc_mechanical_rules.rules.assignee.add_assignee", return_value=[])
+@patch("foc_mechanical_rules.rules.assignee.get_issue_events")
+@patch("foc_mechanical_rules.rules.assignee.get_pull_request")
+def test_silently_unassigned_author_is_an_error(mock_get_pr, mock_get_events, _add):
+    """GitHub can accept the request without assigning the user; that must
+    not be reported as applied."""
+    mock_get_pr.return_value = _pr(author="alice")
+    mock_get_events.return_value = []
+
+    result = AssigneeRule().apply_one(
+        MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
+    )
+
+    assert result.status == "error"
+    assert "did not assign 'alice'" in result.reason
 
 
 @patch("foc_mechanical_rules.rules.assignee.get_issue_events")
@@ -53,9 +71,15 @@ def test_dependabot_pr_is_skipped(mock_get_pr, mock_get_events):
     mock_get_events.assert_not_called()
 
 
+@patch(
+    "foc_mechanical_rules.rules.assignee.add_assignee",
+    return_value=["release-captain"],
+)
 @patch("foc_mechanical_rules.rules.assignee.get_issue_events")
 @patch("foc_mechanical_rules.rules.assignee.get_pull_request")
-def test_merged_release_pr_from_bot_assigned_to_merger(mock_get_pr, mock_get_events):
+def test_merged_release_pr_from_bot_assigned_to_merger(
+    mock_get_pr, mock_get_events, _mock_add
+):
     item = {**ITEM, "Title": "chore(master): release 1.2.3"}
     mock_get_pr.return_value = _pr(
         author="FilOzzy", merged=True, merged_by="release-captain"

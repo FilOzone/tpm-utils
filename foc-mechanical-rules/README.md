@@ -9,14 +9,16 @@ Some board rules are pure functions of observable state (an unassigned PR should
 Each rule targets a single board field (assignee, status, cycle theme, ...) and is implemented as a `Rule` subclass in `foc_mechanical_rules/rules/`:
 
 - `select(session)` — find candidate board items via a targeted board query
-- `apply_one(session, item, dry_run=..., mutation_log=...)` — decide what to do with one item, returning an `ActionResult` (`applied` / `skipped` / `flagged` / `error`). It may mutate immediately and return `applied`, or return `pending` to have the write batched (see below and "API call pattern per rule")
+- `apply_one(session, item, dry_run=..., mutation_log=...)` — decide what to do with one item, returning an `ActionResult` (`applied` / `skipped` / `flagged` / `error` / `deferred`). It may mutate immediately and return `applied`, or return `pending` to have the write batched (see below and "API call pattern per rule")
 - `mutate_pending(session, pending)` — optional; only needed if `apply_one` ever returns `pending`. Executes every pending mutation from the run, ideally batched, and returns one finished result per input
 
 Rules are registered in `registry.py`. Adding a new rule means adding a new module under `rules/` and one line in the registry — the runner, audit logging, and CLI are shared.
 
 **The English rule description stays canonical in `foc-board-rules/*.md`.** Each rule module's docstring links back to its markdown section, and the markdown links back to the module, so the prose and the implementation can't silently drift apart. If you change what a rule does, update both.
 
-Every `applied`, `flagged`, or `error` outcome is written to the shared [`action_log.jsonl`](../github-projects-client/action_log.jsonl) audit log used by LLM sweeps, so a sweep report stays complete even when some of the work happened here instead.
+Every `applied`, `flagged`, `error`, or `deferred` outcome is written to the shared [`action_log.jsonl`](../github-projects-client/action_log.jsonl) audit log used by LLM sweeps, so a sweep report stays complete even when some of the work happened here instead.
+
+Any `error` fails the run (exit code 1) so a problem that needs a human, like a missing repo permission, gets noticed. `deferred` does not: it means GitHub rate-limited the batched writes before an item's turn, so the client stopped sending requests and the next hourly run retries the item. Large one-off bursts, like R-FC-013 moving hundreds of items at a cycle rollover, can therefore take a few runs to finish.
 
 ## Mutation log
 
@@ -67,7 +69,7 @@ uv run foc-mechanical-rules --dry-run --rule R-FC-013 --rule R-PR-001  # or a fe
 
 Requires a `GITHUB_TOKEN` (or `--token`) with `read:project` (board reads) and issue/PR write access (`repo` scope, or fine-grained `Issues: write` + `Pull requests: write`) on the blessed orgs. CI uses the org's `FILOZZY_CI_ADD_TO_PROJECT` secret (also used by [`add-issues-and-prs-to-fs-project-board.yml`](../.github/workflows/add-issues-and-prs-to-fs-project-board.yml)).
 
-That org-wide scope isn't sufficient on its own: GitHub still checks the token's account's *per-repo* permission for repo-level writes like `R-PR-001`'s assignee mutation. A new repo added to the board doesn't automatically inherit this -- its `FilOzone/github-mgmt` config (or a direct collaborator grant) needs to give the bot account triage+ access, or `add_assignee` fails with a 404 that reads like the item wasn't found rather than a permissions gap.
+That org-wide scope isn't sufficient on its own: GitHub still checks the token's account's *per-repo* permission for repo-level writes like `R-PR-001`'s assignee mutation. A new repo added to the board doesn't automatically inherit this; its `FilOzone/github-mgmt` config (or a direct collaborator grant) needs to give the bot account triage+ access, or `add_assignee` fails with a 404 that reads like the item wasn't found rather than a permissions gap.
 
 ## Testing
 

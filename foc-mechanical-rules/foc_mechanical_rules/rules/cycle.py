@@ -26,7 +26,7 @@ from github_projects_client import graphql_query, list_items, set_field_value_bu
 
 from ..github_api import FILOZ_ORG, PROJECT_NUMBER
 from ..mutation_log import MutationLog
-from ..rule import ActionResult, Rule
+from ..rule import ActionResult, Rule, finalize_bulk_results
 
 CURRENT_CYCLE_QUERY = """
 query($org: String!, $number: Int!) {
@@ -153,29 +153,11 @@ class _CycleFieldRule(Rule):
                 field_name="Cycle",
                 value=new_value,
             )
-            by_node_id = {r["item_ref"]: r for r in bulk_result["results"]}
-            for p in group:
-                r = by_node_id.get(p.node_id)
-                if not r or not r.get("success"):
-                    error = (r or {}).get("error", "no result for this item")
-                    finalized.append(
-                        ActionResult(
-                            item_ref=p.item_ref,
-                            title=p.title,
-                            status="error",
-                            reason=f"failed to set cycle: {error}",
-                        )
-                    )
-                else:
-                    finalized.append(
-                        ActionResult(
-                            item_ref=p.item_ref,
-                            title=p.title,
-                            status="applied",
-                            old_value=r.get("old_value", p.old_value),
-                            new_value=new_value,
-                        )
-                    )
+            finalized.extend(
+                finalize_bulk_results(
+                    group, bulk_result, new_value=new_value, field_label="cycle"
+                )
+            )
         return finalized
 
 

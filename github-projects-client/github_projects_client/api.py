@@ -2,19 +2,11 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any, Dict, List, Optional
 
 import requests
 
 GRAPHQL_URL = "https://api.github.com/graphql"
-
-# A burst of GraphQL mutations (e.g. a batched Cycle-field rollover touching
-# hundreds of items) can trip GitHub's secondary/abuse rate limit mid-run --
-# a flat 403 on an otherwise-healthy token, distinct from a real auth/scope
-# failure. Retry a few times honoring Retry-After before giving up, instead
-# of failing the whole batch on the first throttled request.
-_MAX_RATE_LIMIT_RETRIES = 3
 
 
 class GitHubAPIError(Exception):
@@ -25,83 +17,66 @@ class GitHubAuthError(GitHubAPIError):
     """Raised when the GitHub API rejects a request due to auth/scope issues."""
 
 
-def _is_rate_limited(response: requests.Response) -> bool:
-    """True if `response` is GitHub's primary or secondary rate limit, not a real auth failure.
+class GitHubRateLimitError(GitHubAPIError, requests.HTTPError):
+    """Raised when GitHub throttles a request (primary or secondary rate limit).
 
-    Both come back as HTTP 403 with no way to tell them apart from the
-    status code alone; GitHub's own docs point at the response body's
-    `message` as the signal (e.g. "API rate limit exceeded ..." or "You
-    have exceeded a secondary rate limit ...").
+    Also a ``requests.HTTPError`` so existing ``except requests.HTTPError``
+    callers keep working. Deliberately not retried here: the right reaction
+    (fail fast with a 429 in the server, defer to the next run in a batch
+    job) depends on the caller.
     """
-    if response.status_code != 403:
-        return False
+
+
+def _response_message(response: requests.Response) -> str:
     try:
         body = response.json()
     except ValueError:
-        return False
-    return "rate limit" in str(body.get("message", "")).lower()
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    return str(body.get("message", ""))
 
 
-def _rate_limit_retry_delay(response: requests.Response, attempt: int) -> float:
-    """Seconds to wait before retrying.
+def _is_rate_limited(response: requests.Response) -> bool:
+    """True if `response` is GitHub's primary or secondary rate limit.
 
-    Follows GitHub's own guidance
-    (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit):
-    honor `Retry-After` when present; otherwise, if the primary rate limit
-    is exhausted (`X-RateLimit-Remaining: 0`), wait until `X-RateLimit-Reset`.
-    With neither header, this is GitHub's secondary rate limit, which the
-    docs say requires waiting *at least* a minute -- so the backoff floor
-    and step are both 60s, not the 1s/2s/4s that's reasonable for ordinary
-    transient errors but is still well under quota a minute later here.
+    GitHub signals both with a 429, or with a 403 that is otherwise
+    indistinguishable from a real permissions failure except by the body's
+    message ("API rate limit exceeded ...", "You have exceeded a secondary
+    rate limit ...") or an exhausted primary quota header.
     """
-    retry_after = response.headers.get("Retry-After")
-    if retry_after:
-        try:
-            return float(retry_after)
-        except ValueError:
-            pass
-
+    if response.status_code == 429:
+        return True
+    if response.status_code != 403:
+        return False
     if response.headers.get("X-RateLimit-Remaining") == "0":
-        reset_at = response.headers.get("X-RateLimit-Reset")
-        if reset_at:
-            try:
-                return max(float(reset_at) - time.time(), 60.0)
-            except ValueError:
-                pass
-
-    return 60.0 * (2**attempt)
+        return True
+    return "rate limit" in _response_message(response).lower()
 
 
 def graphql_query(
     session: requests.Session,
     query: str,
     variables: Optional[Dict[str, Any]] = None,
-    *,
-    sleep: Any = time.sleep,
 ) -> Dict[str, Any]:
     """Execute a GraphQL query against the GitHub API.
 
-    Transparently retries on a rate-limited 403 (see `_is_rate_limited`),
-    waiting for `Retry-After` (or an exponential-backoff fallback) up to
-    `_MAX_RATE_LIMIT_RETRIES` times before giving up.
+    Raises ``GitHubRateLimitError`` when throttled, and ``requests.HTTPError``
+    for any other non-2xx response; both include GitHub's own error message.
     """
     payload: Dict[str, Any] = {"query": query}
     if variables:
         payload["variables"] = variables
 
-    attempt = 0
-    while True:
-        response = session.post(GRAPHQL_URL, json=payload, timeout=30)
-        if (
-            response.status_code == 403
-            and attempt < _MAX_RATE_LIMIT_RETRIES
-            and _is_rate_limited(response)
-        ):
-            sleep(_rate_limit_retry_delay(response, attempt))
-            attempt += 1
-            continue
-        response.raise_for_status()
-        break
+    response = session.post(GRAPHQL_URL, json=payload, timeout=30)
+    if not response.ok:
+        message = f"{response.status_code} {response.reason} for url: {response.url}"
+        github_message = _response_message(response)
+        if github_message:
+            message += f" ({github_message})"
+        if _is_rate_limited(response):
+            raise GitHubRateLimitError(message, response=response)
+        raise requests.HTTPError(message, response=response)
 
     result = response.json()
     if "errors" in result:
