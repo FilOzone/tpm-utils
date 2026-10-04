@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
 
 GRAPHQL_URL = "https://api.github.com/graphql"
+
+# A burst of GraphQL mutations (e.g. a batched Cycle-field rollover touching
+# hundreds of items) can trip GitHub's secondary/abuse rate limit mid-run --
+# a flat 403 on an otherwise-healthy token, distinct from a real auth/scope
+# failure. Retry a few times honoring Retry-After before giving up, instead
+# of failing the whole batch on the first throttled request.
+_MAX_RATE_LIMIT_RETRIES = 3
 
 
 class GitHubAPIError(Exception):
@@ -17,18 +25,64 @@ class GitHubAuthError(GitHubAPIError):
     """Raised when the GitHub API rejects a request due to auth/scope issues."""
 
 
+def _is_rate_limited(response: requests.Response) -> bool:
+    """True if `response` is GitHub's primary or secondary rate limit, not a real auth failure.
+
+    Both come back as HTTP 403 with no way to tell them apart from the
+    status code alone; GitHub's own docs point at the response body's
+    `message` as the signal (e.g. "API rate limit exceeded ..." or "You
+    have exceeded a secondary rate limit ...").
+    """
+    if response.status_code != 403:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return "rate limit" in str(body.get("message", "")).lower()
+
+
+def _rate_limit_retry_delay(response: requests.Response, attempt: int) -> float:
+    """Seconds to wait before retrying, preferring GitHub's own Retry-After hint."""
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return float(retry_after)
+        except ValueError:
+            pass
+    return min(2**attempt, 60)
+
+
 def graphql_query(
     session: requests.Session,
     query: str,
     variables: Optional[Dict[str, Any]] = None,
+    *,
+    sleep: Any = time.sleep,
 ) -> Dict[str, Any]:
-    """Execute a GraphQL query against the GitHub API."""
+    """Execute a GraphQL query against the GitHub API.
+
+    Transparently retries on a rate-limited 403 (see `_is_rate_limited`),
+    waiting for `Retry-After` (or an exponential-backoff fallback) up to
+    `_MAX_RATE_LIMIT_RETRIES` times before giving up.
+    """
     payload: Dict[str, Any] = {"query": query}
     if variables:
         payload["variables"] = variables
 
-    response = session.post(GRAPHQL_URL, json=payload, timeout=30)
-    response.raise_for_status()
+    attempt = 0
+    while True:
+        response = session.post(GRAPHQL_URL, json=payload, timeout=30)
+        if (
+            response.status_code == 403
+            and attempt < _MAX_RATE_LIMIT_RETRIES
+            and _is_rate_limited(response)
+        ):
+            sleep(_rate_limit_retry_delay(response, attempt))
+            attempt += 1
+            continue
+        response.raise_for_status()
+        break
 
     result = response.json()
     if "errors" in result:
