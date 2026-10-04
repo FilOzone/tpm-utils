@@ -43,14 +43,33 @@ def _is_rate_limited(response: requests.Response) -> bool:
 
 
 def _rate_limit_retry_delay(response: requests.Response, attempt: int) -> float:
-    """Seconds to wait before retrying, preferring GitHub's own Retry-After hint."""
+    """Seconds to wait before retrying.
+
+    Follows GitHub's own guidance
+    (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit):
+    honor `Retry-After` when present; otherwise, if the primary rate limit
+    is exhausted (`X-RateLimit-Remaining: 0`), wait until `X-RateLimit-Reset`.
+    With neither header, this is GitHub's secondary rate limit, which the
+    docs say requires waiting *at least* a minute -- so the backoff floor
+    and step are both 60s, not the 1s/2s/4s that's reasonable for ordinary
+    transient errors but is still well under quota a minute later here.
+    """
     retry_after = response.headers.get("Retry-After")
     if retry_after:
         try:
             return float(retry_after)
         except ValueError:
             pass
-    return min(2**attempt, 60)
+
+    if response.headers.get("X-RateLimit-Remaining") == "0":
+        reset_at = response.headers.get("X-RateLimit-Reset")
+        if reset_at:
+            try:
+                return max(float(reset_at) - time.time(), 60.0)
+            except ValueError:
+                pass
+
+    return 60.0 * (2**attempt)
 
 
 def graphql_query(

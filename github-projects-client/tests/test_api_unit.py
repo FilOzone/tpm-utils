@@ -13,6 +13,7 @@ Run:
 
 from __future__ import annotations
 
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -69,11 +70,14 @@ class TestGraphqlQueryRateLimitRetry:
         assert session.post.call_count == 2
         sleep.assert_called_once_with(5.0)
 
-    def test_falls_back_to_exponential_backoff_without_retry_after_header(self):
+    def test_falls_back_to_a_minute_without_any_rate_limit_headers(self):
+        """Secondary rate limit with neither Retry-After nor quota headers:
+        GitHub's docs require waiting at least a minute, not a short
+        exponential backoff."""
         session = MagicMock()
         session.post.side_effect = [
             _fake_response(
-                403, {"message": "API rate limit exceeded for installation"}
+                403, {"message": "You have exceeded a secondary rate limit"}
             ),
             _fake_response(200, {"data": {"ok": True}}),
         ]
@@ -81,7 +85,66 @@ class TestGraphqlQueryRateLimitRetry:
 
         graphql_query(session, "query {}", sleep=sleep)
 
-        sleep.assert_called_once_with(1.0)  # 2**0
+        sleep.assert_called_once_with(60.0)  # 60 * 2**0
+
+    def test_backoff_doubles_from_sixty_seconds_on_repeated_throttling(self):
+        session = MagicMock()
+        session.post.side_effect = [
+            _fake_response(403, {"message": "secondary rate limit"}),
+            _fake_response(403, {"message": "secondary rate limit"}),
+            _fake_response(200, {"data": {"ok": True}}),
+        ]
+        sleep = MagicMock()
+
+        graphql_query(session, "query {}", sleep=sleep)
+
+        assert sleep.call_args_list == [((60.0,),), ((120.0,),)]
+
+    def test_honors_rate_limit_reset_header_when_quota_exhausted(self):
+        """Primary rate limit (quota fully exhausted): wait until
+        X-RateLimit-Reset rather than guessing, per GitHub's own guidance."""
+        reset_at = time.time() + 90
+        session = MagicMock()
+        session.post.side_effect = [
+            _fake_response(
+                403,
+                {"message": "API rate limit exceeded for installation"},
+                headers={
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(reset_at),
+                },
+            ),
+            _fake_response(200, {"data": {"ok": True}}),
+        ]
+        sleep = MagicMock()
+
+        graphql_query(session, "query {}", sleep=sleep)
+
+        assert sleep.call_count == 1
+        (delay,), _ = sleep.call_args
+        assert 85 <= delay <= 90
+
+    def test_rate_limit_reset_delay_floors_at_sixty_seconds(self):
+        """A reset timestamp already in the past (or imminent) must still
+        wait a full minute, matching the no-headers fallback floor."""
+        reset_at = time.time() - 5
+        session = MagicMock()
+        session.post.side_effect = [
+            _fake_response(
+                403,
+                {"message": "API rate limit exceeded for installation"},
+                headers={
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(reset_at),
+                },
+            ),
+            _fake_response(200, {"data": {"ok": True}}),
+        ]
+        sleep = MagicMock()
+
+        graphql_query(session, "query {}", sleep=sleep)
+
+        sleep.assert_called_once_with(60.0)
 
     def test_gives_up_after_max_retries(self):
         session = MagicMock()
