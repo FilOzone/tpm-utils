@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from github_projects_client.api import GitHubRateLimitError
 
 from github_projects_client.mutations import (
@@ -256,24 +258,26 @@ class TestBulkRateLimiting:
         assert variables["fieldId0"] == "PVTSSF_field1"
 
 
-def test_rate_limited_200_response_stops_bulk_without_per_item_fallback():
-    """End to end through the real graphql_query: a 200 RATE_LIMITED response
-    must stop the run, not trigger 25 per-item retries per batch."""
+def _graphql_response(body):
     import requests
 
-    rate_limited = MagicMock(spec=requests.Response)
-    rate_limited.ok = True
-    rate_limited.status_code = 200
-    rate_limited.reason = "OK"
-    rate_limited.url = "https://api.github.com/graphql"
-    rate_limited.headers = {}
-    rate_limited.json.return_value = {
-        "data": None,
-        "errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}],
-    }
-    session = MagicMock()
-    session.post.return_value = rate_limited
+    resp = MagicMock(spec=requests.Response)
+    resp.ok = True
+    resp.status_code = 200
+    resp.reason = "OK"
+    resp.url = "https://api.github.com/graphql"
+    resp.headers = {}
+    resp.json.return_value = body
+    return resp
 
+
+RATE_LIMITED_BODY = {
+    "data": None,
+    "errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}],
+}
+
+
+def _bulk_through_real_graphql(session, n_items):
     with (
         patch(
             "github_projects_client.mutations.list_field_options",
@@ -281,20 +285,67 @@ def test_rate_limited_200_response_stops_bulk_without_per_item_fallback():
         ),
         patch("github_projects_client.mutations.time.sleep"),
     ):
-        result = set_field_value_bulk(
+        return set_field_value_bulk(
             session,
             org="TestOrg",
             project_number=1,
-            item_refs=_node_ids(60),
+            item_refs=_node_ids(n_items),
             field_name="Status",
             value="🎉 Done",
         )
 
-    mutation_requests = [
+
+def _mutation_requests(session):
+    return [
         c
         for c in session.post.call_args_list
         if "mutation" in c.kwargs["json"]["query"]
     ]
-    assert len(mutation_requests) == 1
+
+
+def test_rate_limited_200_write_stops_bulk_without_per_item_fallback():
+    """End to end through the real graphql_query: a 200 RATE_LIMITED write
+    must stop the run, not trigger 25 per-item retries per batch."""
+
+    def respond(url, json, timeout):
+        if "mutation" in json["query"]:
+            return _graphql_response(RATE_LIMITED_BODY)
+        return _graphql_response({"data": {"nodes": []}})
+
+    session = MagicMock()
+    session.post.side_effect = respond
+
+    result = _bulk_through_real_graphql(session, 60)
+
+    assert len(_mutation_requests(session)) == 1
     assert result["success_count"] == 0
     assert sum(1 for r in result["results"] if r.get("rate_limited")) == 60
+
+
+def test_rate_limited_read_raises_before_any_write():
+    """A throttled old-value read must not be swallowed: sessions without a
+    breaker (e.g. the API server) would otherwise keep writing."""
+    session = MagicMock()
+    session.post.return_value = _graphql_response(RATE_LIMITED_BODY)
+
+    with pytest.raises(GitHubRateLimitError):
+        _bulk_through_real_graphql(session, 60)
+
+    assert _mutation_requests(session) == []
+
+
+def test_per_item_fallback_is_paced():
+    calls = []
+
+    def fake_graphql(session, query, variables=None):
+        if "fieldValueByName" in query:
+            return {"nodes": []}
+        calls.append(variables)
+        if len(calls) == 1:
+            raise RuntimeError("batch failed for a non-throttling reason")
+        return {}
+
+    result, sleep = _run_bulk(fake_graphql, _node_ids(3))
+
+    assert result["success_count"] == 3
+    assert sleep.call_count == 3  # before each of the 3 single writes

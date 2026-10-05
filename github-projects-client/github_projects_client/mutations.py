@@ -43,7 +43,7 @@ _BATCH_SIZE = 25
 
 # GitHub asks clients to wait at least a second between mutation requests to
 # stay clear of its secondary rate limit.
-_SECONDS_BETWEEN_BATCHES = 1.0
+_SECONDS_BETWEEN_MUTATIONS = 1.0
 
 FIELD_VALUE_BY_NAME_QUERY = """
 query($ids: [ID!]!, $field: String!) {
@@ -73,6 +73,8 @@ def _fetch_old_values_by_node_id(
 
     Best-effort: any lookup failure leaves the affected IDs out of the result,
     so callers fall back to an empty old_value rather than failing the mutation.
+    A rate limit is the exception: it propagates, so no writes follow a
+    throttled read.
     """
     old_values: Dict[str, str] = {}
     for start in range(0, len(node_ids), 100):
@@ -83,6 +85,8 @@ def _fetch_old_values_by_node_id(
                 FIELD_VALUE_BY_NAME_QUERY,
                 {"ids": chunk, "field": field_name},
             )
+        except GitHubRateLimitError:
+            raise
         except Exception:
             continue
         for node in data.get("nodes") or []:
@@ -261,6 +265,7 @@ def _execute_batch(
         return exc
     except Exception:
         for i, item in enumerate(batch):
+            time.sleep(_SECONDS_BETWEEN_MUTATIONS)
             try:
                 graphql_query(session, single_query, single_variables(item))
             except GitHubRateLimitError as exc:
@@ -304,8 +309,10 @@ def set_field_value_bulk(
 
     Returns:
         Dict with success_count, failure_count, and per-item results list.
-        If GitHub rate-limits the run, no further mutations are sent and
+        If GitHub rate-limits a write, no further mutations are sent and
         every unattempted item's result carries ``"rate_limited": True``.
+        A rate limit on the reads before any write (field or old-value
+        lookups) raises ``GitHubRateLimitError`` instead, with nothing sent.
         No audit logging — that's the caller's responsibility.
     """
     results: List[Dict[str, Any]] = []
@@ -460,7 +467,7 @@ def set_field_value_bulk(
             results.extend(_rate_limited_results(batch, rate_limit_error))
             continue
         if batch_start:
-            time.sleep(_SECONDS_BETWEEN_BATCHES)
+            time.sleep(_SECONDS_BETWEEN_MUTATIONS)
         rate_limit_error = _execute_batch(
             session,
             batch=batch,

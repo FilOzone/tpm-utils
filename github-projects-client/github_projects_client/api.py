@@ -70,7 +70,8 @@ def is_rate_limited(response: requests.Response) -> bool:
     return False
 
 
-def _describe_error(response: requests.Response) -> str:
+def describe_error(response: requests.Response) -> str:
+    """Status, URL, and GitHub's own message (or GraphQL errors) for a failed response."""
     message = f"{response.status_code} {response.reason} for url: {response.url}"
     body = _response_body(response)
     detail = body.get("message") or body.get("errors")
@@ -96,9 +97,9 @@ def graphql_query(
 
     response = session.post(GRAPHQL_URL, json=payload, timeout=30)
     if is_rate_limited(response):
-        raise GitHubRateLimitError(_describe_error(response), response=response)
+        raise GitHubRateLimitError(describe_error(response), response=response)
     if not response.ok:
-        raise requests.HTTPError(_describe_error(response), response=response)
+        raise requests.HTTPError(describe_error(response), response=response)
 
     result = response.json()
     if "errors" in result:

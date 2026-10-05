@@ -7,16 +7,20 @@ board (see foc-board-rules/README.md general behavior rule 13).
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List, Optional
 
 import requests
 from github_projects_client import (
     GitHubRateLimitError,
+    describe_error,
     graphql_query,
     is_rate_limited,
 )
 from requests.adapters import HTTPAdapter
+
+logger = logging.getLogger(__name__)
 
 # Orgs where we have write access to manage assignees, milestones, reviewers,
 # etc. Items from repos outside these orgs are "external items" (see
@@ -60,13 +64,24 @@ def is_bot_actor(login: str, typename: str) -> bool:
 GITHUB_API_PREFIX = "https://api.github.com/"
 
 
+_RATE_LIMIT_HEADERS = (
+    "Retry-After",
+    "X-RateLimit-Limit",
+    "X-RateLimit-Remaining",
+    "X-RateLimit-Reset",
+    "X-RateLimit-Resource",
+)
+
+
 class RateLimitBreaker(HTTPAdapter):
     """Once GitHub rate-limits any request, refuse to send any more.
 
     GitHub warns that continuing to make requests while rate limited may
-    get the integration banned, and this job runs hourly anyway, so after
-    the first throttled response every later request in the run raises
-    ``GitHubRateLimitError`` without being sent.
+    get the integration banned, and this job runs hourly anyway. The
+    rate-limited response itself is raised as ``GitHubRateLimitError``
+    (so REST helpers that would raise a plain ``HTTPError`` don't hide
+    it), GitHub's message and rate-limit headers are logged once, and
+    every later request raises without being sent.
     """
 
     def __init__(self) -> None:
@@ -81,9 +96,17 @@ class RateLimitBreaker(HTTPAdapter):
             )
         response = super().send(request, **kwargs)
         if is_rate_limited(response):
-            self.tripped_by = (
-                f"{response.status_code} on {request.method} {request.url}"
+            headers = {
+                h: response.headers[h]
+                for h in _RATE_LIMIT_HEADERS
+                if h in response.headers
+            }
+            self.tripped_by = f"{request.method} {describe_error(response)} {headers}"
+            logger.warning(
+                "GitHub rate limit hit; sending no more requests this run: %s",
+                self.tripped_by,
             )
+            raise GitHubRateLimitError(self.tripped_by, response=response)
         return response
 
 
