@@ -17,18 +17,89 @@ class GitHubAuthError(GitHubAPIError):
     """Raised when the GitHub API rejects a request due to auth/scope issues."""
 
 
+class GitHubRateLimitError(GitHubAPIError, requests.HTTPError):
+    """Raised when GitHub throttles a request (primary or secondary rate limit).
+
+    Also a ``requests.HTTPError`` so existing ``except requests.HTTPError``
+    callers keep working. Deliberately not retried here: the right reaction
+    (fail fast with a 429 in the server, defer to the next run in a batch
+    job) depends on the caller.
+    """
+
+
+def _response_body(response: requests.Response) -> Dict[str, Any]:
+    try:
+        body = response.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _rate_limit_text(text: str) -> bool:
+    text = text.lower()
+    return "rate limit" in text or "abuse detection" in text
+
+
+def is_rate_limited(response: requests.Response) -> bool:
+    """True if `response` means GitHub is throttling us, in any of its shapes.
+
+    Per GitHub's docs: a 429; a 403 marked by an exhausted quota header, a
+    ``Retry-After`` header, or a rate-limit message (otherwise a 403 looks
+    like a permissions failure); or, for GraphQL only, an HTTP 200 whose
+    ``errors`` report it (``type: RATE_LIMITED``, or a secondary-limit
+    message), since both GraphQL limits can come back as 200. Other 200s
+    (e.g. REST pages of board items) are never decoded here.
+    """
+    if response.status_code == 429:
+        return True
+    if response.status_code == 403:
+        return (
+            response.headers.get("X-RateLimit-Remaining") == "0"
+            or "Retry-After" in response.headers
+            or _rate_limit_text(str(_response_body(response).get("message", "")))
+        )
+    if response.status_code == 200 and response.url.startswith(GRAPHQL_URL):
+        return any(
+            isinstance(e, dict)
+            and (
+                e.get("type") == "RATE_LIMITED"
+                or _rate_limit_text(str(e.get("message", "")))
+            )
+            for e in _response_body(response).get("errors") or []
+        )
+    return False
+
+
+def describe_error(response: requests.Response) -> str:
+    """Status, URL, and GitHub's own message (or GraphQL errors) for a failed response."""
+    message = f"{response.status_code} {response.reason} for url: {response.url}"
+    body = _response_body(response)
+    detail = body.get("message") or body.get("errors")
+    if detail:
+        message += f" ({detail})"
+    return message
+
+
 def graphql_query(
     session: requests.Session,
     query: str,
     variables: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Execute a GraphQL query against the GitHub API."""
+    """Execute a GraphQL query against the GitHub API.
+
+    Raises ``GitHubRateLimitError`` when throttled (see ``is_rate_limited``),
+    and ``requests.HTTPError`` for any other non-2xx response; both include
+    GitHub's own error message.
+    """
     payload: Dict[str, Any] = {"query": query}
     if variables:
         payload["variables"] = variables
 
     response = session.post(GRAPHQL_URL, json=payload, timeout=30)
-    response.raise_for_status()
+    if is_rate_limited(response):
+        raise GitHubRateLimitError(describe_error(response), response=response)
+    if not response.ok:
+        raise requests.HTTPError(describe_error(response), response=response)
 
     result = response.json()
     if "errors" in result:

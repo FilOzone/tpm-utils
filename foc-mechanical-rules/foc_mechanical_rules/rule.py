@@ -15,7 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import requests
+from github_projects_client import GitHubRateLimitError, set_field_value_bulk
 
+from .github_api import rate_limit_tripped
 from .mutation_log import MutationLog, MutationRecord
 
 logger = logging.getLogger(__name__)
@@ -30,12 +32,17 @@ class ActionResult:
     mutate the item but wants that write batched with other items' writes
     rather than issued immediately (see ``Rule.run()`` and
     ``Rule.mutate_pending``). It never appears in a finished ``RuleRun`` --
-    ``run()`` always resolves it to "applied" or "error" before returning.
+    ``run()`` always resolves it to "applied", "deferred", or "error"
+    before returning.
     """
 
     item_ref: str
     title: str
-    status: str  # "applied" | "skipped" | "flagged" | "error" | "pending"
+    # "applied" | "skipped" | "flagged" | "error" | "deferred" | "pending".
+    # "deferred" means GitHub rate-limited the run before this item's write
+    # was attempted; it doesn't fail the run because the next hourly run
+    # picks the item up again.
+    status: str
     reason: str = ""
     old_value: str = ""
     new_value: str = ""
@@ -48,12 +55,87 @@ class RuleRun:
 
     rule_id: str
     results: List[ActionResult] = field(default_factory=list)
+    # Set when the rule didn't run at all (e.g. GitHub rate-limited the run first).
+    not_run_reason: str = ""
 
     def counts(self) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         for r in self.results:
             counts[r.status] = counts.get(r.status, 0) + 1
         return counts
+
+
+RATE_LIMITED_REASON = "GitHub rate limit hit earlier in this run; next run will retry"
+
+
+def deferred(
+    item_ref: str,
+    title: str,
+    *,
+    reason: str = RATE_LIMITED_REASON,
+    old_value: str = "",
+    new_value: str = "",
+) -> ActionResult:
+    return ActionResult(
+        item_ref=item_ref,
+        title=title,
+        status="deferred",
+        reason=reason,
+        old_value=old_value,
+        new_value=new_value,
+    )
+
+
+def _finalize_bulk_results(
+    group: List[ActionResult],
+    bulk_result: Dict[str, Any],
+    *,
+    new_value: str,
+    field_label: str,
+) -> List[ActionResult]:
+    """Turn ``set_field_value_bulk``'s per-item results into finished ActionResults.
+
+    ``group`` holds the "pending" results whose ``node_id``s were passed to
+    that one bulk call, all targeting ``new_value``.
+    """
+    by_node_id = {r["item_ref"]: r for r in bulk_result["results"]}
+    finalized: List[ActionResult] = []
+    for p in group:
+        r = by_node_id.get(p.node_id) or {}
+        if r.get("success"):
+            finalized.append(
+                ActionResult(
+                    item_ref=p.item_ref,
+                    title=p.title,
+                    status="applied",
+                    old_value=r.get("old_value", p.old_value),
+                    new_value=new_value,
+                )
+            )
+        elif r.get("rate_limited"):
+            finalized.append(
+                deferred(
+                    p.item_ref,
+                    p.title,
+                    reason=(
+                        f"GitHub rate limit hit before {field_label} was set; "
+                        "next run will retry"
+                    ),
+                    old_value=p.old_value,
+                    new_value=new_value,
+                )
+            )
+        else:
+            error = r.get("error", "no result for this item")
+            finalized.append(
+                ActionResult(
+                    item_ref=p.item_ref,
+                    title=p.title,
+                    status="error",
+                    reason=f"failed to set {field_label}: {error}",
+                )
+            )
+    return finalized
 
 
 class Rule:
@@ -124,7 +206,7 @@ class Rule:
         results: List[ActionResult] = []
         pending: List[ActionResult] = []
         for i, item in enumerate(items, start=1):
-            result = self.apply_one(
+            result = self._apply_one_unless_rate_limited(
                 session, item, dry_run=dry_run, mutation_log=mutation_log
             )
             if result.status == "pending":
@@ -156,7 +238,19 @@ class Rule:
                 self.id,
                 len(pending),
             )
-            for result in self.mutate_pending(session, pending):
+            if rate_limit_tripped(session):
+                finalized = [
+                    deferred(
+                        p.item_ref,
+                        p.title,
+                        old_value=p.old_value,
+                        new_value=p.new_value,
+                    )
+                    for p in pending
+                ]
+            else:
+                finalized = self.mutate_pending(session, pending)
+            for result in finalized:
                 results.append(result)
                 self._finish(result, mutation_log, dry_run)
                 logger.info(
@@ -168,6 +262,35 @@ class Rule:
                 )
 
         return RuleRun(rule_id=self.id, results=results)
+
+    def _apply_one_unless_rate_limited(
+        self,
+        session: requests.Session,
+        item: Dict[str, Any],
+        *,
+        dry_run: bool,
+        mutation_log: MutationLog,
+    ) -> ActionResult:
+        """Run ``apply_one``, or defer the item once GitHub has rate-limited the run.
+
+        ``apply_one`` implementations catch ``requests.HTTPError`` (which
+        ``GitHubRateLimitError`` subclasses) and report "error"; when the
+        breaker tripped during this very call, that error was the rate
+        limit, so it's reported as deferred instead.
+        """
+        item_ref = f"{item.get('Repository', '')}#{item.get('Id', '')}"
+        title = item.get("Title", "")
+        if rate_limit_tripped(session):
+            return deferred(item_ref, title)
+        try:
+            result = self.apply_one(
+                session, item, dry_run=dry_run, mutation_log=mutation_log
+            )
+        except GitHubRateLimitError:
+            return deferred(item_ref, title)
+        if result.status == "error" and rate_limit_tripped(session):
+            return deferred(result.item_ref, result.title)
+        return result
 
     def _finish(
         self, result: ActionResult, mutation_log: MutationLog, dry_run: bool
@@ -184,3 +307,52 @@ class Rule:
                     new_value=result.new_value,
                 )
             )
+
+
+class BatchedFieldRule(Rule):
+    """A rule whose writes all set one board field, batched by target value.
+
+    Subclasses set ``board_field`` (the field's name on the board) and
+    return "pending" results (with ``node_id`` set) from ``apply_one``;
+    ``mutate_pending`` then writes each group of items sharing a target
+    value with one ``set_field_value_bulk`` call (one GraphQL request per
+    25 items). Batching only happens within one rule's run: ``run_all``
+    finishes each rule, including its flush, before starting the next.
+    """
+
+    board_field: str
+    org: str
+    project_number: int
+
+    def mutate_pending(
+        self, session: requests.Session, pending: List[ActionResult]
+    ) -> List[ActionResult]:
+        by_value: Dict[str, List[ActionResult]] = {}
+        for p in pending:
+            by_value.setdefault(p.new_value, []).append(p)
+
+        finalized: List[ActionResult] = []
+        for new_value, group in by_value.items():
+            try:
+                bulk_result = set_field_value_bulk(
+                    session,
+                    org=self.org,
+                    project_number=self.project_number,
+                    item_refs=[p.node_id for p in group],
+                    field_name=self.board_field,
+                    value=new_value,
+                )
+            except GitHubRateLimitError:
+                finalized.extend(
+                    deferred(
+                        p.item_ref, p.title, old_value=p.old_value, new_value=new_value
+                    )
+                    for p in group
+                )
+                continue
+            finalized.extend(
+                _finalize_bulk_results(
+                    group, bulk_result, new_value=new_value, field_label=self.field_name
+                )
+            )
+        return finalized

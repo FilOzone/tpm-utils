@@ -81,7 +81,7 @@ def test_get_current_and_past_cycle_titles():
 def test_open_item_in_past_cycle_is_queued_pending(mock_get):
     # apply_one decides but doesn't mutate -- the actual write is batched by
     # mutate_pending (see test_cycle_rule.py's mutate_pending tests, which
-    # cover the shared _CycleFieldRule logic both rules use).
+    # cover the shared BatchedFieldRule logic both rules use).
     result = PastCycleRule().apply_one(
         MagicMock(), ITEM, dry_run=False, mutation_log=MutationLog()
     )
@@ -212,9 +212,9 @@ def test_dry_run_does_not_queue_a_mutation(mock_get):
     assert result.new_value == "202608-2"
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
+@patch("foc_mechanical_rules.rule.set_field_value_bulk")
 def test_mutate_pending_via_past_cycle_rule_batches_multiple_items(mock_bulk):
-    # PastCycleRule uses the shared _CycleFieldRule.mutate_pending -- this
+    # PastCycleRule uses the shared BatchedFieldRule.mutate_pending -- this
     # covers it through PastCycleRule specifically (test_cycle_rule.py covers
     # it through CycleRule). NOTE: this only exercises one rule's own pending
     # list; runner.run_all() calls each registered rule's run() (including

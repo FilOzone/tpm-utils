@@ -149,7 +149,7 @@ def test_dry_run_does_not_queue_a_mutation(mock_get_cycle):
     assert result.new_value == "202608-2"
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
+@patch("foc_mechanical_rules.rule.set_field_value_bulk")
 def test_mutate_pending_batches_same_value_items_in_one_call(mock_bulk):
     mock_bulk.return_value = {
         "results": [
@@ -184,7 +184,7 @@ def test_mutate_pending_batches_same_value_items_in_one_call(mock_bulk):
     assert mock_bulk.call_args.kwargs["value"] == "202608-2"
 
 
-@patch("foc_mechanical_rules.rules.cycle.set_field_value_bulk")
+@patch("foc_mechanical_rules.rule.set_field_value_bulk")
 def test_mutate_pending_reports_per_item_failure(mock_bulk):
     mock_bulk.return_value = {
         "results": [{"item_ref": "PVTI_1", "success": False, "error": "boom"}]
@@ -244,3 +244,33 @@ def test_done_cycle_rule_reuses_cycle_rules_apply_one(mock_get_cycle):
 
 def test_done_cycle_rule_is_a_rule():
     assert isinstance(DoneCycleRule(), Rule)
+
+
+@patch("foc_mechanical_rules.rule.set_field_value_bulk")
+def test_mutate_pending_reports_rate_limited_items_as_deferred(mock_bulk):
+    mock_bulk.return_value = {
+        "results": [
+            {"item_ref": "PVTI_1", "success": True, "old_value": "202608-1"},
+            {
+                "item_ref": "PVTI_2",
+                "success": False,
+                "rate_limited": True,
+                "error": "not attempted, GitHub rate limit hit",
+            },
+        ]
+    }
+    pending = [
+        ActionResult(
+            item_ref=f"FilOzone/dealbot#{n}",
+            title="a",
+            status="pending",
+            new_value="202608-2",
+            node_id=f"PVTI_{n}",
+        )
+        for n in (1, 2)
+    ]
+
+    finalized = CycleRule().mutate_pending(MagicMock(), pending)
+
+    assert [r.status for r in finalized] == ["applied", "deferred"]
+    assert "next run will retry" in finalized[1].reason

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import time
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
-from .api import graphql_query
+from .api import GitHubRateLimitError, graphql_query
 from .fields import list_field_options
 from .items import get_item
 
@@ -40,6 +41,10 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
 # ---------------------------------------------------------------------------
 _BATCH_SIZE = 25
 
+# GitHub asks clients to wait at least a second between mutation requests to
+# stay clear of its secondary rate limit.
+_SECONDS_BETWEEN_MUTATIONS = 1.0
+
 FIELD_VALUE_BY_NAME_QUERY = """
 query($ids: [ID!]!, $field: String!) {
     nodes(ids: $ids) {
@@ -68,6 +73,8 @@ def _fetch_old_values_by_node_id(
 
     Best-effort: any lookup failure leaves the affected IDs out of the result,
     so callers fall back to an empty old_value rather than failing the mutation.
+    A rate limit is the exception: it propagates, so no writes follow a
+    throttled read.
     """
     old_values: Dict[str, str] = {}
     for start in range(0, len(node_ids), 100):
@@ -78,6 +85,8 @@ def _fetch_old_values_by_node_id(
                 FIELD_VALUE_BY_NAME_QUERY,
                 {"ids": chunk, "field": field_name},
             )
+        except GitHubRateLimitError:
+            raise
         except Exception:
             continue
         for node in data.get("nodes") or []:
@@ -217,74 +226,61 @@ def _resolve_field_only(
     }
 
 
-def _execute_clear_batch(
+def _rate_limited_results(
+    items: List[Dict[str, Any]], exc: GitHubRateLimitError
+) -> List[Dict[str, Any]]:
+    return [
+        {
+            "item_ref": item["ref"],
+            "success": False,
+            "rate_limited": True,
+            "error": f"not attempted, GitHub rate limit hit: {exc}",
+        }
+        for item in items
+    ]
+
+
+def _execute_batch(
     session: requests.Session,
     *,
-    project_id: str,
-    field_id: str,
     batch: List[Dict[str, Any]],
-    field_name: str,
+    batch_query: str,
+    batch_variables: Dict[str, Any],
+    single_query: str,
+    single_variables: Callable[[Dict[str, Any]], Dict[str, Any]],
+    success_result: Callable[[Dict[str, Any]], Dict[str, Any]],
     results: List[Dict[str, Any]],
-) -> None:
-    """Execute a batch of clear mutations using GraphQL aliases."""
-    var_defs = ", ".join(
-        f"$projectId{i}: ID!, $itemId{i}: ID!, $fieldId{i}: ID!"
-        for i in range(len(batch))
-    )
-    mutation_bodies = "\n    ".join(
-        f"m{i}: clearProjectV2ItemFieldValue(input: {{projectId: $projectId{i}, itemId: $itemId{i}, fieldId: $fieldId{i}}}) {{ projectV2Item {{ id }} }}"
-        for i in range(len(batch))
-    )
-    query = f"mutation({var_defs}) {{\n    {mutation_bodies}\n}}"
+) -> Optional[GitHubRateLimitError]:
+    """Run one aliased batch mutation, falling back to per-item mutations if it fails.
 
-    variables = {}
-    for i, item in enumerate(batch):
-        variables[f"projectId{i}"] = project_id
-        variables[f"itemId{i}"] = item["node_id"]
-        variables[f"fieldId{i}"] = field_id
-
+    Returns the rate-limit error if GitHub throttled us, after marking this
+    batch's unattempted items, so the caller stops sending requests. The
+    per-item fallback is skipped when throttled: it would only send 25x
+    more requests into the same limit.
+    """
     try:
-        graphql_query(session, query, variables)
-        for item in batch:
-            results.append(
-                {
-                    "item_ref": item["ref"],
-                    "success": True,
-                    "old_value": item["old_value"],
-                    "new_value": "",
-                    "field": field_name,
-                }
-            )
+        graphql_query(session, batch_query, batch_variables)
+    except GitHubRateLimitError as exc:
+        results.extend(_rate_limited_results(batch, exc))
+        return exc
     except Exception:
-        # Fall back to individual clears
-        for item in batch:
+        for i, item in enumerate(batch):
+            time.sleep(_SECONDS_BETWEEN_MUTATIONS)
             try:
-                graphql_query(
-                    session,
-                    CLEAR_FIELD_MUTATION,
-                    {
-                        "projectId": project_id,
-                        "itemId": item["node_id"],
-                        "fieldId": field_id,
-                    },
-                )
-                results.append(
-                    {
-                        "item_ref": item["ref"],
-                        "success": True,
-                        "old_value": item["old_value"],
-                        "new_value": "",
-                        "field": field_name,
-                    }
-                )
+                graphql_query(session, single_query, single_variables(item))
+            except GitHubRateLimitError as exc:
+                results.extend(_rate_limited_results(batch[i:], exc))
+                return exc
             except Exception as item_exc:
                 results.append(
-                    {
-                        "item_ref": item["ref"],
-                        "success": False,
-                        "error": str(item_exc),
-                    }
+                    {"item_ref": item["ref"], "success": False, "error": str(item_exc)}
                 )
+            else:
+                results.append(success_result(item))
+        return None
+
+    results.extend(success_result(item) for item in batch)
+    return None
 
 
 def set_field_value_bulk(
@@ -313,6 +309,10 @@ def set_field_value_bulk(
 
     Returns:
         Dict with success_count, failure_count, and per-item results list.
+        If GitHub rate-limits a write, no further mutations are sent and
+        every unattempted item's result carries ``"rate_limited": True``.
+        A rate limit on the reads before any write (field or old-value
+        lookups) raises ``GitHubRateLimitError`` instead, with nothing sent.
         No audit logging — that's the caller's responsibility.
     """
     results: List[Dict[str, Any]] = []
@@ -396,82 +396,88 @@ def set_field_value_bulk(
         old_value = details.get(field_name, "")
         resolved_items.append({"ref": ref, "node_id": node_id, "old_value": old_value})
 
-    # Execute mutations in batches
+    def success_result(item: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "item_ref": item["ref"],
+            "success": True,
+            "old_value": item["old_value"],
+            "new_value": value,
+            "field": field_name,
+        }
+
+    if is_clear:
+        single_query = CLEAR_FIELD_MUTATION
+
+        def single_variables(item: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "projectId": project_id,
+                "itemId": item["node_id"],
+                "fieldId": field_id,
+            }
+
+        def batch_query(n: int) -> str:
+            var_defs = ", ".join(
+                f"$projectId{i}: ID!, $itemId{i}: ID!, $fieldId{i}: ID!"
+                for i in range(n)
+            )
+            bodies = "\n    ".join(
+                f"m{i}: clearProjectV2ItemFieldValue(input: {{projectId: $projectId{i}, itemId: $itemId{i}, fieldId: $fieldId{i}}}) {{ projectV2Item {{ id }} }}"
+                for i in range(n)
+            )
+            return f"mutation({var_defs}) {{\n    {bodies}\n}}"
+
+        def batch_variables(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+            variables: Dict[str, Any] = {}
+            for i, item in enumerate(batch):
+                for key, val in single_variables(item).items():
+                    variables[f"{key}{i}"] = val
+            return variables
+
+    else:
+        single_query = UPDATE_FIELD_MUTATION
+
+        def single_input(item: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "projectId": project_id,
+                "itemId": item["node_id"],
+                "fieldId": field_id,
+                "value": mutation_value,
+            }
+
+        def single_variables(item: Dict[str, Any]) -> Dict[str, Any]:
+            return {"input": single_input(item)}
+
+        def batch_query(n: int) -> str:
+            var_defs = ", ".join(
+                f"$input{i}: UpdateProjectV2ItemFieldValueInput!" for i in range(n)
+            )
+            bodies = "\n    ".join(
+                f"m{i}: updateProjectV2ItemFieldValue(input: $input{i}) {{ projectV2Item {{ id }} }}"
+                for i in range(n)
+            )
+            return f"mutation({var_defs}) {{\n    {bodies}\n}}"
+
+        def batch_variables(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+            return {f"input{i}": single_input(item) for i, item in enumerate(batch)}
+
+    rate_limit_error: Optional[GitHubRateLimitError] = None
     for batch_start in range(0, len(resolved_items), _BATCH_SIZE):
         batch = resolved_items[batch_start : batch_start + _BATCH_SIZE]
-
-        if is_clear:
-            _execute_clear_batch(
-                session,
-                project_id=project_id,
-                field_id=field_id,
-                batch=batch,
-                field_name=field_name,
-                results=results,
-            )
-        else:
-            # Build aliased update mutation query
-            var_defs = ", ".join(
-                f"$input{i}: UpdateProjectV2ItemFieldValueInput!"
-                for i in range(len(batch))
-            )
-            mutation_bodies = "\n    ".join(
-                f"m{i}: updateProjectV2ItemFieldValue(input: $input{i}) {{ projectV2Item {{ id }} }}"
-                for i in range(len(batch))
-            )
-            query = f"mutation({var_defs}) {{\n    {mutation_bodies}\n}}"
-
-            variables = {}
-            for i, item in enumerate(batch):
-                variables[f"input{i}"] = {
-                    "projectId": project_id,
-                    "itemId": item["node_id"],
-                    "fieldId": field_id,
-                    "value": mutation_value,
-                }
-
-            try:
-                graphql_query(session, query, variables)
-                for item in batch:
-                    results.append(
-                        {
-                            "item_ref": item["ref"],
-                            "success": True,
-                            "old_value": item["old_value"],
-                            "new_value": value,
-                            "field": field_name,
-                        }
-                    )
-            except Exception:
-                # Batch failed — fall back to individual mutations
-                for item in batch:
-                    try:
-                        single_input = {
-                            "projectId": project_id,
-                            "itemId": item["node_id"],
-                            "fieldId": field_id,
-                            "value": mutation_value,
-                        }
-                        graphql_query(
-                            session, UPDATE_FIELD_MUTATION, {"input": single_input}
-                        )
-                        results.append(
-                            {
-                                "item_ref": item["ref"],
-                                "success": True,
-                                "old_value": item["old_value"],
-                                "new_value": value,
-                                "field": field_name,
-                            }
-                        )
-                    except Exception as item_exc:
-                        results.append(
-                            {
-                                "item_ref": item["ref"],
-                                "success": False,
-                                "error": str(item_exc),
-                            }
-                        )
+        if rate_limit_error is not None:
+            results.extend(_rate_limited_results(batch, rate_limit_error))
+            continue
+        if batch_start:
+            time.sleep(_SECONDS_BETWEEN_MUTATIONS)
+        rate_limit_error = _execute_batch(
+            session,
+            batch=batch,
+            batch_query=batch_query(len(batch)),
+            batch_variables=batch_variables(batch),
+            single_query=single_query,
+            single_variables=single_variables,
+            success_result=success_result,
+            results=results,
+        )
 
     success_count = sum(1 for r in results if r.get("success"))
     failure_count = sum(1 for r in results if not r.get("success"))

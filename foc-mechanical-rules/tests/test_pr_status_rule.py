@@ -323,7 +323,7 @@ def test_pr_not_found_is_an_error(mock_ctx):
     assert result.status == "error"
 
 
-@patch("foc_mechanical_rules.rules.pr_status.set_field_value_bulk")
+@patch("foc_mechanical_rules.rule.set_field_value_bulk")
 def test_mutate_pending_batches_by_target_value(mock_bulk):
     mock_bulk.return_value = {
         "results": [

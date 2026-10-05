@@ -6,10 +6,12 @@ import re
 from typing import List
 
 import requests
+from github_projects_client import GitHubRateLimitError
 from github_projects_client.audit_log import log_action
 
+from .github_api import rate_limit_tripped
 from .mutation_log import MutationLog
-from .rule import Rule, RuleRun
+from .rule import RATE_LIMITED_REASON, Rule, RuleRun
 
 CALLER = "foc-mechanical-rules"
 
@@ -23,9 +25,17 @@ def run_all(
 ) -> List[RuleRun]:
     runs = []
     for rule in rules:
-        run = rule.run(session, dry_run=dry_run, mutation_log=mutation_log)
+        if rate_limit_tripped(session):
+            runs.append(RuleRun(rule_id=rule.id, not_run_reason=RATE_LIMITED_REASON))
+            continue
+        try:
+            run = rule.run(session, dry_run=dry_run, mutation_log=mutation_log)
+        except GitHubRateLimitError:
+            # Only select() can raise this; item and flush failures are deferred.
+            runs.append(RuleRun(rule_id=rule.id, not_run_reason=RATE_LIMITED_REASON))
+            continue
         for result in run.results:
-            if result.status not in ("applied", "flagged", "error"):
+            if result.status not in ("applied", "flagged", "error", "deferred"):
                 continue
             log_action(
                 caller=CALLER,
@@ -64,12 +74,15 @@ def render_summary(rules: List[Rule], runs: List[RuleRun]) -> str:
     lines: List[str] = []
     for rule, run in zip(rules, runs):
         counts = run.counts()
-        counts_str = (
-            ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "no candidates"
+        counts_str = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or (
+            "not run" if run.not_run_reason else "no candidates"
         )
         lines.append(f"## {rule.id} ({rule.field_name}) — {counts_str}")
         lines.append(f"Rule: {rule.doc_url}")
         lines.append("")
+        if run.not_run_reason:
+            lines.append(f"Not run: {run.not_run_reason}")
+            lines.append("")
         for result in run.results:
             if result.status == "skipped":
                 continue

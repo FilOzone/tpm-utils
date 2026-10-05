@@ -11,11 +11,13 @@ Run:
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 
+from github_projects_client.api import GitHubRateLimitError
 from github_projects_client.server.app import create_app
 
 AUTH_HEADER = {"Authorization": "Bearer fake-token-for-tests"}
@@ -399,3 +401,31 @@ class TestGitHubErrorHandling:
         body = resp.json()
         assert body["error"] == "github_api_error"
         assert "something broke" in body["message"]
+
+
+class TestRateLimitMapping:
+    def test_rate_limit_error_maps_to_429_not_502(self, client):
+        """GitHubRateLimitError subclasses GitHubAPIError, whose handler
+        returns 502; the dedicated handler must win."""
+        throttled = MagicMock(spec=requests.Response)
+        throttled.headers = {"Retry-After": "60"}
+        with (
+            patch(
+                "github_projects_client.server.routes.mutations.client_set_field_value_bulk",
+                side_effect=GitHubRateLimitError("throttled", response=throttled),
+            ),
+            patch(
+                "github_projects_client.server.routes.mutations._get_caller",
+                return_value="testuser",
+            ),
+            patch("github_projects_client.server.routes.mutations.log_action"),
+        ):
+            resp = client.put(
+                "/orgs/TestOrg/projects/1/items/field/Status",
+                json={"item_refs": ["dealbot#458"], "value": "⌨️ In Progress"},
+                headers=AUTH_HEADER,
+            )
+
+        assert resp.status_code == 429
+        assert resp.json()["error"] == "rate_limited"
+        assert resp.json()["details"]["retry_after"] == 60

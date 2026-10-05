@@ -61,3 +61,23 @@ def test_unknown_rule_id_exits_without_running_anything(capsys):
     assert exc_info.value.code == 1
     run_all_mock.assert_not_called()
     assert "R-NOPE" in capsys.readouterr().err
+
+
+def _run_with_statuses(statuses):
+    from foc_mechanical_rules.rule import ActionResult, RuleRun
+
+    run = RuleRun(
+        rule_id="R-FC-013",
+        results=[ActionResult(item_ref="o/r#1", title="t", status=s) for s in statuses],
+    )
+    _run_cli(["--token", "x"], MagicMock(return_value=[run]))
+
+
+def test_deferred_results_do_not_fail_the_run():
+    _run_with_statuses(["applied", "deferred"])  # no SystemExit
+
+
+def test_error_results_still_fail_the_run():
+    with pytest.raises(SystemExit) as exc_info:
+        _run_with_statuses(["applied", "deferred", "error"])
+    assert exc_info.value.code == 1

@@ -7,11 +7,20 @@ board (see foc-board-rules/README.md general behavior rule 13).
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List, Optional
 
 import requests
-from github_projects_client import graphql_query
+from github_projects_client import (
+    GitHubRateLimitError,
+    describe_error,
+    graphql_query,
+    is_rate_limited,
+)
+from requests.adapters import HTTPAdapter
+
+logger = logging.getLogger(__name__)
 
 # Orgs where we have write access to manage assignees, milestones, reviewers,
 # etc. Items from repos outside these orgs are "external items" (see
@@ -52,8 +61,57 @@ def is_bot_actor(login: str, typename: str) -> bool:
     return typename == "Bot" or is_bot_author(login)
 
 
+GITHUB_API_PREFIX = "https://api.github.com/"
+
+
+_RATE_LIMIT_HEADERS = (
+    "Retry-After",
+    "X-RateLimit-Limit",
+    "X-RateLimit-Remaining",
+    "X-RateLimit-Reset",
+    "X-RateLimit-Resource",
+)
+
+
+class RateLimitBreaker(HTTPAdapter):
+    """Once GitHub rate-limits any request, refuse to send any more.
+
+    GitHub warns that continuing to make requests while rate limited may
+    get the integration banned, and this job runs hourly anyway. The
+    rate-limited response itself is raised as ``GitHubRateLimitError``
+    (so REST helpers that would raise a plain ``HTTPError`` don't hide
+    it), GitHub's message and rate-limit headers are logged once, and
+    every later request raises without being sent.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tripped_by: Optional[str] = None
+
+    def send(self, request, **kwargs):  # type: ignore[override]
+        if self.tripped_by is not None:
+            raise GitHubRateLimitError(
+                "not sent: GitHub rate-limited an earlier request in this run "
+                f"({self.tripped_by})"
+            )
+        response = super().send(request, **kwargs)
+        if is_rate_limited(response):
+            headers = {
+                h: response.headers[h]
+                for h in _RATE_LIMIT_HEADERS
+                if h in response.headers
+            }
+            self.tripped_by = f"{request.method} {describe_error(response)} {headers}"
+            logger.warning(
+                "GitHub rate limit hit; sending no more requests this run: %s",
+                self.tripped_by,
+            )
+            raise GitHubRateLimitError(self.tripped_by, response=response)
+        return response
+
+
 def build_session(token: str) -> requests.Session:
-    """Build a requests.Session authenticated with the given token."""
+    """Build a session authenticated with ``token`` that stops after a rate limit."""
     session = requests.Session()
     session.headers.update(
         {
@@ -62,7 +120,14 @@ def build_session(token: str) -> requests.Session:
             "X-GitHub-Api-Version": "2022-11-28",
         }
     )
+    session.mount(GITHUB_API_PREFIX, RateLimitBreaker())
     return session
+
+
+def rate_limit_tripped(session: requests.Session) -> bool:
+    """True if this session's ``RateLimitBreaker`` has seen a rate limit."""
+    adapter = session.get_adapter(GITHUB_API_PREFIX)
+    return isinstance(adapter, RateLimitBreaker) and adapter.tripped_by is not None
 
 
 def parse_repo_ref(repository: str) -> tuple[str, str]:
@@ -103,16 +168,16 @@ def get_issue_events(
 
 def add_assignee(
     session: requests.Session, *, owner: str, repo: str, number: str, login: str
-) -> None:
-    """Add an assignee to an issue/PR.
+) -> List[str]:
+    """Add an assignee to an issue/PR and return the issue's resulting assignee logins.
 
-    Raises requests.HTTPError. GitHub returns 404 here (never 403) both when
-    the calling token lacks write/triage access to `owner/repo` and when
-    `login` isn't a valid assignee on it -- the two cases are
-    indistinguishable from the response alone, but in this codebase's usage
-    (the target is always the PR's own author) it's almost always the
-    former, so the error is annotated with that hint rather than left as a
-    bare "Not Found".
+    Callers should check ``login`` is in the returned list: GitHub can
+    accept the request without assigning a user it considers unassignable.
+
+    Raises requests.HTTPError. A 404 is annotated with a permissions hint:
+    in practice it has meant the token's account lacks triage+ access to
+    the repo (FilOzone/team-skills#14, 2026-09), which a bare "Not Found"
+    hides.
     """
     resp = session.post(
         f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/assignees",
@@ -121,12 +186,13 @@ def add_assignee(
     )
     if resp.status_code == 404:
         raise requests.HTTPError(
-            f"{resp.status_code} {resp.reason} for url: {resp.url} -- likely a "
+            f"{resp.status_code} {resp.reason} for url: {resp.url}; likely a "
             f"permissions issue: check that this token's account has "
             f"triage+ access to {owner}/{repo} (see foc-mechanical-rules/README.md)",
             response=resp,
         )
     resp.raise_for_status()
+    return [a.get("login", "") for a in resp.json().get("assignees") or []]
 
 
 def get_collaborator_permission(

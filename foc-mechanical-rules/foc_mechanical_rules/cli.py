@@ -104,16 +104,20 @@ def main() -> None:
     mutation_log_path = Path(args.mutation_log)
     mutation_log = MutationLog(read_tsv(mutation_log_path))
 
-    runs = run_all(session, rules, dry_run=args.dry_run, mutation_log=mutation_log)
+    try:
+        runs = run_all(session, rules, dry_run=args.dry_run, mutation_log=mutation_log)
+    finally:
+        # Writes that already landed must be recorded even if a later rule
+        # crashes: R-FC-012 relies on this log to avoid undoing human edits.
+        if not args.dry_run:
+            write_tsv(mutation_log_path, mutation_log.all())
+
     summary = render_summary(rules, runs)
     print(summary)
 
     if args.output:
         with open(args.output, "a", encoding="utf-8") as f:
             f.write(summary)
-
-    if not args.dry_run:
-        write_tsv(mutation_log_path, mutation_log.all())
 
     if any(r.status == "error" for run in runs for r in run.results):
         sys.exit(1)
