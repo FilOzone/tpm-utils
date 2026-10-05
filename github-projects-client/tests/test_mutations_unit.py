@@ -264,6 +264,9 @@ def test_rate_limited_200_response_stops_bulk_without_per_item_fallback():
     rate_limited = MagicMock(spec=requests.Response)
     rate_limited.ok = True
     rate_limited.status_code = 200
+    rate_limited.reason = "OK"
+    rate_limited.url = "https://api.github.com/graphql"
+    rate_limited.headers = {}
     rate_limited.json.return_value = {
         "data": None,
         "errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}],

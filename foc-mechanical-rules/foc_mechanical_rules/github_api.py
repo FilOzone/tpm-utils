@@ -11,7 +11,12 @@ import re
 from typing import Any, Dict, List, Optional
 
 import requests
-from github_projects_client import graphql_query
+from github_projects_client import (
+    GitHubRateLimitError,
+    graphql_query,
+    is_rate_limited,
+)
+from requests.adapters import HTTPAdapter
 
 # Orgs where we have write access to manage assignees, milestones, reviewers,
 # etc. Items from repos outside these orgs are "external items" (see
@@ -52,8 +57,38 @@ def is_bot_actor(login: str, typename: str) -> bool:
     return typename == "Bot" or is_bot_author(login)
 
 
+GITHUB_API_PREFIX = "https://api.github.com/"
+
+
+class RateLimitBreaker(HTTPAdapter):
+    """Once GitHub rate-limits any request, refuse to send any more.
+
+    GitHub warns that continuing to make requests while rate limited may
+    get the integration banned, and this job runs hourly anyway, so after
+    the first throttled response every later request in the run raises
+    ``GitHubRateLimitError`` without being sent.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tripped_by: Optional[str] = None
+
+    def send(self, request, **kwargs):  # type: ignore[override]
+        if self.tripped_by is not None:
+            raise GitHubRateLimitError(
+                "not sent: GitHub rate-limited an earlier request in this run "
+                f"({self.tripped_by})"
+            )
+        response = super().send(request, **kwargs)
+        if is_rate_limited(response):
+            self.tripped_by = (
+                f"{response.status_code} on {request.method} {request.url}"
+            )
+        return response
+
+
 def build_session(token: str) -> requests.Session:
-    """Build a requests.Session authenticated with the given token."""
+    """Build a session authenticated with ``token`` that stops after a rate limit."""
     session = requests.Session()
     session.headers.update(
         {
@@ -62,7 +97,14 @@ def build_session(token: str) -> requests.Session:
             "X-GitHub-Api-Version": "2022-11-28",
         }
     )
+    session.mount(GITHUB_API_PREFIX, RateLimitBreaker())
     return session
+
+
+def rate_limit_tripped(session: requests.Session) -> bool:
+    """True if this session's ``RateLimitBreaker`` has seen a rate limit."""
+    adapter = session.get_adapter(GITHUB_API_PREFIX)
+    return isinstance(adapter, RateLimitBreaker) and adapter.tripped_by is not None
 
 
 def parse_repo_ref(repository: str) -> tuple[str, str]:

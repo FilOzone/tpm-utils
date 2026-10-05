@@ -14,7 +14,7 @@ from github_projects_client.api import (
     GitHubAPIError,
     GitHubAuthError,
     GitHubRateLimitError,
-    _is_rate_limited,
+    is_rate_limited,
 )
 
 from .routes import items, fields, mutations
@@ -106,7 +106,7 @@ def create_app() -> FastAPI:
                 },
             )
 
-        if response is not None and _is_rate_limited(response):
+        if response is not None and is_rate_limited(response):
             return _rate_limited_response(response)
 
         return JSONResponse(

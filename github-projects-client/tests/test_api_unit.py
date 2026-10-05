@@ -21,6 +21,7 @@ from github_projects_client.api import (
     GitHubAPIError,
     GitHubRateLimitError,
     graphql_query,
+    is_rate_limited,
 )
 
 
@@ -112,3 +113,34 @@ class TestGraphqlQueryErrors:
         )
         with pytest.raises(GitHubAPIError):
             graphql_query(session, "query {}")
+
+
+@pytest.mark.parametrize(
+    "status, body, headers",
+    [
+        (403, {"message": "whatever"}, {"Retry-After": "60"}),
+        (403, {"message": "You have triggered an abuse detection mechanism."}, {}),
+        (
+            200,
+            {"errors": [{"message": "You have exceeded a secondary rate limit."}]},
+            {},
+        ),
+    ],
+    ids=["403-retry-after", "403-abuse-detection", "200-secondary-message"],
+)
+def test_other_documented_rate_limit_shapes(status, body, headers):
+    assert is_rate_limited(_fake_response(status, body, headers))
+
+
+@pytest.mark.parametrize(
+    "status, body",
+    [
+        (403, {"message": "Resource not accessible by integration"}),
+        (200, {"data": {"ok": True}}),
+        (200, {"errors": [{"type": "NOT_FOUND", "message": "nope"}]}),
+        (502, {}),
+    ],
+    ids=["403-permissions", "200-ok", "200-other-error", "502"],
+)
+def test_non_rate_limit_responses(status, body):
+    assert not is_rate_limited(_fake_response(status, body))

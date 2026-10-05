@@ -42,7 +42,12 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
-from github_projects_client import GitHubAPIError, list_items, set_field_value_bulk
+from github_projects_client import (
+    GitHubAPIError,
+    GitHubRateLimitError,
+    list_items,
+    set_field_value_bulk,
+)
 
 from ..github_api import (
     FILOZ_ORG,
@@ -55,7 +60,7 @@ from ..github_api import (
     parse_repo_ref,
 )
 from ..mutation_log import MutationLog
-from ..rule import ActionResult, Rule, finalize_bulk_results
+from ..rule import ActionResult, Rule, deferred, finalize_bulk_results
 
 STATUS_TRIAGE = "📌 Triage"
 STATUS_TODO = "🐱 Todo"
@@ -345,14 +350,23 @@ class PRStatusRule(Rule):
             by_value.setdefault(p.new_value, []).append(p)
 
         for new_value, group in by_value.items():
-            bulk_result = set_field_value_bulk(
-                session,
-                org=self.org,
-                project_number=self.project_number,
-                item_refs=[p.node_id for p in group],
-                field_name="Status",
-                value=new_value,
-            )
+            try:
+                bulk_result = set_field_value_bulk(
+                    session,
+                    org=self.org,
+                    project_number=self.project_number,
+                    item_refs=[p.node_id for p in group],
+                    field_name="Status",
+                    value=new_value,
+                )
+            except GitHubRateLimitError:
+                finalized.extend(
+                    deferred(
+                        p.item_ref, p.title, old_value=p.old_value, new_value=new_value
+                    )
+                    for p in group
+                )
+                continue
             finalized.extend(
                 finalize_bulk_results(
                     group, bulk_result, new_value=new_value, field_label="status"

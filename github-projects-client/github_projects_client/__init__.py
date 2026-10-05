@@ -5,6 +5,7 @@ from .api import (
     GitHubAuthError,
     GitHubRateLimitError,
     graphql_query,
+    is_rate_limited,
     list_field_ids_by_name,
     fetch_items_rest,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "GitHubAPIError",
     "GitHubAuthError",
     "GitHubRateLimitError",
+    "is_rate_limited",
     "graphql_query",
     "list_field_ids_by_name",
     "fetch_items_rest",

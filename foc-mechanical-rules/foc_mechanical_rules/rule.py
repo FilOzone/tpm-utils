@@ -15,7 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import requests
+from github_projects_client import GitHubRateLimitError
 
+from .github_api import rate_limit_tripped
 from .mutation_log import MutationLog, MutationRecord
 
 logger = logging.getLogger(__name__)
@@ -53,12 +55,35 @@ class RuleRun:
 
     rule_id: str
     results: List[ActionResult] = field(default_factory=list)
+    # Set when the rule didn't run at all (e.g. GitHub rate-limited the run first).
+    not_run_reason: str = ""
 
     def counts(self) -> Dict[str, int]:
         counts: Dict[str, int] = {}
         for r in self.results:
             counts[r.status] = counts.get(r.status, 0) + 1
         return counts
+
+
+RATE_LIMITED_REASON = "GitHub rate limit hit earlier in this run; next run will retry"
+
+
+def deferred(
+    item_ref: str,
+    title: str,
+    *,
+    reason: str = RATE_LIMITED_REASON,
+    old_value: str = "",
+    new_value: str = "",
+) -> ActionResult:
+    return ActionResult(
+        item_ref=item_ref,
+        title=title,
+        status="deferred",
+        reason=reason,
+        old_value=old_value,
+        new_value=new_value,
+    )
 
 
 def finalize_bulk_results(
@@ -89,10 +114,9 @@ def finalize_bulk_results(
             )
         elif r.get("rate_limited"):
             finalized.append(
-                ActionResult(
-                    item_ref=p.item_ref,
-                    title=p.title,
-                    status="deferred",
+                deferred(
+                    p.item_ref,
+                    p.title,
                     reason=(
                         f"GitHub rate limit hit before {field_label} was set; "
                         "next run will retry"
@@ -182,7 +206,7 @@ class Rule:
         results: List[ActionResult] = []
         pending: List[ActionResult] = []
         for i, item in enumerate(items, start=1):
-            result = self.apply_one(
+            result = self._apply_one_unless_rate_limited(
                 session, item, dry_run=dry_run, mutation_log=mutation_log
             )
             if result.status == "pending":
@@ -214,7 +238,19 @@ class Rule:
                 self.id,
                 len(pending),
             )
-            for result in self.mutate_pending(session, pending):
+            if rate_limit_tripped(session):
+                finalized = [
+                    deferred(
+                        p.item_ref,
+                        p.title,
+                        old_value=p.old_value,
+                        new_value=p.new_value,
+                    )
+                    for p in pending
+                ]
+            else:
+                finalized = self.mutate_pending(session, pending)
+            for result in finalized:
                 results.append(result)
                 self._finish(result, mutation_log, dry_run)
                 logger.info(
@@ -226,6 +262,35 @@ class Rule:
                 )
 
         return RuleRun(rule_id=self.id, results=results)
+
+    def _apply_one_unless_rate_limited(
+        self,
+        session: requests.Session,
+        item: Dict[str, Any],
+        *,
+        dry_run: bool,
+        mutation_log: MutationLog,
+    ) -> ActionResult:
+        """Run ``apply_one``, or defer the item once GitHub has rate-limited the run.
+
+        ``apply_one`` implementations catch ``requests.HTTPError`` (which
+        ``GitHubRateLimitError`` subclasses) and report "error"; when the
+        breaker tripped during this very call, that error was the rate
+        limit, so it's reported as deferred instead.
+        """
+        item_ref = f"{item.get('Repository', '')}#{item.get('Id', '')}"
+        title = item.get("Title", "")
+        if rate_limit_tripped(session):
+            return deferred(item_ref, title)
+        try:
+            result = self.apply_one(
+                session, item, dry_run=dry_run, mutation_log=mutation_log
+            )
+        except GitHubRateLimitError:
+            return deferred(item_ref, title)
+        if result.status == "error" and rate_limit_tripped(session):
+            return deferred(result.item_ref, result.title)
+        return result
 
     def _finish(
         self, result: ActionResult, mutation_log: MutationLog, dry_run: bool
