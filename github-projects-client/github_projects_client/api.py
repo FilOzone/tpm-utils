@@ -63,6 +63,8 @@ def graphql_query(
 
     Raises ``GitHubRateLimitError`` when throttled, and ``requests.HTTPError``
     for any other non-2xx response; both include GitHub's own error message.
+    GitHub can also report throttling as an HTTP 200 whose ``errors`` carry
+    ``type: RATE_LIMITED``, which raises ``GitHubRateLimitError`` too.
     """
     payload: Dict[str, Any] = {"query": query}
     if variables:
@@ -82,6 +84,12 @@ def graphql_query(
     if "errors" in result:
         errs = result["errors"]
         for e in errs:
+            if e.get("type") == "RATE_LIMITED" or (
+                "rate limit" in str(e.get("message", "")).lower()
+            ):
+                raise GitHubRateLimitError(
+                    f"GraphQL rate limited: {errs}", response=response
+                )
             if e.get("type") == "INSUFFICIENT_SCOPES":
                 msg = (
                     "GitHub token is missing required OAuth/PAT scopes for Project v2 "

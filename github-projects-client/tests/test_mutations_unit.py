@@ -12,7 +12,7 @@ Run:
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from github_projects_client.api import GitHubRateLimitError
 
@@ -254,3 +254,44 @@ class TestBulkRateLimiting:
         assert variables["itemId1"] == "PVTI_1"
         assert variables["projectId1"] == "PVT_project1"
         assert variables["fieldId0"] == "PVTSSF_field1"
+
+
+def test_rate_limited_200_response_stops_bulk_without_per_item_fallback():
+    """End to end through the real graphql_query: a 200 RATE_LIMITED response
+    must stop the run, not trigger 25 per-item retries per batch."""
+    import requests
+
+    rate_limited = MagicMock(spec=requests.Response)
+    rate_limited.ok = True
+    rate_limited.status_code = 200
+    rate_limited.json.return_value = {
+        "data": None,
+        "errors": [{"type": "RATE_LIMITED", "message": "API rate limit exceeded"}],
+    }
+    session = MagicMock()
+    session.post.return_value = rate_limited
+
+    with (
+        patch(
+            "github_projects_client.mutations.list_field_options",
+            return_value=STATUS_FIELD_OPTIONS,
+        ),
+        patch("github_projects_client.mutations.time.sleep"),
+    ):
+        result = set_field_value_bulk(
+            session,
+            org="TestOrg",
+            project_number=1,
+            item_refs=_node_ids(60),
+            field_name="Status",
+            value="🎉 Done",
+        )
+
+    mutation_requests = [
+        c
+        for c in session.post.call_args_list
+        if "mutation" in c.kwargs["json"]["query"]
+    ]
+    assert len(mutation_requests) == 1
+    assert result["success_count"] == 0
+    assert sum(1 for r in result["results"] if r.get("rate_limited")) == 60

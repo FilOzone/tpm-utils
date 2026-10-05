@@ -86,6 +86,26 @@ class TestGraphqlQueryErrors:
         assert not isinstance(excinfo.value, GitHubRateLimitError)
         assert "Resource not accessible by integration" in str(excinfo.value)
 
+    def test_rate_limited_graphql_error_on_200_raises_rate_limit_error(self):
+        """GitHub can report throttling as HTTP 200 with a RATE_LIMITED error."""
+        session = _session_returning(
+            _fake_response(
+                200,
+                {
+                    "data": None,
+                    "errors": [
+                        {
+                            "type": "RATE_LIMITED",
+                            "message": "API rate limit already exceeded for user ID 1.",
+                        }
+                    ],
+                },
+            )
+        )
+        with pytest.raises(GitHubRateLimitError) as excinfo:
+            graphql_query(session, "query {}")
+        assert "RATE_LIMITED" in str(excinfo.value)
+
     def test_graphql_errors_still_raised_on_200(self):
         session = _session_returning(
             _fake_response(200, {"errors": [{"message": "boom"}]})
