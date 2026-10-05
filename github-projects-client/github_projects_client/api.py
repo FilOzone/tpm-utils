@@ -45,27 +45,27 @@ def is_rate_limited(response: requests.Response) -> bool:
 
     Per GitHub's docs: a 429; a 403 marked by an exhausted quota header, a
     ``Retry-After`` header, or a rate-limit message (otherwise a 403 looks
-    like a permissions failure); or, for GraphQL, an HTTP 200 whose
+    like a permissions failure); or, for GraphQL only, an HTTP 200 whose
     ``errors`` report it (``type: RATE_LIMITED``, or a secondary-limit
-    message), since both GraphQL limits can come back as 200.
+    message), since both GraphQL limits can come back as 200. Other 200s
+    (e.g. REST pages of board items) are never decoded here.
     """
     if response.status_code == 429:
         return True
-    body = _response_body(response)
     if response.status_code == 403:
         return (
             response.headers.get("X-RateLimit-Remaining") == "0"
             or "Retry-After" in response.headers
-            or _rate_limit_text(str(body.get("message", "")))
+            or _rate_limit_text(str(_response_body(response).get("message", "")))
         )
-    if response.status_code == 200:
+    if response.status_code == 200 and response.url.startswith(GRAPHQL_URL):
         return any(
             isinstance(e, dict)
             and (
                 e.get("type") == "RATE_LIMITED"
                 or _rate_limit_text(str(e.get("message", "")))
             )
-            for e in body.get("errors") or []
+            for e in _response_body(response).get("errors") or []
         )
     return False
 

@@ -23,15 +23,13 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from github_projects_client import (
-    GitHubRateLimitError,
     graphql_query,
     list_items,
-    set_field_value_bulk,
 )
 
 from ..github_api import FILOZ_ORG, PROJECT_NUMBER
 from ..mutation_log import MutationLog
-from ..rule import ActionResult, Rule, deferred, finalize_bulk_results
+from ..rule import ActionResult, BatchedFieldRule
 
 CURRENT_CYCLE_QUERY = """
 query($org: String!, $number: Int!) {
@@ -122,57 +120,16 @@ def get_current_and_past_cycle_titles(
     return current, past
 
 
-class _CycleFieldRule(Rule):
-    """Shared batched-write logic for rules that set the Cycle field.
+class _CycleFieldRule(BatchedFieldRule):
+    """Rules that set the Cycle field (R-FC-012/013/014).
 
-    Each of R-FC-012 and R-FC-013 only ever moves an item's Cycle to
-    *its own run's* current cycle, so every "pending" mutation one rule
-    queues in one run shares the same target value -- exactly the shape
-    ``set_field_value_bulk`` batches well: many node IDs, one value, one
-    GraphQL request per 25 items instead of one request per item.
-    Grouping by ``new_value`` below is defensive (so this still behaves
-    correctly if that ever stops being true) rather than load-bearing
-    today. Note this only batches *within* one rule's own run --
-    ``runner.run_all`` calls each registered rule's ``run()`` to
-    completion (including its own pending flush) before moving to the
-    next, so R-FC-012's and R-FC-013's writes are never combined into
-    one batch even though they share this class.
+    Each only ever moves an item to *its own run's* current cycle, so all
+    of one run's pending writes share a target value: the shape
+    ``BatchedFieldRule.mutate_pending`` batches best.
     """
 
     field_name = "cycle"
-
-    def mutate_pending(
-        self, session: requests.Session, pending: List[ActionResult]
-    ) -> List[ActionResult]:
-        finalized: List[ActionResult] = []
-        by_value: Dict[str, List[ActionResult]] = {}
-        for p in pending:
-            by_value.setdefault(p.new_value, []).append(p)
-
-        for new_value, group in by_value.items():
-            try:
-                bulk_result = set_field_value_bulk(
-                    session,
-                    org=self.org,
-                    project_number=self.project_number,
-                    item_refs=[p.node_id for p in group],
-                    field_name="Cycle",
-                    value=new_value,
-                )
-            except GitHubRateLimitError:
-                finalized.extend(
-                    deferred(
-                        p.item_ref, p.title, old_value=p.old_value, new_value=new_value
-                    )
-                    for p in group
-                )
-                continue
-            finalized.extend(
-                finalize_bulk_results(
-                    group, bulk_result, new_value=new_value, field_label="cycle"
-                )
-            )
-        return finalized
+    board_field = "Cycle"
 
 
 class CycleRule(_CycleFieldRule):

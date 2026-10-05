@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import requests
-from github_projects_client import GitHubRateLimitError
+from github_projects_client import GitHubRateLimitError, set_field_value_bulk
 
 from .github_api import rate_limit_tripped
 from .mutation_log import MutationLog, MutationRecord
@@ -86,7 +86,7 @@ def deferred(
     )
 
 
-def finalize_bulk_results(
+def _finalize_bulk_results(
     group: List[ActionResult],
     bulk_result: Dict[str, Any],
     *,
@@ -307,3 +307,52 @@ class Rule:
                     new_value=result.new_value,
                 )
             )
+
+
+class BatchedFieldRule(Rule):
+    """A rule whose writes all set one board field, batched by target value.
+
+    Subclasses set ``board_field`` (the field's name on the board) and
+    return "pending" results (with ``node_id`` set) from ``apply_one``;
+    ``mutate_pending`` then writes each group of items sharing a target
+    value with one ``set_field_value_bulk`` call (one GraphQL request per
+    25 items). Batching only happens within one rule's run: ``run_all``
+    finishes each rule, including its flush, before starting the next.
+    """
+
+    board_field: str
+    org: str
+    project_number: int
+
+    def mutate_pending(
+        self, session: requests.Session, pending: List[ActionResult]
+    ) -> List[ActionResult]:
+        by_value: Dict[str, List[ActionResult]] = {}
+        for p in pending:
+            by_value.setdefault(p.new_value, []).append(p)
+
+        finalized: List[ActionResult] = []
+        for new_value, group in by_value.items():
+            try:
+                bulk_result = set_field_value_bulk(
+                    session,
+                    org=self.org,
+                    project_number=self.project_number,
+                    item_refs=[p.node_id for p in group],
+                    field_name=self.board_field,
+                    value=new_value,
+                )
+            except GitHubRateLimitError:
+                finalized.extend(
+                    deferred(
+                        p.item_ref, p.title, old_value=p.old_value, new_value=new_value
+                    )
+                    for p in group
+                )
+                continue
+            finalized.extend(
+                _finalize_bulk_results(
+                    group, bulk_result, new_value=new_value, field_label=self.field_name
+                )
+            )
+        return finalized

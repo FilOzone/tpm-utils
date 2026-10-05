@@ -44,9 +44,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from github_projects_client import (
     GitHubAPIError,
-    GitHubRateLimitError,
     list_items,
-    set_field_value_bulk,
 )
 
 from ..github_api import (
@@ -60,7 +58,7 @@ from ..github_api import (
     parse_repo_ref,
 )
 from ..mutation_log import MutationLog
-from ..rule import ActionResult, Rule, deferred, finalize_bulk_results
+from ..rule import ActionResult, BatchedFieldRule
 
 STATUS_TRIAGE = "📌 Triage"
 STATUS_TODO = "🐱 Todo"
@@ -78,9 +76,10 @@ def _parse_dt(value: Optional[str]) -> Optional[datetime]:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-class PRStatusRule(Rule):
+class PRStatusRule(BatchedFieldRule):
     id = "R-PR-010"
     field_name = "status"
+    board_field = "Status"
     doc_url = (
         "https://github.com/FilOzone/tpm-utils/blob/master/foc-board-rules/"
         "pr-hygiene.md#r-pr-010-triage-prs-should-be-routed-to-the-correct-status"
@@ -340,36 +339,3 @@ class PRStatusRule(Rule):
             new_value=target,
             node_id=node_id,
         )
-
-    def mutate_pending(
-        self, session: requests.Session, pending: List[ActionResult]
-    ) -> List[ActionResult]:
-        finalized: List[ActionResult] = []
-        by_value: Dict[str, List[ActionResult]] = {}
-        for p in pending:
-            by_value.setdefault(p.new_value, []).append(p)
-
-        for new_value, group in by_value.items():
-            try:
-                bulk_result = set_field_value_bulk(
-                    session,
-                    org=self.org,
-                    project_number=self.project_number,
-                    item_refs=[p.node_id for p in group],
-                    field_name="Status",
-                    value=new_value,
-                )
-            except GitHubRateLimitError:
-                finalized.extend(
-                    deferred(
-                        p.item_ref, p.title, old_value=p.old_value, new_value=new_value
-                    )
-                    for p in group
-                )
-                continue
-            finalized.extend(
-                finalize_bulk_results(
-                    group, bulk_result, new_value=new_value, field_label="status"
-                )
-            )
-        return finalized

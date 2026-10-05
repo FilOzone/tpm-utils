@@ -144,3 +144,11 @@ def test_other_documented_rate_limit_shapes(status, body, headers):
 )
 def test_non_rate_limit_responses(status, body):
     assert not is_rate_limited(_fake_response(status, body))
+
+
+def test_successful_rest_responses_are_not_decoded():
+    """Only GraphQL 200s can carry a rate limit; REST pages aren't parsed."""
+    rest_page = _fake_response(200, {"errors": [{"type": "RATE_LIMITED"}]})
+    rest_page.url = "https://api.github.com/orgs/o/projectsV2/1/items"
+    assert not is_rate_limited(rest_page)
+    rest_page.json.assert_not_called()
