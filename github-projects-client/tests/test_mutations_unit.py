@@ -349,3 +349,32 @@ def test_per_item_fallback_is_paced():
 
     assert result["success_count"] == 3
     assert sleep.call_count == 3  # before each of the 3 single writes
+
+
+def test_partially_rate_limited_batch_keeps_confirmed_writes():
+    """Aliased mutations aren't atomic: aliases GitHub returns data for were
+    written and must be reported as such (they belong in mutation logs)."""
+
+    def respond(url, json, timeout):
+        if "mutation" not in json["query"]:
+            return _graphql_response({"data": {"nodes": []}})
+        resp = _graphql_response(
+            {
+                "data": {"m0": {"projectV2Item": {"id": "PVTI_0"}}, "m1": None},
+                "errors": [{"type": "RATE_LIMITED", "path": ["m1"]}],
+            }
+        )
+        resp.headers = {"Retry-After": "60"}
+        return resp
+
+    session = MagicMock()
+    session.post.side_effect = respond
+
+    result = _bulk_through_real_graphql(session, 30)
+
+    by_ref = {r["item_ref"]: r for r in result["results"]}
+    assert by_ref["PVTI_0"]["success"] is True
+    assert result["success_count"] == 1
+    assert all(by_ref[f"PVTI_{i}"].get("rate_limited") for i in range(1, 30))
+    assert len(_mutation_requests(session)) == 1  # second batch never sent
+    assert result["rate_limit"]["retry_after"] == 60

@@ -69,7 +69,7 @@ uv run foc-mechanical-rules --dry-run --rule R-FC-013 --rule R-PR-001  # or a fe
 
 Requires a `GITHUB_TOKEN` (or `--token`) with `read:project` (board reads) and issue/PR write access (`repo` scope, or fine-grained `Issues: write` + `Pull requests: write`) on the blessed orgs. CI uses the org's `FILOZZY_CI_ADD_TO_PROJECT` secret (also used by [`add-issues-and-prs-to-fs-project-board.yml`](../.github/workflows/add-issues-and-prs-to-fs-project-board.yml)).
 
-That org-wide scope isn't sufficient on its own: GitHub still checks the token's account's *per-repo* permission for repo-level writes like `R-PR-001`'s assignee mutation. A new repo added to the board doesn't automatically inherit this; its `FilOzone/github-mgmt` config (or a direct collaborator grant) needs to give the bot account triage+ access, or `add_assignee` fails with a 404 that reads like the item wasn't found rather than a permissions gap.
+That org-wide scope isn't sufficient on its own: GitHub still checks the token's account's *per-repo* permission for repo-level writes like `R-PR-001`'s assignee mutation. A new repo added to the board doesn't automatically inherit this; its `FilOzone/github-mgmt` config (or a direct collaborator grant) needs to give the bot account triage+ access, or `add_assignee` fails with a 403 (public repo) or 404 (private repo). Repos in other orgs, like `filecoin-project/FIPs`, need the grant made there. The run's error names the fixes: grant the bot triage+ access, or assign the PR by hand. Separately, GitHub can accept the request without assigning an author who isn't assignable on the repo (for example a fork contributor without repo access); R-PR-001 reports that as an error too, fixed by giving the author read access or assigning by hand.
 
 ## Testing
 

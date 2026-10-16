@@ -7,6 +7,7 @@ from .api import (
     describe_error,
     graphql_query,
     is_rate_limited,
+    rate_limit_details,
     list_field_ids_by_name,
     fetch_items_rest,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "GitHubRateLimitError",
     "describe_error",
     "is_rate_limited",
+    "rate_limit_details",
     "graphql_query",
     "list_field_ids_by_name",
     "fetch_items_rest",

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import requests
 
-from .api import GitHubRateLimitError, graphql_query
+from .api import GitHubRateLimitError, graphql_query, rate_limit_details
 from .fields import list_field_options
 from .items import get_item
 
@@ -226,18 +226,37 @@ def _resolve_field_only(
     }
 
 
-def _rate_limited_results(
-    items: List[Dict[str, Any]], exc: GitHubRateLimitError
-) -> List[Dict[str, Any]]:
-    return [
-        {
-            "item_ref": item["ref"],
-            "success": False,
-            "rate_limited": True,
-            "error": f"not attempted, GitHub rate limit hit: {exc}",
-        }
-        for item in items
-    ]
+def _rate_limited_result(
+    item: Dict[str, Any], exc: GitHubRateLimitError
+) -> Dict[str, Any]:
+    return {
+        "item_ref": item["ref"],
+        "success": False,
+        "rate_limited": True,
+        "error": f"not written, GitHub rate limit hit: {exc}",
+    }
+
+
+def _confirmed_aliases(exc: GitHubRateLimitError) -> Set[int]:
+    """Indexes of batch aliases (``m0``, ``m1``, ...) GitHub confirms were written.
+
+    Aliased mutations aren't atomic: a rate-limited response can still carry
+    ``data`` for aliases that ran before the limit hit.
+    """
+    try:
+        data = exc.response.json().get("data") if exc.response is not None else None
+    except (ValueError, AttributeError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return {
+        int(alias[1:])
+        for alias, value in data.items()
+        if alias[:1] == "m"
+        and alias[1:].isdigit()
+        and isinstance(value, dict)
+        and (value.get("projectV2Item") or {}).get("id")
+    }
 
 
 def _execute_batch(
@@ -261,7 +280,11 @@ def _execute_batch(
     try:
         graphql_query(session, batch_query, batch_variables)
     except GitHubRateLimitError as exc:
-        results.extend(_rate_limited_results(batch, exc))
+        confirmed = _confirmed_aliases(exc)
+        results.extend(
+            success_result(item) if i in confirmed else _rate_limited_result(item, exc)
+            for i, item in enumerate(batch)
+        )
         return exc
     except Exception:
         for i, item in enumerate(batch):
@@ -269,7 +292,7 @@ def _execute_batch(
             try:
                 graphql_query(session, single_query, single_variables(item))
             except GitHubRateLimitError as exc:
-                results.extend(_rate_limited_results(batch[i:], exc))
+                results.extend(_rate_limited_result(it, exc) for it in batch[i:])
                 return exc
             except Exception as item_exc:
                 results.append(
@@ -309,8 +332,9 @@ def set_field_value_bulk(
 
     Returns:
         Dict with success_count, failure_count, and per-item results list.
-        If GitHub rate-limits a write, no further mutations are sent and
-        every unattempted item's result carries ``"rate_limited": True``.
+        If GitHub rate-limits a write, no further mutations are sent, every
+        item not confirmed written carries ``"rate_limited": True``, and a
+        top-level ``"rate_limit"`` holds GitHub's message and retry headers.
         A rate limit on the reads before any write (field or old-value
         lookups) raises ``GitHubRateLimitError`` instead, with nothing sent.
         No audit logging — that's the caller's responsibility.
@@ -464,7 +488,7 @@ def set_field_value_bulk(
     for batch_start in range(0, len(resolved_items), _BATCH_SIZE):
         batch = resolved_items[batch_start : batch_start + _BATCH_SIZE]
         if rate_limit_error is not None:
-            results.extend(_rate_limited_results(batch, rate_limit_error))
+            results.extend(_rate_limited_result(it, rate_limit_error) for it in batch)
             continue
         if batch_start:
             time.sleep(_SECONDS_BETWEEN_MUTATIONS)
@@ -482,11 +506,17 @@ def set_field_value_bulk(
     success_count = sum(1 for r in results if r.get("success"))
     failure_count = sum(1 for r in results if not r.get("success"))
 
-    return {
+    summary: Dict[str, Any] = {
         "success_count": success_count,
         "failure_count": failure_count,
         "results": results,
     }
+    if rate_limit_error is not None:
+        summary["rate_limit"] = {
+            "message": str(rate_limit_error),
+            **rate_limit_details(rate_limit_error.response),
+        }
+    return summary
 
 
 def set_field_value(

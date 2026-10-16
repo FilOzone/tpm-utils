@@ -174,21 +174,22 @@ def add_assignee(
     Callers should check ``login`` is in the returned list: GitHub can
     accept the request without assigning a user it considers unassignable.
 
-    Raises requests.HTTPError. A 404 is annotated with a permissions hint:
-    in practice it has meant the token's account lacks triage+ access to
-    the repo (FilOzone/team-skills#14, 2026-09), which a bare "Not Found"
-    hides.
+    Raises requests.HTTPError. A 403 (public repo) or 404 (private repo)
+    means the token's account can't assign on this repo, which GitHub's
+    bare "Forbidden"/"Not Found" hides, so the error names the fixes.
+    Seen on FilOzone/team-skills#14 (2026-09) and filecoin-project/FIPs#1294
+    (2026-10).
     """
     resp = session.post(
         f"https://api.github.com/repos/{owner}/{repo}/issues/{number}/assignees",
         json={"assignees": [login]},
         timeout=30,
     )
-    if resp.status_code == 404:
+    if resp.status_code in (403, 404):
         raise requests.HTTPError(
-            f"{resp.status_code} {resp.reason} for url: {resp.url}; likely a "
-            f"permissions issue: check that this token's account has "
-            f"triage+ access to {owner}/{repo} (see foc-mechanical-rules/README.md)",
+            f"{describe_error(resp)}; this token's account can't assign on "
+            f"{owner}/{repo}: give it triage+ access there (see "
+            "foc-mechanical-rules/README.md), or assign the PR by hand",
             response=resp,
         )
     resp.raise_for_status()

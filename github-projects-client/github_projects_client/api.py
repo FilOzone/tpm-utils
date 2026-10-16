@@ -70,6 +70,20 @@ def is_rate_limited(response: requests.Response) -> bool:
     return False
 
 
+def rate_limit_details(response: Optional[requests.Response]) -> Dict[str, Any]:
+    """GitHub's retry/quota headers from a rate-limited response, for callers to back off."""
+    headers = response.headers if response is not None else {}
+    retry_after = headers.get("Retry-After")
+    return {
+        "retry_after": int(retry_after)
+        if retry_after and retry_after.isdigit()
+        else None,
+        "limit": headers.get("X-RateLimit-Limit"),
+        "remaining": headers.get("X-RateLimit-Remaining"),
+        "reset_at": headers.get("X-RateLimit-Reset"),
+    }
+
+
 def describe_error(response: requests.Response) -> str:
     """Status, URL, and GitHub's own message (or GraphQL errors) for a failed response."""
     message = f"{response.status_code} {response.reason} for url: {response.url}"

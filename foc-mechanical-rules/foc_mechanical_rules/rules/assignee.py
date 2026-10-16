@@ -179,8 +179,9 @@ class AssigneeRule(Rule):
                 title=title,
                 status="error",
                 reason=(
-                    f"GitHub accepted the request but did not assign '{target}' "
-                    "(not assignable on this repo?)"
+                    f"GitHub accepted the request but did not assign '{target}', "
+                    "who likely isn't assignable on this repo: give them read "
+                    "access there, or assign the PR by hand"
                 ),
             )
 

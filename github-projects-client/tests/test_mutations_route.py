@@ -429,3 +429,96 @@ class TestRateLimitMapping:
         assert resp.status_code == 429
         assert resp.json()["error"] == "rate_limited"
         assert resp.json()["details"]["retry_after"] == 60
+
+
+def _route_session(n_ok_batches: int):
+    """A session whose first n mutation batches succeed and later ones are
+    rate-limited (as a 200 RATE_LIMITED, GitHub's GraphQL shape)."""
+    import json as _json
+
+    def response(body, headers=None):
+        resp = requests.Response()
+        resp.status_code = 200
+        resp.reason = "OK"
+        resp.url = "https://api.github.com/graphql"
+        resp._content = _json.dumps(body).encode()
+        resp.headers.update(headers or {})
+        return resp
+
+    sent = []
+
+    def post(url, json, timeout):
+        if "mutation" not in json["query"]:
+            return response({"data": {"nodes": []}})
+        sent.append(json)
+        if len(sent) <= n_ok_batches:
+            return response({"data": {}})
+        return response(
+            {"data": None, "errors": [{"type": "RATE_LIMITED", "message": "x"}]},
+            headers={"Retry-After": "30"},
+        )
+
+    session = MagicMock()
+    session.post.side_effect = post
+    return session
+
+
+STATUS_OPTIONS = {
+    "project_id": "PVT_p",
+    "fields": {
+        "Status": {
+            "id": "F",
+            "type": "single_select",
+            "options": [{"id": "o", "name": "🎉 Done"}],
+        }
+    },
+}
+
+
+def _put_status(client, session, n_items):
+    with (
+        patch(
+            "github_projects_client.server.routes.mutations.build_session",
+            return_value=session,
+        ),
+        patch(
+            "github_projects_client.mutations.list_field_options",
+            return_value=STATUS_OPTIONS,
+        ),
+        patch("github_projects_client.mutations.time.sleep"),
+        patch(
+            "github_projects_client.server.routes.mutations._get_caller",
+            return_value="testuser",
+        ),
+        patch("github_projects_client.server.routes.mutations.log_action"),
+    ):
+        return client.put(
+            "/orgs/TestOrg/projects/1/items/field/Status",
+            json={
+                "item_refs": [f"PVTI_{i}" for i in range(n_items)],
+                "value": "🎉 Done",
+            },
+            headers=AUTH_HEADER,
+        )
+
+
+class TestWriteTimeRateLimit:
+    def test_throttled_first_write_returns_429_with_retry_details(self, client):
+        resp = _put_status(client, _route_session(n_ok_batches=0), 3)
+
+        assert resp.status_code == 429
+        body = resp.json()
+        assert body["error"] == "rate_limited"
+        assert body["details"]["retry_after"] == 30
+        assert all(r["rate_limited"] for r in body["details"]["results"])
+
+    def test_partial_write_returns_200_with_rate_limit_and_flags(self, client):
+        resp = _put_status(client, _route_session(n_ok_batches=1), 26)
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success_count"] == 25
+        assert body["rate_limit"]["retry_after"] == 30
+        assert [r["item_ref"] for r in body["results"] if r["rate_limited"]] == [
+            "PVTI_25"
+        ]
