@@ -15,25 +15,19 @@ from github_projects_client.api import (
     GitHubAuthError,
     GitHubRateLimitError,
     is_rate_limited,
+    rate_limit_details,
 )
 
 from .routes import items, fields, mutations
 
 
 def _rate_limited_response(response: requests.Response | None) -> JSONResponse:
-    headers = response.headers if response is not None else {}
-    retry_after = headers.get("Retry-After")
     return JSONResponse(
         status_code=429,
         content={
             "error": "rate_limited",
             "message": "GitHub API rate limit exceeded",
-            "details": {
-                "retry_after": int(retry_after) if retry_after else None,
-                "limit": headers.get("X-RateLimit-Limit"),
-                "remaining": 0,
-                "reset_at": headers.get("X-RateLimit-Reset"),
-            },
+            "details": rate_limit_details(response),
         },
     )
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import build_session, get_token, get_validated_token
 from ..models import BulkSetFieldRequest
@@ -89,20 +89,36 @@ def set_field(
                 new_value=r.get("new_value", ""),
             )
 
-    return {
+    results = [
+        {
+            "item_ref": r["item_ref"],
+            "success": r.get("success", False),
+            "old_value": r.get("old_value", ""),
+            "new_value": r.get("new_value", ""),
+            "error": r.get("error"),
+            "rate_limited": r.get("rate_limited", False),
+        }
+        for r in result.get("results", [])
+    ]
+    rate_limit = result.get("rate_limit")
+    if rate_limit and result["success_count"] == 0:
+        # Nothing was written: a 429 tells callers to back off rather than retry.
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limited",
+                "message": "GitHub API rate limit exceeded; nothing was written",
+                "details": {**rate_limit, "results": results},
+            },
+        )
+    response = {
         "success_count": result["success_count"],
         "failure_count": result["failure_count"],
-        "results": [
-            {
-                "item_ref": r["item_ref"],
-                "success": r.get("success", False),
-                "old_value": r.get("old_value", ""),
-                "new_value": r.get("new_value", ""),
-                "error": r.get("error"),
-            }
-            for r in result.get("results", [])
-        ],
+        "results": results,
     }
+    if rate_limit:
+        response["rate_limit"] = rate_limit
+    return response
 
 
 @router.get("/orgs/{org}/projects/{project_number}/audit-log")

@@ -172,3 +172,34 @@ def test_assignee_rule_is_a_rule_and_run_works():
 
     assert run.rule_id == "R-PR-001"
     assert [r.status for r in run.results] == ["applied"]
+
+
+def test_add_assignee_forbidden_names_the_fixes():
+    """A 403 (public repo, as on filecoin-project/FIPs#1294) must explain the
+    permissions gap and keep GitHub's own message, not just "Forbidden"."""
+    import json
+
+    import pytest
+    import requests
+
+    from foc_mechanical_rules.github_api import add_assignee
+
+    resp = requests.Response()
+    resp.status_code = 403
+    resp.reason = "Forbidden"
+    resp.url = (
+        "https://api.github.com/repos/filecoin-project/FIPs/issues/1294/assignees"
+    )
+    resp._content = json.dumps({"message": "Must have admin rights"}).encode()
+    session = MagicMock()
+    session.post.return_value = resp
+
+    with pytest.raises(requests.HTTPError) as excinfo:
+        add_assignee(
+            session, owner="filecoin-project", repo="FIPs", number="1294", login="a"
+        )
+
+    message = str(excinfo.value)
+    assert "Must have admin rights" in message
+    assert "triage+ access" in message and "filecoin-project/FIPs" in message
+    assert "assign the PR by hand" in message
