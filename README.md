@@ -137,6 +137,13 @@ Reusable Python client for GitHub Projects v2 boards. Context-efficient (~200-30
 
 See [github-projects-client/README.md](github-projects-client/README.md).
 
+### 🚀 Network Upgrade Coordination Doc Tools
+**Directory:** [network-upgrades/](network-upgrades/)
+
+`uv` script that lets agents read and update tasks in the Filecoin network upgrade coordination Google Doc (one heading per task) via `gog`: list and show tasks, change status, set or append field values, and assign testers, with emoji-safe index math and revision-guarded writes.
+
+See [network-upgrades/README.md](network-upgrades/README.md).
+
 ## Running Tests
 
 Run all package tests from the repo root:
