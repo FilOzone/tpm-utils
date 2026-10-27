@@ -58,6 +58,10 @@ class UsageError(Exception):
     pass
 
 
+class RevisionChanged(RuntimeError):
+    """The doc changed after it was read, so indices computed from that read are stale."""
+
+
 def u16(s: str) -> int:
     """Length in UTF-16 code units, which is how the Docs API counts indices (an emoji is usually 2)."""
     return len(s.encode("utf-16-le")) // 2
@@ -99,12 +103,33 @@ class Gog:
     def raw(self) -> dict:
         return json.loads(self.run("docs", "raw", self.doc, "--tab", self.tab))
 
-    def submit(self, ops: list[tuple]) -> None:
-        """Submit ops in one guarded batch. Ops are ("replace", start, end, text) or ("insert", index, text)."""
+    def begin(self) -> str:
         out = self.run(
             "batch", "begin", "--doc", self.doc, "--name", "upgrade_doc", "-j"
         )
-        batch = json.loads(out)["batch_id"]
+        return json.loads(out)["batch_id"]
+
+    def end(self, batch: str, revision: str) -> None:
+        """Submit a batch only if it is pinned to the revision the edits were computed from.
+
+        gog pins a batch to whatever revision is live when the first mutation is queued, which can be newer
+        than the read used to compute indices. Compare the pin with that read before submitting.
+        """
+        pinned = json.loads(self.run("batch", "show", batch, "--json"))["batch"].get(
+            "required_revision_id"
+        )
+        if pinned != revision:
+            raise RevisionChanged(f"doc changed since it was read ({batch})")
+        try:
+            self.run("batch", "end", batch)
+        except RuntimeError as e:
+            if "revision" in str(e).lower():
+                raise RevisionChanged(str(e)) from e
+            raise
+
+    def submit(self, ops: list[tuple], revision: str) -> None:
+        """Submit ops in one batch guarded by `revision`. Ops are ("replace", start, end, text) or ("insert", index, text)."""
+        batch = self.begin()
         try:
             # Apply from the end of the doc backwards so earlier indices stay valid.
             for op in sorted(ops, key=lambda o: o[1], reverse=True):
@@ -137,25 +162,33 @@ class Gog:
                         "--batch",
                         batch,
                     )
-            self.run("batch", "end", batch)
+            self.end(batch, revision)
         except Exception:
             subprocess.run(["gog", "batch", "abort", batch], capture_output=True)
             raise
 
-    def link_range(self, start: int, end: int, url: str) -> None:
-        """Turn the URL text at [start, end) into a link. Markdown replace is not batchable, so this runs on its own."""
-        self.run(
-            "docs",
-            "update",
-            self.doc,
-            "--tab",
-            self.tab,
-            "--replace-range",
-            f"{start}:{end}",
-            "--markdown",
-            "--text",
-            f"[{url}]({url})",
-        )
+    def link_url(self, url: str, revision: str) -> None:
+        """Link the (unique) occurrence of `url` in the tab, guarded by `revision` like any other edit."""
+        batch = self.begin()
+        try:
+            self.run(
+                "docs",
+                "format",
+                self.doc,
+                "--tab",
+                self.tab,
+                "--match",
+                url,
+                "--match-case",
+                "--link",
+                url,
+                "--batch",
+                batch,
+            )
+            self.end(batch, revision)
+        except Exception:
+            subprocess.run(["gog", "batch", "abort", batch], capture_output=True)
+            raise
 
 
 # ---------------------------------------------------------------- doc model
@@ -195,6 +228,24 @@ class Task:
             else:
                 out.append((p, []))
         return out
+
+
+def all_text(raw: dict) -> str:
+    """All text in the tab, including table cells (native code blocks are tables)."""
+
+    def walk(content):
+        for c in content:
+            if "paragraph" in c:
+                yield "".join(
+                    e.get("textRun", {}).get("content", "")
+                    for e in c["paragraph"]["elements"]
+                )
+            elif "table" in c:
+                for row in c["table"]["tableRows"]:
+                    for cell in row["tableCells"]:
+                        yield from walk(cell["content"])
+
+    return "".join(walk(raw["body"]["content"]))
 
 
 def paragraphs(raw: dict) -> list[Para]:
@@ -300,27 +351,40 @@ def cmd_show(g: Gog, a: argparse.Namespace) -> None:
 
 
 def link_new_urls(g: Gog, a: argparse.Namespace) -> None:
-    """Re-read the doc and link each URL from the new text that sits in the edited field (last occurrence wins)."""
-    urls = URL_RE.findall(a.text)
-    for url in urls:
-        t = find_task(tasks(g.raw()), a.task, a.phase)
-        p, kids = find_field(t, a.field)
-        for q in reversed([p, *kids]):
-            k = q.text.rfind(url)
-            if k >= 0:
-                s = q.start + u16(q.text[:k])
-                g.link_range(s, s + u16(url), url)
+    """Make URLs in the new text clickable (the Docs API does not auto-link).
+
+    gog can only format by text match, and markdown edits cannot be revision-guarded, so a URL is linked only
+    when its text appears exactly once in the tab. Otherwise it is left as plain text with a warning rather
+    than risk linking the wrong occurrence (e.g. a prefix of a longer URL).
+    """
+    for url in URL_RE.findall(a.text):
+        for attempt in range(RETRIES):
+            raw = g.raw()
+            n = all_text(raw).count(url)
+            if n != 1:
+                print(
+                    f"warning: left {url} as plain text (appears {n} times in the tab); link it in the Docs UI",
+                    file=sys.stderr,
+                )
                 break
+            try:
+                g.link_url(url, raw["revisionId"])
+                break
+            except RevisionChanged:
+                if attempt == RETRIES - 1:
+                    raise
+                print("doc changed while linking; retrying", file=sys.stderr)
 
 
 def with_retry(g: Gog, build) -> None:
     """Re-read the doc and rebuild the edit if the guarded batch hits a concurrent edit."""
     for attempt in range(RETRIES):
-        ops, after = build(g.raw())
+        raw = g.raw()
+        ops, after = build(raw)
         try:
-            g.submit(ops)
-        except RuntimeError as e:
-            if "revision" in str(e).lower() and attempt < RETRIES - 1:
+            g.submit(ops, raw["revisionId"])
+        except RevisionChanged:
+            if attempt < RETRIES - 1:
                 print("doc changed while editing; retrying", file=sys.stderr)
                 continue
             raise

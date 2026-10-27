@@ -13,7 +13,7 @@ Reading the doc is easy (`gog docs export ... --format=md`). Editing it safely i
 - During an upgrade several people edit at once. Edits must not land on stale indices.
 - Rewriting the whole tab is never OK: it drops manual formatting (native code blocks), orphans comments, and gives every heading a new ID, which breaks the `Depends on` links.
 
-`upgrade_doc.py` finds a task by its heading, edits the text under it, and submits through a `gog batch`. The batch records the doc revision and refuses to apply if someone edited the doc in between; the script then re-reads and retries.
+`upgrade_doc.py` finds a task by its heading, edits the text under it, and submits through a `gog batch` pinned to the revision it read. gog pins a batch to whatever revision is live when the first edit is queued, so the script compares that pin with its own read before submitting; if someone edited the doc in between, it re-reads and retries instead of applying stale indices.
 
 ## Setup
 
@@ -53,7 +53,7 @@ export GOG_ACCOUNT=you@example.com
 ./upgrade_doc.py tester "Verify max FIL is still 2B" --phase "Mainnet Upgrade Day" "Steve"
 ```
 
-URLs in the new text are turned into links. Status and tester edits keep the heading ID, so links to the task keep working.
+URLs in the new text are turned into links when the URL's text appears only once in the tab; otherwise the script leaves it as plain text and warns, rather than risk linking the wrong occurrence. Link edits use the same revision guard as text edits. Status and tester edits keep the heading ID, so links to the task keep working.
 
 ## Limits
 

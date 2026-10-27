@@ -56,7 +56,7 @@ class FakeDoc:
     def __init__(self, paras):
         self.paras = [list(p) for p in paras]
         self.revision = 0
-        self.links: list[tuple[int, int, str]] = []
+        self.links: list[str] = []
         self.ops: list[tuple] = []
 
     def raw(self) -> dict:
@@ -125,12 +125,19 @@ class FakeGog(ud.Gog):
     def raw(self) -> dict:
         return self.fake.raw()
 
-    def submit(self, ops) -> None:
+    def _check(self, revision: str) -> None:
+        # Mirrors the real guard: edits computed from an older read must not apply.
+        if revision != str(self.fake.revision):
+            raise ud.RevisionChanged("doc changed since it was read")
+
+    def submit(self, ops, revision) -> None:
+        self._check(revision)
         self.fake.ops.append(ops)
         self.fake.apply(ops)
 
-    def link_range(self, start, end, url) -> None:
-        self.fake.links.append((start, end, url))
+    def link_url(self, url, revision) -> None:
+        self._check(revision)
+        self.fake.links.append(url)
 
 
 @pytest.fixture
@@ -252,8 +259,22 @@ def test_set_replaces_existing_value_and_links_urls(doc):
         ),
     )
     assert f"Output: GitHub release: {url}" in doc.text()
-    ((s, e, linked),) = doc.links
-    assert linked == url and para_text(doc, s, e) == url
+    assert doc.links == [url]
+
+
+def test_url_that_appears_more_than_once_is_not_linked(doc, capsys):
+    # The new URL is a prefix of one already in the doc, so a text match could link the wrong place.
+    doc.paras[4][1] = "See https://github.com/filecoin-project/lotus/pull/12271"
+    ud.cmd_append(
+        FakeGog(doc),
+        args(
+            task="Lotus stable release",
+            field="Output",
+            text="PR: https://github.com/filecoin-project/lotus/pull/1",
+        ),
+    )
+    assert doc.links == []
+    assert "appears 2 times" in capsys.readouterr().err
 
 
 def test_set_fills_empty_sub_field(doc):
@@ -312,24 +333,75 @@ def test_append_to_empty_value_just_sets_it(doc):
     assert "Output: baseline posted" in doc.text()
 
 
-def test_retry_rebuilds_ops_after_revision_conflict(doc):
+def test_edit_after_read_forces_rebuild_instead_of_stale_indices(doc):
     class Conflicting(FakeGog):
         calls = 0
 
-        def submit(self, ops):
+        def submit(self, ops, revision):
             Conflicting.calls += 1
             if Conflicting.calls == 1:
-                # Someone inserts a paragraph above the task before our batch lands.
+                # Someone inserts a paragraph above the task between our read and our batch.
                 self.fake.paras.insert(1, ["NORMAL_TEXT", "🎉 new intro line", None])
                 self.fake.revision += 1
-                raise RuntimeError(
-                    "required revision ID does not match the latest revision"
-                )
-            super().submit(ops)
+            super().submit(ops, revision)
 
     ud.cmd_status(
         Conflicting(doc), args(task="Lotus stable release", new_status="done")
     )
     assert Conflicting.calls == 2
+    assert len(doc.ops) == 1  # the stale first attempt never applied
     assert "✅ Lotus stable release · owner: FilOz" in doc.text()
     assert "🎉 new intro line" in doc.text()
+
+
+def test_link_retries_when_doc_changes_after_read(doc):
+    class Conflicting(FakeGog):
+        calls = 0
+
+        def link_url(self, url, revision):
+            Conflicting.calls += 1
+            if Conflicting.calls == 1:
+                self.fake.revision += 1
+            super().link_url(url, revision)
+
+    url = "https://github.com/filecoin-project/lotus/releases/tag/v1.40.0"
+    ud.cmd_set(
+        Conflicting(doc),
+        args(
+            task="Lotus stable release", field="Output", text=f"GitHub release: {url}"
+        ),
+    )
+    assert Conflicting.calls == 2 and doc.links == [url]
+
+
+# ---------------------------------------------------------------- Gog revision pin
+
+
+class RecordingGog(ud.Gog):
+    """Gog with `run` stubbed: `batch show` reports the given pinned revision."""
+
+    def __init__(self, pinned: str):
+        super().__init__("doc", TAB, None)
+        self.pinned = pinned
+        self.calls: list[tuple] = []
+
+    def run(self, *args, capture=True):
+        self.calls.append(args)
+        if args[:2] == ("batch", "begin"):
+            return '{"batch_id": "b1"}'
+        if args[:2] == ("batch", "show"):
+            return '{"batch": {"required_revision_id": "%s"}}' % self.pinned
+        return ""
+
+
+def test_end_refuses_batch_pinned_to_a_newer_revision():
+    g = RecordingGog(pinned="rev-2")
+    with pytest.raises(ud.RevisionChanged):
+        g.end("b1", "rev-1")
+    assert ("batch", "end", "b1") not in g.calls
+
+
+def test_end_submits_batch_pinned_to_the_read_revision():
+    g = RecordingGog(pinned="rev-1")
+    g.end("b1", "rev-1")
+    assert ("batch", "end", "b1") in g.calls
