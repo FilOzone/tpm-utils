@@ -405,3 +405,151 @@ def test_end_submits_batch_pinned_to_the_read_revision():
     g = RecordingGog(pinned="rev-1")
     g.end("b1", "rev-1")
     assert ("batch", "end", "b1") in g.calls
+
+
+# ---------------------------------------------------------------- show: links and code blocks
+
+
+def run_(text, start, link=None):
+    style = {"link": link} if link else {}
+    return {"startIndex": start, "textRun": {"content": text, "textStyle": style}}
+
+
+def rich_raw() -> dict:
+    """A task whose Output has a hyperlinked label and whose Description has a native code block (a table)."""
+    url = "https://github.com/filecoin-project/lotus/releases/tag/v1.40.0"
+    return {
+        "revisionId": "0",
+        "body": {
+            "content": [
+                {
+                    "startIndex": 1,
+                    "endIndex": 40,
+                    "paragraph": {
+                        "elements": [
+                            run_("🥞 Benchmark the migration · owner: FilOz\n", 1)
+                        ],
+                        "paragraphStyle": {
+                            "namedStyleType": "HEADING_3",
+                            "headingId": "h.b",
+                        },
+                    },
+                },
+                {
+                    "startIndex": 40,
+                    "endIndex": 53,
+                    "paragraph": {
+                        "elements": [run_("Description:\n", 40)],
+                        "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                        "bullet": {"nestingLevel": 0},
+                    },
+                },
+                {
+                    "startIndex": 53,
+                    "endIndex": 90,
+                    "table": {
+                        "tableRows": [
+                            {
+                                "tableCells": [
+                                    {
+                                        "content": [
+                                            {
+                                                "paragraph": {
+                                                    "elements": [run_("## Tasks\n", 55)]
+                                                }
+                                            },
+                                            {
+                                                "paragraph": {
+                                                    "elements": [
+                                                        run_(
+                                                            "Output: not a field\n", 64
+                                                        )
+                                                    ]
+                                                }
+                                            },
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                },
+                {
+                    "startIndex": 90,
+                    "endIndex": 120,
+                    "paragraph": {
+                        "elements": [
+                            run_("Output: ", 90),
+                            run_("GitHub release", 98, {"url": url}),
+                            run_(" and ", 112),
+                            run_(
+                                "deps", 117, {"heading": {"id": "h.d", "tabId": "t.x"}}
+                            ),
+                            run_("\n", 121),
+                        ],
+                        "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                        "bullet": {"nestingLevel": 0},
+                    },
+                },
+            ]
+        },
+    }
+
+
+class RawGog(ud.Gog):
+    def __init__(self, raw):
+        super().__init__("doc", TAB, None)
+        self._raw = raw
+
+    def raw(self):
+        return self._raw
+
+
+def test_show_includes_link_destinations_and_code_blocks(capsys):
+    ud.cmd_show(RawGog(rich_raw()), args(task="Benchmark"))
+    out = capsys.readouterr().out
+    url = "https://github.com/filecoin-project/lotus/releases/tag/v1.40.0"
+    assert f"Output: GitHub release ({url}) and deps (?tab=t.x#heading=h.d)" in out
+    assert "```\n    ## Tasks\n    Output: not a field\n    ```" in out
+
+
+def test_link_destinations_do_not_change_index_text():
+    t = ud.tasks(rich_raw())[0]
+    p, _ = ud.find_field(t, "Output")
+    assert p.text == "Output: GitHub release and deps"  # raw text, used for indices
+    assert "(https://" in p.display
+
+
+def test_fields_ignore_text_inside_code_blocks():
+    t = ud.tasks(rich_raw())[0]
+    p, _ = ud.find_field(t, "Output")
+    assert p.start == 90  # the real field, not the "Output:" line inside the table
+    assert [f.text for f, _ in t.fields()] == [
+        "Description:",
+        "Output: GitHub release and deps",
+    ]
+
+
+def test_show_renders_native_code_block_paragraph(capsys):
+    # Google Docs stores a native code block as one paragraph starting with U+E907, lines split by \x0b.
+    raw = rich_raw()
+    raw["body"]["content"][2] = {
+        "startIndex": 53,
+        "endIndex": 90,
+        "paragraph": {
+            "elements": [
+                run_("", 53),
+                run_("## Tasks\x0b- [ ] Calibration\x0bOutput: not a field", 54),
+                run_("\n", 89),
+            ],
+            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+        },
+    }
+    ud.cmd_show(RawGog(raw), args(task="Benchmark"))
+    out = capsys.readouterr().out
+    assert (
+        "    ```\n    ## Tasks\n    - [ ] Calibration\n    Output: not a field\n    ```"
+        in out
+    )
+    t = ud.tasks(raw)[0]
+    assert ud.find_field(t, "Output")[0].start == 90

@@ -47,6 +47,9 @@ STATUSES = {
     "done": "✅",
 }
 DEFAULT_TAB = "Coordination Meat"
+BLOCK = "BLOCK"  # pseudo-style for read-only blocks in a task: native code blocks and tables
+CODE_MARK = "\ue907"  # private-use character Google Docs puts at the start of a native code block
+PRIVATE_USE_RE = re.compile("[\ue000-\uf8ff]")
 HEADING_RE = re.compile(
     r"^(?P<status>\S+)\s+(?P<title>.*?)\s+·\s+owner:\s*(?P<owner>.*?)(?:\s+·\s+tester:\s*(?P<tester>.*))?$"
 )
@@ -202,6 +205,13 @@ class Para:
     style: str
     heading_id: str | None
     level: int | None  # bullet nesting level, None if not a bullet
+    display: str = (
+        ""  # text for reading, with link destinations shown; never used for indices
+    )
+
+    @property
+    def is_block(self) -> bool:
+        return self.style == BLOCK
 
 
 @dataclass
@@ -218,6 +228,10 @@ class Task:
         """Top-level field bullets and their nested children."""
         out: list[tuple[Para, list[Para]]] = []
         for p in self.body:
+            if (
+                p.is_block
+            ):  # read-only content (a native code block or table), not a field
+                continue
             if (
                 out
                 and p.level is not None
@@ -248,15 +262,77 @@ def all_text(raw: dict) -> str:
     return "".join(walk(raw["body"]["content"]))
 
 
+def link_target(link: dict) -> str | None:
+    """Where a Docs link points: a URL, or an in-doc heading/tab reference."""
+    if link.get("url"):
+        return link["url"]
+    if "heading" in link:
+        h = link["heading"]
+        return f"?tab={h.get('tabId', '')}#heading={h.get('id', '')}"
+    if link.get("headingId"):
+        return f"#heading={link['headingId']}"
+    if link.get("tabId"):
+        return f"?tab={link['tabId']}"
+    return None
+
+
+def display_text(elements: list[dict]) -> str:
+    """Paragraph text with each link's destination after its label, e.g. "GitHub release (https://...)"."""
+    out = []
+    for e in elements:
+        run = e.get("textRun", {})
+        content = run.get("content", "")
+        target = link_target(run.get("textStyle", {}).get("link", {}))
+        label = content.rstrip("\n")
+        if target and label.strip() and label.strip() != target:
+            content = f"{label} ({target})" + content[len(label) :]
+        out.append(content)
+    # Soft line breaks become real newlines; drop Docs' private-use markers.
+    return PRIVATE_USE_RE.sub("", "".join(out)).replace("\x0b", "\n").rstrip("\n")
+
+
+def table_lines(table: dict) -> list[str]:
+    lines = []
+    for row in table["tableRows"]:
+        for cell in row["tableCells"]:
+            for c in cell["content"]:
+                if "paragraph" in c:
+                    lines.append(display_text(c["paragraph"]["elements"]))
+                elif "table" in c:
+                    lines += table_lines(c["table"])
+    return lines
+
+
 def paragraphs(raw: dict) -> list[Para]:
+    """Top-level paragraphs. Native code blocks and tables become read-only BLOCK entries."""
     out = []
     for c in raw["body"]["content"]:
+        if "table" in c:
+            text = "\n".join(table_lines(c["table"])).strip("\n")
+            out.append(
+                Para(text, c["startIndex"], c["endIndex"], BLOCK, None, None, text)
+            )
+            continue
         if "paragraph" not in c:
             continue
         p = c["paragraph"]
         text = "".join(e.get("textRun", {}).get("content", "") for e in p["elements"])
         st = p.get("paragraphStyle", {})
         bullet = p.get("bullet")
+        if text.startswith(CODE_MARK):
+            shown = display_text(p["elements"])
+            out.append(
+                Para(
+                    text.rstrip("\n"),
+                    c["startIndex"],
+                    c["endIndex"],
+                    BLOCK,
+                    None,
+                    None,
+                    shown,
+                )
+            )
+            continue
         out.append(
             Para(
                 text.rstrip("\n"),
@@ -265,6 +341,7 @@ def paragraphs(raw: dict) -> list[Para]:
                 st.get("namedStyleType", "NORMAL_TEXT"),
                 st.get("headingId"),
                 bullet.get("nestingLevel", 0) if bullet is not None else None,
+                display_text(p["elements"]),
             )
         )
     return out
@@ -310,7 +387,9 @@ def find_field(task: Task, label: str) -> tuple[Para, list[Para]]:
             if p.text.strip().lower().startswith(want):
                 kids = children if p is parent else []
                 return p, kids
-    labels = [p.text.split(":")[0] for p in task.body if ":" in p.text]
+    labels = [
+        p.text.split(":")[0] for p in task.body if ":" in p.text and not p.is_block
+    ]
     raise UsageError(
         f"no {label!r} line under {task.title!r}; found: {', '.join(labels)}"
     )
@@ -345,9 +424,21 @@ def cmd_tasks(g: Gog, a: argparse.Namespace) -> None:
 def cmd_show(g: Gog, a: argparse.Namespace) -> None:
     t = find_task(tasks(g.raw()), a.task, a.phase)
     print(f"{t.heading.text}\nphase: {t.phase}\nheading id: {t.heading.heading_id}\n")
+    last_level = 0
     for p in t.body:
-        indent = "  " * ((p.level or 0) + 1)
-        print(f"{indent}- {p.text}")
+        if p.is_block:  # nest the block under the field line before it
+            indent = "  " * (last_level + 2)
+            print(f"{indent}```")
+            for line in p.display.split("\n"):
+                print(f"{indent}{line}")
+            print(f"{indent}```")
+        else:
+            last_level = p.level or 0
+            indent = "  " * (last_level + 1)
+            first, *rest = (p.display or p.text).split("\n")
+            print(f"{indent}- {first}")
+            for line in rest:  # soft line breaks inside a field line
+                print(f"{indent}  {line}")
 
 
 def link_new_urls(g: Gog, a: argparse.Namespace) -> None:
