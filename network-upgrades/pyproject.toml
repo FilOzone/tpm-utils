@@ -1,0 +1,17 @@
+[project]
+name = "network-upgrades"
+version = "0.1.0"
+description = "Agent helpers for the Filecoin network upgrade coordination Google Doc"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = ["integration: edits a live Google Doc copy via gog (requires UPGRADE_DOC_TEST_TEMPLATE)"]
