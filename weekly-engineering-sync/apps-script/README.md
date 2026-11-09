@@ -14,7 +14,7 @@ This GitHub folder is the source of truth. Edits made in the Apps Script editor 
 4. Wait about a minute; the dialog blocks the doc while it works, because the doc has many tabs and Apps Script loads all of them. It then closes and the results open in a sidebar: each step shows ✅ (done), ⚠️ (done, but something needs a look), ⏭️ (left for you, with instructions) or ❌ (failed; the rest still run). If the tab can't be prepared (title not a date, already prepared), the dialog says why instead.
 5. Do the ⏭️ and ⚠️ items by hand. The date variables are always one of them: click any date in the tab, choose ↗ to open Variables, and set the three values the sidebar shows.
 
-The first run asks each person to authorize the script (it needs to edit the doc and show a sidebar). To undo a run, use File → Version history.
+The first run asks each person to authorize the script (it needs to edit the doc and show a sidebar). The consent screen opens as a popup; if the doc only shows "Running script", look for it behind the window or allow popups for docs.google.com. To undo a run, use File → Version history.
 
 ### What it does
 
@@ -116,9 +116,11 @@ Write `weekly-engineering-sync/apps-script/.clasp.json` as `{"scriptId": "<scrip
 
 ## Suggested host instructions for the doc
 
-Once this is deployed, replace the "How to prepare for this meet as the host" bullets in the doc with:
+The "How to prepare for this meet as the host" section of the Meeting tab (keep the three variable lines with their chips):
 
-- Duplicate the previous Meeting tab and rename it to the meeting date (`YYYY-MM-DD`).
-- Run 🗄️ FOC → Prepare for next meeting… on the new tab and follow the sidebar.
-- Set the three date variables to the values the sidebar shows.
-- Paste the new FOC review stats (`foc-review-stats --format html`) and, after the meeting, the recording link and AI meeting notes.
+- Duplicate the previous Meeting tab (tab menu ⋮ → Duplicate) and rename the copy to the meeting date as `YYYY-MM-DD`.
+- On the new tab, run **🗄️ FOC → Prepare for next meeting…** and click Prepare. It takes about a minute, then the results open in a sidebar. The first time, Google asks you to authorize the script; if nothing appears but "Running script", look for a blocked popup.
+- Do the ⏭️ / ⚠️ items the sidebar lists. One is always the date variables: click any date in the tab, choose ↗ to open Variables, and set the values the sidebar shows (lastWeekReportDate, thisWeekReportDate, nextWeekReportDate).
+- Paste the new FOC review stats (`foc-review-stats --format html`). After the meeting, add the recording link and the AI meeting notes.
+- Details or problems: 🗄️ FOC → About this menu.
+- Collapse this section so it doesn't clutter for everyone else…
