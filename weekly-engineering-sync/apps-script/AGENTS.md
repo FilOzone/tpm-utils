@@ -23,4 +23,4 @@ Deploy only when asked: `clasp --user filoz push` from this directory pushes to 
 
 - Steps find tables by header text and sections by heading text, never by position.
 - A step must not delete content it isn't sure about (see the OOO rules); flag it as ⚠️ instead.
-- Each step runs in its own server call from the sidebar and returns `{status, detail}`; throw `StepError` for problems a person can fix in the doc.
+- Each step is a function `run(ctx)` that returns `{status, detail}`; throw `StepError` for problems a person can fix in the doc. All steps run in one server call (`prepareActiveTab`), because opening the doc loads every tab and takes ~25s: don't add per-step server calls or extra Docs API `documents.get` reads (~16s each).

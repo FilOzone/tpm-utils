@@ -1,6 +1,6 @@
 # Sync doc Apps Script (🗄️ FOC menu)
 
-Apps Script bound to the [FOC Weekly Engineering Sync doc](https://docs.google.com/document/d/1NPRQSbDfTcvAJo2cEIBOTax6VdBg1nboUomcml1EuLE/edit). It adds a **🗄️ FOC (vX.Y)** menu; the version in the menu title is the version that is live for everyone (reload the doc after a deploy to see a new one). Terms follow [../GLOSSARY.md](../GLOSSARY.md); why this is an Apps Script is in [ADR 0001](../docs/adr/0001-doc-bound-apps-script-for-meeting-prep.md).
+Apps Script bound to the [FOC Weekly Engineering Sync doc](https://docs.google.com/document/d/1NPRQSbDfTcvAJo2cEIBOTax6VdBg1nboUomcml1EuLE/edit). It adds a **🗄️ FOC (vX.Y)** menu; the version in the menu title is the version that is live for everyone (reload the doc after a deploy to see a new one). Its **About this menu** item opens this README. Terms follow [../GLOSSARY.md](../GLOSSARY.md); why this is an Apps Script is in [ADR 0001](../docs/adr/0001-doc-bound-apps-script-for-meeting-prep.md).
 
 This GitHub folder is the source of truth. Edits made in the Apps Script editor are overwritten by the next `clasp push`.
 
@@ -10,8 +10,8 @@ This GitHub folder is the source of truth. Edits made in the Apps Script editor 
 
 1. Duplicate the last Meeting tab (tab menu ⋮ → Duplicate).
 2. Rename the copy to the next meeting's date as `YYYY-MM-DD` (for example `2026-11-17`). Everything the script does is based on that date.
-3. With that tab open, choose **🗄️ FOC → Prepare for next meeting…** and confirm.
-4. Wait for the sidebar (usually 1 to 2 minutes; the doc has many tabs and Apps Script loads all of them). Each step then shows ✅ (done), ⚠️ (done, but something needs a look), ⏭️ (left for you, with instructions) or ❌ (failed; the rest still run).
+3. With that tab open, choose **🗄️ FOC → Prepare for next meeting…** and click **Prepare**.
+4. Wait about a minute; the dialog blocks the doc while it works, because the doc has many tabs and Apps Script loads all of them. It then closes and the results open in a sidebar: each step shows ✅ (done), ⚠️ (done, but something needs a look), ⏭️ (left for you, with instructions) or ❌ (failed; the rest still run). If the tab can't be prepared (title not a date, already prepared), the dialog says why instead.
 5. Do the ⏭️ and ⚠️ items by hand. The date variables are always one of them: click any date in the tab, choose ↗ to open Variables, and set the three values the sidebar shows.
 
 The first run asks each person to authorize the script (it needs to edit the doc and show a sidebar). To undo a run, use File → Version history.
@@ -47,7 +47,7 @@ If a run was interrupted and you really want to run it again on the same tab, op
 
 - **Date variables are manual.** No API can set a Docs variable's value: writing a chip's text through the Docs API changes only that one instance and leaves the variable (and its other instances) behind. Tested on a copy of the doc on 2026-11-09.
 - **Checkboxes are re-created, not unchecked.** Neither Apps Script nor the Docs API exposes whether a checklist item is checked, and Apps Script can't create checklists. The step replaces each checklist cell's content with a new paragraph, tags it with a named range, and has the Docs API (advanced service) turn the tagged paragraphs into new `BULLET_CHECKBOX` lists. "Start recording" keeps its paragraph; the API removes its bullet and creates a new checkbox. The step checks that the API sees every tagged paragraph before writing anything.
-- **All steps run in one server call.** Opening the doc from Apps Script loads every tab (15 to 30 seconds for this doc), so running each step in its own call took about 4 minutes; one call takes 1 to 2. The checkbox step runs last because it saves and closes the doc for the Docs API.
+- **One server call, one Docs API read.** Opening the doc loads every tab, however little is asked for: measured 2026-11-09 on a 42-tab copy, `DocumentApp.getActiveDocument()` took 25s and a Docs API `documents.get` that asked only for tab titles took 16s; everything else is quick. So the dialog opens without touching the doc, the guards and all steps run in the one call after you confirm (the confirmation can't name the tab, since reading it costs the 25s; the results do), and the checkbox step reads the Docs API once. A run takes about a minute, about half of it opening the doc; the sidebar's last line shows the timings. The checkbox step runs last because it saves and closes the doc for the Docs API. Fewer tabs (for example, archiving old Meeting tabs to another doc) would make it faster.
 - **Empty bullets are fresh copies.** Clearing a body list item that is followed by a non-list paragraph deletes it (and can take the paragraph before it along), so Group Snaps and Top SP needs get a cleared copy of their first bullet, inserted before the old bullets are removed.
 - **OOO parsing is deliberately cautious.** Only entries it can date with certainty are removed. Notable rules (see [Dates.gs](Dates.gs)): the year is the one nearest the meeting; "week of X" lasts until X + 6 days; "may" counts as a month only next to a day number; numeric dates like `9/7` are never guessed.
 
@@ -57,11 +57,13 @@ Files:
 
 | File | Purpose |
 |---|---|
-| [Code.gs](Code.gs) | `SCRIPT_VERSION`, links, and the `onOpen` menu |
+| [Code.gs](Code.gs) | `SCRIPT_VERSION`, links, the `onOpen` menu, and "About this menu" |
 | [PrepareNextMeeting.gs](PrepareNextMeeting.gs) | Menu entry point, guards, and one function per step |
 | [DocEdits.gs](DocEdits.gs) | DocumentApp helpers: find tables/headings, clear and copy cells |
 | [Dates.gs](Dates.gs) | Pure date logic (meeting date, variables, OOO parsing); no Apps Script services |
-| [Sidebar.html](Sidebar.html) | Live checklist UI |
+| [PrepareDialog.html](PrepareDialog.html) | Confirmation and progress dialog; makes the one server call |
+| [Sidebar.html](Sidebar.html) | Results of a run |
+| [AboutDialog.html](AboutDialog.html) | "About this menu": opens this README |
 | [test/](test/) | Node tests for `Dates.gs` |
 
 Run the tests (Node 18+, no dependencies):

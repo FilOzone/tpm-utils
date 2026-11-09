@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!--
+  "About this menu": tries to open the README in a new tab and closes. Browsers usually block that popup because it
+  is not a click inside the dialog, so the dialog stays with an "Open README" button (a click, which is allowed). Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script);
+  edits made in the Apps Script editor are overwritten by the next `clasp push`.
+-->
+<html>
+  <head>
+    <base target="_blank" />
+    <style>
+      body { font: 13px/1.5 Arial, sans-serif; margin: 4px 8px; color: #202124; }
+      a { color: #1a73e8; }
+      .buttons { text-align: right; margin-top: 12px; }
+      button { font: inherit; padding: 6px 16px; border-radius: 4px; border: 1px solid #1a73e8; background: #1a73e8; color: #fff; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <p>This menu is an Apps Script kept in GitHub. How it works, what each step does, and how to change it:
+      <a id="readme">README</a>. Problems or ideas: <a id="issues">open an issue</a>.</p>
+    <div class="buttons"><button id="open">Open README</button></div>
+    <script>
+      const P = <?!= payload ?>;
+      document.getElementById('readme').href = P.readmeUrl;
+      document.getElementById('issues').href = P.issuesUrl;
+      const openReadme = () => window.open(P.readmeUrl, '_blank') && google.script.host.close();
+      document.getElementById('open').onclick = openReadme;
+      openReadme();
+    </script>
+  </body>
+</html>

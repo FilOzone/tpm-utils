@@ -2,10 +2,14 @@
  * 🗄️ FOC → Prepare for next meeting: turns a freshly duplicated Meeting tab (renamed to the meeting date,
  * YYYY-MM-DD) into a blank agenda, carrying last meeting's plans into the Expected column.
  *
- * Flow: the menu item checks preconditions and asks for confirmation, then opens Sidebar.html, which calls
- * runPrepSteps() once. That one server call opens the document once and runs every step in order: opening the doc
- * loads every tab and takes ~15-30s, so one call per step made a run take minutes. Steps are independent; one
- * failing does not stop the rest. What each step does and why: README.md in this folder.
+ * Flow: the menu item opens PrepareDialog.html right away (showing a dialog does not load the document). After the
+ * person confirms, the dialog makes one server call, prepareActiveTab(), which opens the document once, checks the
+ * guards and runs every step in order, while the modal dialog keeps the editor from being edited. Then the dialog
+ * opens Sidebar.html with the results and closes itself.
+ *
+ * Opening the document is the slow part: Apps Script and the Docs API load every tab (~25s and ~16s for this doc as
+ * of 2026-11, regardless of what is asked for), so the run opens it once and reads the Docs API once. Steps are
+ * independent; one failing does not stop the rest. What each step does and why: README.md in this folder.
  *
  * Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script).
  * Edits made in the Apps Script editor are overwritten by the next `clasp push`.
@@ -42,40 +46,14 @@ function failed_(detail) { return { status: 'failed', detail: detail }; }
 // ---------------------------------------------------------------- menu entry point
 
 function prepareForNextMeeting() {
-  var ui = DocumentApp.getUi();
-  var doc = DocumentApp.getActiveDocument();
-  var tab = doc.getActiveTab();
-  var title = tab.getTitle().trim();
-  var problem = preconditionProblem_(doc, tab);
-  if (problem) {
-    ui.alert('Prepare for next meeting', problem, ui.ButtonSet.OK);
-    return;
-  }
-  var meetingDate = parseMeetingDate(title);
-  var answer = ui.alert(
-    'Prepare for next meeting (v' + SCRIPT_VERSION + ')',
-    'Prepare tab "' + title + '" for the meeting on ' + meetingDate + '?\n\n' +
-      'This only changes this tab. It carries each workstream\'s plan into the Expected column and clears last ' +
-      'meeting\'s content (sync topics, snaps, SP status, operational events, past OOO, checkboxes, review stats, ' +
-      'recording and AI notes).\n\nIt can run once per tab. To undo, use File → Version history.',
-    ui.ButtonSet.YES_NO
-  );
-  if (answer !== ui.Button.YES) return;
+  var template = HtmlService.createTemplateFromFile('PrepareDialog');
+  template.payload = jsonForHtml_({ version: SCRIPT_VERSION, readmeUrl: README_URL });
+  DocumentApp.getUi().showModalDialog(template.evaluate().setWidth(460).setHeight(330), 'Prepare for next meeting (v' + SCRIPT_VERSION + ')');
+}
 
-  // Mark before running so a second run can't shift plan → Expected twice, even if this run fails partway.
-  PropertiesService.getDocumentProperties().setProperty(PREPARED_KEY_PREFIX + tab.getId(), new Date().toISOString());
-
-  var template = HtmlService.createTemplateFromFile('Sidebar');
-  template.payload = JSON.stringify({
-    tabId: tab.getId(),
-    title: title,
-    meetingDate: meetingDate,
-    version: SCRIPT_VERSION,
-    steps: PREP_STEPS.map(function (s) { return { id: s.id, label: s.label }; }),
-    sourceUrl: SOURCE_URL,
-    issuesUrl: ISSUES_URL,
-  }).replace(/</g, '\\u003c');
-  ui.showSidebar(template.evaluate().setTitle('Prepare for next meeting'));
+/** JSON that is safe to print inside a <script> tag. */
+function jsonForHtml_(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
 /** Why the active tab can't be prepared, or null if it can. */
@@ -115,33 +93,48 @@ function resetPreparedMarkers() {
   });
 }
 
-// ---------------------------------------------------------------- sidebar entry point
+// ---------------------------------------------------------------- dialog entry points
 
 /**
- * Called by the sidebar once: runs every step against one opened document and returns
- * [{ id, status, detail }] in PREP_STEPS order. Never throws: a failing step comes back as { status: 'failed' }.
+ * Called by the dialog once the person confirms: prepares the active tab. Returns { problem } when a guard refuses,
+ * otherwise { title, meetingDate, seconds, openSeconds, results: [{ id, label, status, detail, seconds }] } in
+ * PREP_STEPS order. A failing step comes back as { status: 'failed' } and the rest still run.
  */
-function runPrepSteps(tabId) {
-  var ctx;
-  try {
-    var doc = DocumentApp.getActiveDocument();
-    var tab = doc.getTab(tabId);
-    if (!tab) throw new StepError('The tab being prepared no longer exists.');
-    ctx = { doc: doc, tab: tab, body: tab.asDocumentTab().getBody(), meetingDate: parseMeetingDate(tab.getTitle()) };
-    if (!ctx.meetingDate) throw new StepError('The tab title is no longer a YYYY-MM-DD date.');
-  } catch (e) {
-    var why = failed_((e && e.message) || String(e));
-    return PREP_STEPS.map(function (s) { return { id: s.id, status: why.status, detail: why.detail }; });
-  }
-  return PREP_STEPS.map(function (step) {
+function prepareActiveTab() {
+  var started = Date.now();
+  var doc = DocumentApp.getActiveDocument(); // loads the whole document; the slow part
+  var openSeconds = secondsSince_(started);
+  var tab = doc.getActiveTab();
+  var problem = preconditionProblem_(doc, tab);
+  if (problem) return { problem: problem };
+
+  // Mark before running so a second run can't shift plan → Expected twice, even if this run fails partway.
+  PropertiesService.getDocumentProperties().setProperty(PREPARED_KEY_PREFIX + tab.getId(), new Date().toISOString());
+
+  var title = tab.getTitle().trim();
+  var ctx = { doc: doc, tab: tab, body: tab.asDocumentTab().getBody(), meetingDate: parseMeetingDate(title) };
+  var results = PREP_STEPS.map(function (step) {
+    var t = Date.now();
     var r;
     try {
       r = step.run(ctx);
     } catch (e) {
       r = failed_((e && e.message) || String(e));
     }
-    return { id: step.id, status: r.status, detail: r.detail };
+    return { id: step.id, label: step.label, status: r.status, detail: r.detail, seconds: secondsSince_(t) };
   });
+  return { title: title, meetingDate: ctx.meetingDate, seconds: secondsSince_(started), openSeconds: openSeconds, results: results };
+}
+
+/** Called by the dialog with prepareActiveTab()'s result: shows it in the sidebar so the doc can be scrolled again. */
+function showPrepResults(outcome) {
+  var template = HtmlService.createTemplateFromFile('Sidebar');
+  template.payload = jsonForHtml_({ outcome: outcome, version: SCRIPT_VERSION, sourceUrl: SOURCE_URL, issuesUrl: ISSUES_URL });
+  DocumentApp.getUi().showSidebar(template.evaluate().setTitle('Prepare for next meeting'));
+}
+
+function secondsSince_(t) {
+  return Math.round((Date.now() - t) / 100) / 10;
 }
 
 // ---------------------------------------------------------------- steps
@@ -318,8 +311,9 @@ function stepCheckboxes_(ctx) {
   var tabId = ctx.tab.getId();
   ctx.doc.saveAndClose(); // flush DocumentApp edits before the Docs API reads indices; no DocumentApp calls after this
 
-  var freshRanges = namedRangeIndexes_(docId, tabId, CHECKBOX_RANGE_NAME);
-  var recheck = namedRangeIndexes_(docId, tabId, RECHECK_RANGE_NAME);
+  var tagged = namedRangeIndexes_(docId, tabId, [CHECKBOX_RANGE_NAME, RECHECK_RANGE_NAME]); // one read: ~16s each
+  var freshRanges = tagged[CHECKBOX_RANGE_NAME];
+  var recheck = tagged[RECHECK_RANGE_NAME];
   if (freshRanges.length !== cells) {
     // Checked before writing, so the API batch changes nothing; the placeholders are invisible.
     throw new StepError('Prepared ' + cells + ' checkbox cells but the Docs API found ' + freshRanges.length + '; no checkboxes were created.');
@@ -355,8 +349,11 @@ function range_(tabId, startIndex, endIndex) {
   return { tabId: tabId, startIndex: startIndex, endIndex: endIndex };
 }
 
-/** Start/end indexes (Docs API) of every range in the named range `name` on one tab (tabs nested up to 3 deep). */
-function namedRangeIndexes_(docId, tabId, name) {
+/**
+ * Start/end indexes (Docs API) of every range in each of the named ranges `names` on one tab (tabs nested up to 3
+ * deep), as { name: [{ startIndex, endIndex }] }. One documents.get, since each one loads the whole document.
+ */
+function namedRangeIndexes_(docId, tabId, names) {
   var tabFields = 'tabProperties(tabId),documentTab(namedRanges)';
   var resp = Docs.Documents.get(docId, {
     includeTabsContent: true,
@@ -369,10 +366,13 @@ function namedRangeIndexes_(docId, tabId, name) {
       walk(t.childTabs);
     });
   })(resp.tabs);
-  var group = found && found.documentTab.namedRanges && found.documentTab.namedRanges[name];
-  var out = [];
-  ((group && group.namedRanges) || []).forEach(function (nr) {
-    nr.ranges.forEach(function (rg) { out.push({ startIndex: rg.startIndex || 0, endIndex: rg.endIndex || 0 }); });
+  var all = (found && found.documentTab.namedRanges) || {};
+  var out = {};
+  names.forEach(function (name) {
+    out[name] = [];
+    ((all[name] && all[name].namedRanges) || []).forEach(function (nr) {
+      nr.ranges.forEach(function (rg) { out[name].push({ startIndex: rg.startIndex || 0, endIndex: rg.endIndex || 0 }); });
+    });
   });
   return out;
 }
