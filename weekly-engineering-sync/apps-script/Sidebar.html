@@ -46,7 +46,14 @@
       function setRow(li, status, detail) {
         li.className = status;
         li.querySelector('.icon').textContent = ICONS[status] || '•';
-        li.querySelector('.detail').textContent = detail || '';
+        const d = li.querySelector('.detail');
+        d.textContent = detail || '';
+        if (status === 'failed') {
+          const link = document.createElement('a');
+          link.href = P.issuesUrl;
+          link.textContent = ' Report it on GitHub';
+          d.appendChild(link);
+        }
       }
 
       function run(i) {

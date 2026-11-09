@@ -4,49 +4,38 @@
  *
  * Flow: the menu item checks preconditions and asks for confirmation, then opens Sidebar.html, which calls
  * runPrepStep() once per step so each ✅/⏭️/⚠️/❌ appears live. Steps are independent; one failing does not stop
- * the rest. Design and decisions: ../README.md and ../GLOSSARY.md.
+ * the rest. What each step does and why: README.md in this folder.
  *
  * Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script).
  * Edits made in the Apps Script editor are overwritten by the next `clasp push`.
  */
 
 var EXPECTED_YELLOW = '#ffffa6';
-var CHECKBOX_RANGE_NAME = 'foc-prep-checkbox';
+var CHECKBOX_RANGE_NAME = 'foc-prep-checkbox'; // new paragraphs that become checkboxes
+var RECHECK_RANGE_NAME = 'foc-prep-recheck'; // existing checklist items whose checkbox is re-created
+var ZERO_WIDTH_PLACEHOLDER = '\u200b'; // keeps a tagged empty paragraph non-empty; deleted by the API batch
 var PREPARED_KEY_PREFIX = 'prepared:';
 
+/** The steps, in sidebar order. Each `run(ctx)` returns { status, detail } or throws (StepError for doc problems). */
 var PREP_STEPS = [
-  { id: 'workstreams', label: 'Workstream tables: plan → Expected (yellow); clear plan and actual' },
-  { id: 'syncTopics', label: 'Clear the Sync topics table' },
-  { id: 'groupSnaps', label: 'Clear Group Snaps' },
-  { id: 'topSpNeeds', label: 'Clear Top SP needs' },
-  { id: 'spStatus', label: 'Clear the SP status numbers' },
-  { id: 'opsEvents', label: 'Clear Summary of operational events' },
-  { id: 'ooo', label: 'Remove past Upcoming OOO entries' },
-  { id: 'checkboxes', label: 'Reset checkboxes (Individual updates, Start recording)' },
-  { id: 'reviewStats', label: 'Clear FOC review stats' },
-  { id: 'recording', label: 'Clear the Recording link' },
-  { id: 'aiNotes', label: 'Clear AI Meeting Notes' },
-  { id: 'dateVariables', label: 'Date variables' },
+  { id: 'workstreams', label: 'Workstream tables: plan → Expected (yellow); clear plan and actual', run: stepWorkstreams_ },
+  { id: 'syncTopics', label: 'Clear the Sync topics table', run: function (ctx) { return clearNamedTable_(ctx, ['Sync Topic'], 'Sync topics'); } },
+  { id: 'groupSnaps', label: 'Clear Group Snaps', run: stepGroupSnaps_ },
+  { id: 'topSpNeeds', label: 'Clear Top SP needs', run: stepTopSpNeeds_ },
+  { id: 'spStatus', label: 'Clear the SP status numbers', run: stepSpStatus_ },
+  { id: 'opsEvents', label: 'Clear Summary of operational events', run: function (ctx) { return clearNamedTable_(ctx, ['Date/window'], 'Summary of operational events'); } },
+  { id: 'ooo', label: 'Remove past Upcoming OOO entries', run: stepOoo_ },
+  { id: 'checkboxes', label: 'Reset checkboxes (Individual updates, Start recording)', run: stepCheckboxes_ },
+  { id: 'reviewStats', label: 'Clear FOC review stats', run: function (ctx) { return clearNamedTable_(ctx, ['Contributor', 'Rev/PR'], 'FOC review stats'); } },
+  { id: 'recording', label: 'Clear the Recording link', run: stepRecording_ },
+  { id: 'aiNotes', label: 'Clear AI Meeting Notes', run: stepAiNotes_ },
+  { id: 'dateVariables', label: 'Date variables', run: stepDateVariables_ },
 ];
-
-var STEP_HANDLERS = {
-  workstreams: stepWorkstreams_,
-  syncTopics: function (ctx) { return clearNamedTable_(ctx, ['Sync Topic'], 'Sync topics'); },
-  groupSnaps: stepGroupSnaps_,
-  topSpNeeds: stepTopSpNeeds_,
-  spStatus: stepSpStatus_,
-  opsEvents: function (ctx) { return clearNamedTable_(ctx, ['Date/window'], 'Summary of operational events'); },
-  ooo: stepOoo_,
-  checkboxes: stepCheckboxes_,
-  reviewStats: function (ctx) { return clearNamedTable_(ctx, ['Contributor', 'Rev/PR'], 'FOC review stats'); },
-  recording: stepRecording_,
-  aiNotes: stepAiNotes_,
-  dateVariables: stepDateVariables_,
-};
 
 function done_(detail) { return { status: 'done', detail: detail || '' }; }
 function warn_(detail) { return { status: 'warn', detail: detail }; }
 function skipped_(detail) { return { status: 'skipped', detail: detail }; }
+function failed_(detail) { return { status: 'failed', detail: detail }; }
 
 // ---------------------------------------------------------------- menu entry point
 
@@ -80,7 +69,7 @@ function prepareForNextMeeting() {
     title: title,
     meetingDate: meetingDate,
     version: SCRIPT_VERSION,
-    steps: PREP_STEPS,
+    steps: PREP_STEPS.map(function (s) { return { id: s.id, label: s.label }; }),
     sourceUrl: SOURCE_URL,
     issuesUrl: ISSUES_URL,
   }).replace(/</g, '\\u003c');
@@ -129,8 +118,8 @@ function resetPreparedMarkers() {
 /** Called by the sidebar once per step. Never throws: failures come back as { status: 'failed' }. */
 function runPrepStep(stepId, tabId) {
   try {
-    var handler = STEP_HANDLERS[stepId];
-    if (!handler) throw new StepError('Unknown step "' + stepId + '".');
+    var step = PREP_STEPS.filter(function (s) { return s.id === stepId; })[0];
+    if (!step) throw new StepError('Unknown step "' + stepId + '".');
     var doc = DocumentApp.getActiveDocument();
     var tab = doc.getTab(tabId);
     if (!tab) throw new StepError('The tab being prepared no longer exists.');
@@ -141,9 +130,9 @@ function runPrepStep(stepId, tabId) {
       meetingDate: parseMeetingDate(tab.getTitle()),
     };
     if (!ctx.meetingDate) throw new StepError('The tab title is no longer a YYYY-MM-DD date.');
-    return handler(ctx);
+    return step.run(ctx);
   } catch (e) {
-    return { status: 'failed', detail: (e && e.message) || String(e) };
+    return failed_((e && e.message) || String(e));
   }
 }
 
@@ -157,10 +146,10 @@ function stepWorkstreams_(ctx) {
   }
   var rows = 0;
   tables.forEach(function (table) {
-    var h = headerTexts_(table);
-    var expected = colIndex_(h, needles[0]);
-    var actual = colIndex_(h, needles[1]);
-    var plan = colIndex_(h, needles[2]);
+    var headers = headerTexts_(table);
+    var expected = colIndex_(headers, needles[0]);
+    var actual = colIndex_(headers, needles[1]);
+    var plan = colIndex_(headers, needles[2]);
     var last = Math.max(expected, actual, plan);
     for (var r = 1; r < table.getNumRows(); r++) {
       var row = table.getRow(r);
@@ -183,12 +172,14 @@ function clearNamedTable_(ctx, needles, name) {
 
 function stepGroupSnaps_(ctx) {
   var heading = findHeading_(ctx.body, 'Group Snaps');
-  var items = sectionElements_(heading, 6).filter(function (el) {
-    return el.getType() === DocumentApp.ElementType.LIST_ITEM;
-  });
-  if (!items.length) return skipped_('No snaps to clear.');
-  var removed = collapseListToOneEmptyItem_(items);
-  return done_((removed + 1) + ' snaps cleared');
+  var els = sectionElements_(heading, 6);
+  // The prompt ("Any great work you saw…") is the first plain paragraph with text; everything else is a snap.
+  var prompt = els.filter(function (el) {
+    return el.getType() === DocumentApp.ElementType.PARAGRAPH && textOf_(el).trim();
+  })[0];
+  var snaps = els.length - (prompt ? 1 : 0);
+  leaveOneEmptyBullet_(ctx.body, els, prompt, heading);
+  return done_(snaps + ' items cleared');
 }
 
 function stepTopSpNeeds_(ctx) {
@@ -196,22 +187,24 @@ function stepTopSpNeeds_(ctx) {
   if (!label) throw new StepError('Could not find the "Top SP needs:" line.');
   var items = [];
   for (var el = label.getNextSibling(); el && el.getType() === DocumentApp.ElementType.LIST_ITEM; el = el.getNextSibling()) {
-    items.push(el.asListItem());
+    items.push(el);
   }
-  if (!items.length) return skipped_('No bullets under "Top SP needs:".');
-  collapseListToOneEmptyItem_(items);
+  leaveOneEmptyBullet_(ctx.body, items, null, label);
   return done_(items.length + ' bullets cleared');
 }
 
+// A cell holding only a number, optionally with a sign, "~", "%", or a unit like "PiB" or "k".
+var SP_NUMBER_RE = /^\s*[~≈+\-]?\s*\d[\d,.\s]*(%|[kKmM]|\s*[KMGTPE]i?B)?\s*$/;
+
 function stepSpStatus_(ctx) {
   var table = findTable_(ctx.body, ['Mainnet', 'Calibration'], 'SP status');
-  // Only cells that hold nothing but a number are cleared, so labels, ✔️/❌ headers and the chart image stay.
+  // Only number cells are cleared, so labels, ✔️/❌ headers, colors and the chart image stay.
   var cleared = 0;
   for (var r = 1; r < table.getNumRows(); r++) {
     var row = table.getRow(r);
     for (var c = 1; c < row.getNumCells(); c++) {
       var cell = row.getCell(c);
-      if (/^\s*\d[\d,.\s]*$/.test(cell.getText())) {
+      if (SP_NUMBER_RE.test(cell.getText())) {
         clearCell_(cell);
         cleared++;
       }
@@ -223,8 +216,8 @@ function stepSpStatus_(ctx) {
 /** The Individual updates table and its column indexes. */
 function individualUpdates_(ctx) {
   var table = findTable_(ctx.body, ['Person', 'Upcoming OOO'], 'Individual updates');
-  var h = headerTexts_(table);
-  return { table: table, person: colIndex_(h, 'Person'), ooo: colIndex_(h, 'Upcoming OOO') };
+  var headers = headerTexts_(table);
+  return { table: table, personCol: colIndex_(headers, 'Person'), oooCol: colIndex_(headers, 'Upcoming OOO') };
 }
 
 function isAddAnyoneRow_(row, personCol) {
@@ -232,18 +225,18 @@ function isAddAnyoneRow_(row, personCol) {
 }
 
 function stepOoo_(ctx) {
-  var iu = individualUpdates_(ctx);
+  var updates = individualUpdates_(ctx);
   var removed = [];
   var unsure = [];
-  for (var r = 1; r < iu.table.getNumRows(); r++) {
-    var row = iu.table.getRow(r);
-    if (row.getNumCells() <= iu.ooo) continue;
-    var who = row.getCell(iu.person).getText().trim() || 'row ' + r;
-    var cell = row.getCell(iu.ooo);
+  for (var r = 1; r < updates.table.getNumRows(); r++) {
+    var row = updates.table.getRow(r);
+    if (row.getNumCells() <= updates.oooCol) continue;
+    var who = row.getCell(updates.personCol).getText().trim() || 'row ' + r;
+    var cell = row.getCell(updates.oooCol);
     for (var i = cell.getNumChildren() - 1; i >= 0; i--) {
       var el = cell.getChild(i);
       if (!isParagraphLike_(el)) continue;
-      var text = el.asText().getText().trim();
+      var text = textOf_(el).trim();
       var kind = classifyOooElement_(el, text, ctx.meetingDate);
       if (kind === 'past') {
         removed.push('"' + text + '" (' + who + ')');
@@ -261,11 +254,11 @@ function stepOoo_(ctx) {
 
 /** Date chips win over text; otherwise classify the text (see Dates.gs). */
 function classifyOooElement_(el, text, meetingDate) {
-  var E = DocumentApp.ElementType;
+  var types = DocumentApp.ElementType;
   var end = null;
-  for (var i = 0; E.DATE && i < el.getNumChildren(); i++) {
+  for (var i = 0; types.DATE && i < el.getNumChildren(); i++) {
     var child = el.getChild(i);
-    if (child.getType() === E.DATE) {
+    if (child.getType() === types.DATE) {
       var iso = Utilities.formatDate(child.asDate().getTimestamp(), 'UTC', 'yyyy-MM-dd');
       if (!end || iso > end) end = iso;
     }
@@ -275,60 +268,81 @@ function classifyOooElement_(el, text, meetingDate) {
 }
 
 /**
- * Apps Script can't create checklist bullets or read whether a box is checked, so each checklist paragraph is
- * replaced by a fresh one, tagged with a named range, and the Docs API turns the tagged paragraphs into new,
- * unchecked BULLET_CHECKBOX lists. A zero-width placeholder character keeps each tagged range non-empty and is
- * deleted in the same API batch.
+ * Apps Script can't create checklists or read whether a box is checked, so checkboxes are re-created through the
+ * Docs API (advanced service), which can. DocumentApp tags the paragraphs with named ranges, then one API batch:
+ * - Individual updates cells: each checklist cell is replaced by one new paragraph (holding a zero-width
+ *   placeholder so its range is non-empty) that becomes a new BULLET_CHECKBOX item; the placeholder is deleted.
+ * - "Start recording": the existing item keeps its text and formatting; its bullet is removed and re-created as a
+ *   new, unchecked checkbox.
  */
 function stepCheckboxes_(ctx) {
-  var dt = ctx.tab.asDocumentTab();
-  dt.getNamedRanges(CHECKBOX_RANGE_NAME).forEach(function (nr) { nr.remove(); }); // leftovers from a failed run
-  var tagged = 0;
-  var tag = function (paragraph) {
-    dt.addNamedRange(CHECKBOX_RANGE_NAME, dt.newRange().addElement(paragraph).build());
-    tagged++;
+  var docTab = ctx.tab.asDocumentTab();
+  [CHECKBOX_RANGE_NAME, RECHECK_RANGE_NAME].forEach(function (name) {
+    docTab.getNamedRanges(name).forEach(function (nr) { nr.remove(); }); // leftovers from a failed run
+  });
+  var tag = function (name, element) {
+    docTab.addNamedRange(name, docTab.newRange().addElement(element).build());
   };
 
-  var iu = individualUpdates_(ctx);
-  for (var r = 1; r < iu.table.getNumRows(); r++) {
-    var row = iu.table.getRow(r);
-    if (isAddAnyoneRow_(row, iu.person)) continue;
-    for (var c = iu.person + 1; c < iu.ooo && c < row.getNumCells(); c++) {
+  var updates = individualUpdates_(ctx);
+  var cells = 0;
+  for (var r = 1; r < updates.table.getNumRows(); r++) {
+    var row = updates.table.getRow(r);
+    if (isAddAnyoneRow_(row, updates.personCol)) continue;
+    // The checklist columns sit between Person and Upcoming OOO.
+    for (var c = updates.personCol + 1; c < updates.oooCol && c < row.getNumCells(); c++) {
       var cell = row.getCell(c);
-      var p = cell.insertParagraph(0, '​');
+      var paragraph = cell.insertParagraph(0, ZERO_WIDTH_PLACEHOLDER);
       for (var i = cell.getNumChildren() - 1; i > 0; i--) cell.getChild(i).removeFromParent();
-      tag(p);
+      tag(CHECKBOX_RANGE_NAME, paragraph);
+      cells++;
     }
   }
-
   var recording = findParagraphStartingWith_(ctx.body, 'Start recording');
-  if (recording) {
-    var idx = ctx.body.getChildIndex(recording);
-    var replacement = ctx.body.insertParagraph(idx, '​' + recording.asText().getText().trim());
-    recording.removeFromParent();
-    tag(replacement);
-  }
+  if (recording) tag(RECHECK_RANGE_NAME, recording);
 
   var docId = ctx.doc.getId();
   var tabId = ctx.tab.getId();
   ctx.doc.saveAndClose(); // flush DocumentApp edits before the Docs API reads indices; no DocumentApp calls after this
-  var ranges = namedRangeIndexes_(docId, tabId, CHECKBOX_RANGE_NAME);
+
+  var freshRanges = namedRangeIndexes_(docId, tabId, CHECKBOX_RANGE_NAME);
+  var recheck = namedRangeIndexes_(docId, tabId, RECHECK_RANGE_NAME);
+  if (freshRanges.length !== cells) {
+    // Checked before writing, so the API batch changes nothing; the placeholders are invisible.
+    throw new StepError('Prepared ' + cells + ' checkbox cells but the Docs API found ' + freshRanges.length + '; no checkboxes were created.');
+  }
+
+  var ops = [];
+  freshRanges.forEach(function (rg) {
+    ops.push({ at: rg.startIndex, requests: [
+      { createParagraphBullets: { range: range_(tabId, rg.startIndex, rg.startIndex + 1), bulletPreset: 'BULLET_CHECKBOX' } },
+      { deleteContentRange: { range: range_(tabId, rg.startIndex, rg.startIndex + 1) } },
+    ] });
+  });
+  recheck.forEach(function (rg) {
+    var range = range_(tabId, rg.startIndex, Math.max(rg.endIndex, rg.startIndex + 1));
+    ops.push({ at: rg.startIndex, requests: [
+      { deleteParagraphBullets: { range: range } },
+      { createParagraphBullets: { range: range, bulletPreset: 'BULLET_CHECKBOX' } },
+    ] });
+  });
   var requests = [];
-  ranges
-    .sort(function (a, b) { return b.startIndex - a.startIndex; }) // bottom-up so deletions don't shift later ranges
-    .forEach(function (rg) {
-      var range = { tabId: tabId, startIndex: rg.startIndex, endIndex: Math.max(rg.endIndex, rg.startIndex + 1) };
-      requests.push({ createParagraphBullets: { range: range, bulletPreset: 'BULLET_CHECKBOX' } });
-      requests.push({ deleteContentRange: { range: { tabId: tabId, startIndex: rg.startIndex, endIndex: rg.startIndex + 1 } } });
-    });
-  requests.push({ deleteNamedRange: { name: CHECKBOX_RANGE_NAME, tabsCriteria: { tabIds: [tabId] } } });
+  ops
+    .sort(function (a, b) { return b.at - a.at; }) // bottom-up so each deletion can't shift ranges still to come
+    .forEach(function (op) { requests = requests.concat(op.requests); });
+  [CHECKBOX_RANGE_NAME, RECHECK_RANGE_NAME].forEach(function (name) {
+    requests.push({ deleteNamedRange: { name: name, tabsCriteria: { tabIds: [tabId] } } });
+  });
   Docs.Documents.batchUpdate({ requests: requests }, docId);
 
-  if (ranges.length !== tagged) throw new StepError('Tagged ' + tagged + ' checkboxes but the API found ' + ranges.length + '.');
-  return done_(tagged + ' checkboxes reset' + (recording ? ', including "Start recording"' : ' ("Start recording" not found)'));
+  return done_(cells + ' checkboxes reset' + (recheck.length ? ', plus "Start recording"' : ' ("Start recording" not found)'));
 }
 
-/** Start/end indexes (Docs API) of every range in the named range `name` on one tab. */
+function range_(tabId, startIndex, endIndex) {
+  return { tabId: tabId, startIndex: startIndex, endIndex: endIndex };
+}
+
+/** Start/end indexes (Docs API) of every range in the named range `name` on one tab (tabs nested up to 3 deep). */
 function namedRangeIndexes_(docId, tabId, name) {
   var tabFields = 'tabProperties(tabId),documentTab(namedRanges)';
   var resp = Docs.Documents.get(docId, {
@@ -351,19 +365,11 @@ function namedRangeIndexes_(docId, tabId, name) {
 }
 
 function stepRecording_(ctx) {
-  var heading = findHeading_(ctx.body, 'Recording');
+  var heading = findHeading_(ctx.body, 'Recording', true);
   var els = sectionElements_(heading, headingLevel_(heading));
-  if (!els.length) {
-    ctx.body.insertParagraph(ctx.body.getChildIndex(heading) + 1, '');
-    return skipped_('Nothing under "Recording" to clear.');
-  }
-  for (var i = els.length - 1; i > 0; i--) removeOrClear_(els[i]);
-  if (isParagraphLike_(els[0])) els[0].clear();
-  else {
-    ctx.body.insertParagraph(ctx.body.getChildIndex(els[0]), '');
-    els[0].removeFromParent();
-  }
-  return done_();
+  ctx.body.insertParagraph(ctx.body.getChildIndex(heading) + 1, '');
+  for (var i = els.length - 1; i >= 0; i--) removeOrClear_(els[i]);
+  return els.length ? done_() : done_('Was already empty.');
 }
 
 function stepAiNotes_(ctx) {

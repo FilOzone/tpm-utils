@@ -8,8 +8,15 @@
 
 /** Thrown for problems a person can fix in the doc (a missing anchor); shown as the step's ❌ detail. */
 function StepError(message) {
-  this.message = message;
+  var e = new Error(message);
+  e.name = 'StepError';
+  Object.setPrototypeOf(e, StepError.prototype);
+  return e;
 }
+StepError.prototype = Object.create(Error.prototype);
+StepError.prototype.constructor = StepError;
+
+var WHITE = '#ffffff';
 
 function headerTexts_(table) {
   var row = table.getRow(0);
@@ -57,14 +64,24 @@ function headingLevel_(el) {
   return i < 2 ? 0 : i - 1;
 }
 
-/** First top-level heading whose text contains `needle` (case-insensitive); StepError if none. */
-function findHeading_(body, needle) {
+/**
+ * First top-level heading whose text contains `needle` (case-insensitive), or equals it when `exact` is set;
+ * StepError if none.
+ */
+function findHeading_(body, needle, exact) {
   var n = needle.toLowerCase();
   for (var i = 0; i < body.getNumChildren(); i++) {
     var el = body.getChild(i);
-    if (headingLevel_(el) !== Infinity && el.asParagraph().getText().toLowerCase().indexOf(n) >= 0) return el.asParagraph();
+    if (headingLevel_(el) === Infinity) continue;
+    var text = el.asParagraph().getText().trim().toLowerCase();
+    if (exact ? text === n : text.indexOf(n) >= 0) return el.asParagraph();
   }
   throw new StepError('Could not find the "' + needle + '" heading.');
+}
+
+/** Text of a paragraph or list item. */
+function textOf_(el) {
+  return el.editAsText().getText();
 }
 
 /** First top-level paragraph or list item whose text starts with `prefix` (case-insensitive), or null. */
@@ -72,7 +89,7 @@ function findParagraphStartingWith_(body, prefix) {
   var p = prefix.toLowerCase();
   for (var i = 0; i < body.getNumChildren(); i++) {
     var el = body.getChild(i);
-    if (isParagraphLike_(el) && el.asText().getText().trim().toLowerCase().indexOf(p) === 0) return el;
+    if (isParagraphLike_(el) && textOf_(el).trim().toLowerCase().indexOf(p) === 0) return el;
   }
   return null;
 }
@@ -96,13 +113,24 @@ function removeOrClear_(el) {
   }
 }
 
-/** Keep the first list item (emptied, top level) of a run of list items and remove the rest. Returns items removed. */
-function collapseListToOneEmptyItem_(items) {
-  if (!items.length) return 0;
-  items[0].clear();
-  items[0].setNestingLevel(0);
-  for (var i = items.length - 1; i > 0; i--) items[i].removeFromParent();
-  return items.length - 1;
+/**
+ * Remove every element in `els` (bullets, images, stray paragraphs) except `keep`, and leave exactly one empty,
+ * top-level bullet: the first list item, emptied, or a new one inserted after `after` when there was none.
+ */
+function leaveOneEmptyBullet_(body, els, keep, after) {
+  var bullet = null;
+  els.forEach(function (el) {
+    if (!bullet && el.getType() === DocumentApp.ElementType.LIST_ITEM) bullet = el.asListItem();
+  });
+  for (var i = els.length - 1; i >= 0; i--) {
+    if (els[i] !== keep && els[i] !== bullet) els[i].removeFromParent();
+  }
+  if (bullet) {
+    bullet.clear();
+    bullet.setNestingLevel(0);
+  } else {
+    body.insertListItem(body.getChildIndex(keep || after) + 1, '');
+  }
 }
 
 /** Empty a table cell, keeping its first paragraph (and its bullet, if any) so the cell keeps its shape. */
@@ -138,7 +166,7 @@ function clearTableRows_(table) {
     var row = table.getRow(r);
     for (var c = 0; c < row.getNumCells(); c++) {
       clearCell_(row.getCell(c));
-      row.getCell(c).setBackgroundColor('#ffffff');
+      row.getCell(c).setBackgroundColor(WHITE);
     }
   }
   return table.getNumRows() - 1;

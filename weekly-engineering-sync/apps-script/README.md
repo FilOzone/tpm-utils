@@ -22,14 +22,14 @@ The first run asks each person to authorize the script (it needs to edit the doc
 |---|---|---|
 | Workstream tables | Each row's Expected column gets a copy of its "Plan until next meeting" cell (bullets, links and chips kept) and a yellow `#ffffa6` background; the plan and "What actually happened" cells are emptied. Project, Owner(s) and Callouts are untouched. | Every table whose header row contains "What we expected", "What actually happened" and "Plan until next meeting", so new workstreams are picked up automatically |
 | Sync topics | Text cleared in every row below the header; rows kept, reset to white | Header containing "Sync Topic" |
-| Group Snaps | All snaps (including images) removed, one empty bullet left; the prompt line stays | Heading containing "Group Snaps" |
-| Top SP needs | Bullets collapsed to one empty bullet | Paragraph starting "Top SP needs" |
-| SP status numbers | Cells holding only a number are emptied; labels, ✔️/❌ headers, colors and the chart stay | Header containing "Mainnet" and "Calibration" |
+| Group Snaps | Everything under the heading (snaps, images, stray paragraphs) removed except the prompt line; one empty bullet left | Heading containing "Group Snaps" |
+| Top SP needs | Bullets replaced by one empty bullet | Paragraph starting "Top SP needs" |
+| SP status numbers | Cells holding only a number (optionally with `~`, a sign, `%` or a unit like `PiB`) are emptied; labels, ✔️/❌ headers, colors and the chart stay | Header containing "Mainnet" and "Calibration" |
 | Operational events | Text cleared in every row below the header; status row colors reset to white | Header containing "Date/window" |
 | Upcoming OOO | Entries whose end date is before the meeting are removed. Entries with unclear dates (e.g. "16th-21st", "9/7/26", "mid August") are kept and listed as ⚠️ | "Upcoming OOO" column of the Individual updates table (header containing "Person" and "Upcoming OOO") |
-| Checkboxes | Every person row's checklist cells (the columns between Person and Upcoming OOO) get one fresh unchecked checkbox; the "Add anyone else…" row is skipped. "Start recording" under Agenda is reset the same way | Same table; paragraph starting "Start recording" |
+| Checkboxes | Every person row's checklist cells (the columns between Person and Upcoming OOO) get one fresh unchecked checkbox; the "Add anyone else…" row is skipped. "Start recording" under Agenda keeps its text and gets a new unchecked checkbox | Same table; paragraph starting "Start recording" |
 | FOC review stats | Text cleared in every row below the header; Rev/PR shading reset to white | Header containing "Contributor" and "Rev/PR" |
-| Recording | Emptied | Heading "Recording" |
+| Recording | Emptied | Heading exactly "Recording" |
 | AI Meeting Notes | Everything under the heading removed, up to the next heading of the same or higher level | Heading containing "AI Meeting Notes" |
 | Date variables | ⏭️ always: shows the values to set (`lastWeekReportDate` = latest dated tab before this one, `thisWeekReportDate` = tab title, `nextWeekReportDate` = title + 7 days) | Tab titles |
 
@@ -46,7 +46,7 @@ If a run was interrupted and you really want to run it again on the same tab, op
 ### Why some steps are the way they are
 
 - **Date variables are manual.** No API can set a Docs variable's value: writing a chip's text through the Docs API changes only that one instance and leaves the variable (and its other instances) behind. Tested on a copy of the doc on 2026-11-09.
-- **Checkboxes are re-created, not unchecked.** Neither Apps Script nor the Docs API exposes whether a checklist item is checked, and Apps Script can't create checklists. The step replaces each checklist paragraph with a new one, tags it with a named range, and has the Docs API (advanced service) turn the tagged paragraphs into new `BULLET_CHECKBOX` lists.
+- **Checkboxes are re-created, not unchecked.** Neither Apps Script nor the Docs API exposes whether a checklist item is checked, and Apps Script can't create checklists. The step replaces each checklist cell's content with a new paragraph, tags it with a named range, and has the Docs API (advanced service) turn the tagged paragraphs into new `BULLET_CHECKBOX` lists. "Start recording" keeps its paragraph; the API removes its bullet and creates a new checkbox. The step checks that the API sees every tagged paragraph before writing anything.
 - **OOO parsing is deliberately cautious.** Only entries it can date with certainty are removed. Notable rules (see [Dates.gs](Dates.gs)): the year is the one nearest the meeting; "week of X" lasts until X + 6 days; "may" counts as a month only next to a day number; numeric dates like `9/7` are never guessed.
 
 ## Development
