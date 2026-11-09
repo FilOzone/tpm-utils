@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!--
+  Live checklist for "Prepare for next meeting". Calls runPrepStep() once per step, in order, and keeps going after a
+  failure. Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script);
+  edits made in the Apps Script editor are overwritten by the next `clasp push`.
+-->
+<html>
+  <head>
+    <base target="_blank" />
+    <style>
+      body { font: 13px/1.4 Arial, sans-serif; margin: 12px; color: #202124; }
+      h3 { margin: 0 0 4px; font-size: 14px; }
+      .meta { color: #5f6368; margin-bottom: 12px; }
+      ol { list-style: none; padding: 0; margin: 0; }
+      li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+      .icon { width: 20px; flex: none; text-align: center; }
+      .detail { color: #5f6368; font-size: 12px; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+      .failed .detail { color: #c5221f; }
+      .warn .detail, .skipped .detail { color: #8a5a00; }
+      #summary { margin-top: 12px; font-weight: bold; }
+      #help { margin-top: 8px; color: #5f6368; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h3>Prepare for next meeting</h3>
+    <div class="meta" id="meta"></div>
+    <ol id="steps"></ol>
+    <div id="summary"></div>
+    <div id="help"></div>
+    <script>
+      const P = <?!= payload ?>;
+      const ICONS = { pending: '⬜', running: '⏳', done: '✅', warn: '⚠️', skipped: '⏭️', failed: '❌' };
+      const counts = { done: 0, warn: 0, skipped: 0, failed: 0 };
+
+      document.getElementById('meta').textContent = 'Tab ' + P.title + ' · meeting ' + P.meetingDate + ' · v' + P.version;
+      const list = document.getElementById('steps');
+      const rows = P.steps.map((s) => {
+        const li = document.createElement('li');
+        li.innerHTML = '<span class="icon"></span><div><div class="label"></div><div class="detail"></div></div>';
+        li.querySelector('.label').textContent = s.label;
+        list.appendChild(li);
+        setRow(li, 'pending', '');
+        return li;
+      });
+
+      function setRow(li, status, detail) {
+        li.className = status;
+        li.querySelector('.icon').textContent = ICONS[status] || '•';
+        li.querySelector('.detail').textContent = detail || '';
+      }
+
+      function run(i) {
+        if (i >= P.steps.length) return finish();
+        setRow(rows[i], 'running', '');
+        const record = (r) => {
+          const status = ICONS[r.status] ? r.status : 'failed';
+          counts[status] = (counts[status] || 0) + 1;
+          setRow(rows[i], status, r.detail);
+          run(i + 1);
+        };
+        google.script.run
+          .withSuccessHandler(record)
+          .withFailureHandler((e) => record({ status: 'failed', detail: (e && e.message) || String(e) }))
+          .runPrepStep(P.steps[i].id, P.tabId);
+      }
+
+      function finish() {
+        document.getElementById('summary').textContent =
+          'Finished: ' + counts.done + ' ✅  ' + counts.warn + ' ⚠️  ' + counts.skipped + ' ⏭️  ' + counts.failed + ' ❌';
+        const help = document.getElementById('help');
+        const a = (href, text) => '<a href="' + href + '">' + text + '</a>';
+        help.innerHTML =
+          (counts.failed
+            ? 'Something went wrong. The script lives in ' + a(P.sourceUrl, 'GitHub') +
+              '; please open an ' + a(P.issuesUrl, 'issue') + ' or a PR so it can be fixed. '
+            : '') +
+          'Finish any ⏭️/⚠️ items by hand. To undo everything, use File → Version history. Source: ' + a(P.sourceUrl, 'GitHub') + '.';
+      }
+
+      run(0);
+    </script>
+  </body>
+</html>
