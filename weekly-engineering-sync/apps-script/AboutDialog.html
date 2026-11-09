@@ -22,7 +22,8 @@
       const P = <?!= payload ?>;
       document.getElementById('readme').href = P.readmeUrl;
       document.getElementById('issues').href = P.issuesUrl;
-      const openReadme = () => window.open(P.readmeUrl, '_blank') && google.script.host.close();
+      google.script.host.setHeight(document.body.scrollHeight + 16); // fit the content
+      const openReadme =() => window.open(P.readmeUrl, '_blank') && google.script.host.close();
       document.getElementById('open').onclick = openReadme;
       openReadme();
     </script>

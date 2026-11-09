@@ -7,7 +7,7 @@
 
 // Bump the minor (Y in X.Y) in the same commit as any script change; bump the major by hand when the doc itself must
 // change for the script to work. See AGENTS.md.
-var SCRIPT_VERSION = '1.3';
+var SCRIPT_VERSION = '1.4';
 
 var SOURCE_URL = 'https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script';
 var ISSUES_URL = 'https://github.com/FilOzone/tpm-utils/issues';

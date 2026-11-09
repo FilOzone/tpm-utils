@@ -43,7 +43,13 @@
     <script>
       const P = <?!= payload ?>;
       document.getElementById('readme').href = P.readmeUrl;
-      const show = (id) => ['ask', 'working', 'refused'].forEach((x) => document.getElementById(x).classList.toggle('hidden', x !== id));
+      // The dialog opens at a fixed height; shrink or grow it to fit whatever is showing.
+      const fit = () => google.script.host.setHeight(document.body.scrollHeight + 16);
+      const show = (id) => {
+        ['ask', 'working', 'refused'].forEach((x) => document.getElementById(x).classList.toggle('hidden', x !== id));
+        fit();
+      };
+      fit();
       const refuse = (text) => { document.getElementById('problem').textContent = text; show('refused'); };
 
       document.getElementById('go').onclick = () => {
