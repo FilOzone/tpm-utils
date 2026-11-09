@@ -62,23 +62,35 @@ function dateVariableValues(meetingDate, previousDate) {
   };
 }
 
+// Month names, longest first so "sept" wins over "sep" in a regex alternation.
+var MONTH_ALT = Object.keys(MONTHS).sort(function (a, b) { return b.length - a.length; }).join('|');
+// One day number, or several joined by a hyphen, en or em dash, slash or & ("23-27", "7/8th"), with optional ordinal suffixes.
+var DAYS_RE = '(\\d{1,2}(?:st|nd|rd|th)?(?:\\s*[-\\u2013\\u2014/&]\\s*\\d{1,2}(?:st|nd|rd|th)?)*)(?!\\d)';
+var YEAR_RE = '(?:,?\\s*(\\d{4}))?(?!\\d)';
+// "Nov 9", "Dec-9", "Nov 23-27", "January 5, 2027".
+var MONTH_FIRST_RE = new RegExp('\\b(' + MONTH_ALT + ')\\b\\.?\\s*[-.]?\\s*' + DAYS_RE + YEAR_RE, 'g');
+// "8th december", "29 Dec 2026", "8-10 december", "4th of May".
+var DAY_FIRST_RE = new RegExp('(?<!\\d)' + DAYS_RE + '(?:\\s+of)?\\s*[-.]?\\s*\\b(' + MONTH_ALT + ')\\b\\.?' + YEAR_RE, 'g');
+
 /**
  * Best-effort end date of a free-text OOO entry such as "Nov 23-27 (Thanksgiving)", "8th december" or
  * "29 Dec - 2 Jan". Returns the latest date mentioned, or null when any part is ambiguous.
  *
- * Day numbers bind to a month by the entry's style: month-first text ("Nov 30 - Dec 2") binds a day to the month
- * before it; day-first text ("29 Dec - 2 Jan", "8-10 december") binds a day to the month after it. Without an
- * explicit year, each date takes the year that puts it nearest the meeting.
+ * Strict on purpose, because a wrong date deletes an entry that is not over: a number counts as a day only when it
+ * sits next to a month name ("Nov 9", "23-27 Nov", "Dec 7/8th"), and a year only right after such a date. Any other
+ * number ("out 2 weeks", "12/3", "until 2027") or a month without a day ("mid December") makes the whole entry
+ * ambiguous. The entry's style picks how days bind: month-first text ("Nov 30 - Dec 2") or day-first text
+ * ("29 Dec - 2 Jan"). A date without a year takes the year that puts it nearest the meeting.
  */
 function parseOooEndDate(text, meetingDate) {
   var lower = String(text).toLowerCase();
-  var explicit = []; // ISO dates found verbatim
+  var dates = []; // ISO dates found
   var invalid = false;
 
   // ISO dates are unambiguous: take them first and blank them out so their digits are not re-read as days.
   lower = lower.replace(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g, function (_, y, mo, d) {
     var iso = isoIfValid_(+y, +mo, +d);
-    if (iso) explicit.push(iso);
+    if (iso) dates.push(iso);
     else invalid = true;
     return ' ';
   });
@@ -93,69 +105,41 @@ function parseOooEndDate(text, meetingDate) {
     return nearDay ? word : ' ';
   });
 
-  // Tokens: 4-digit years, 1-2 digit days (optional ordinal suffix), and words. "11/23" yields two bare numbers
-  // with no month, so it is rejected as ambiguous.
-  var tokenRe = /(\d{4})|(\d{1,2})(?:st|nd|rd|th)?(?!\d)|([a-z]+)/g;
-  var tokens = [];
-  var year = null;
-  var m;
-  while ((m = tokenRe.exec(lower))) {
-    if (m[1]) year = +m[1];
-    else if (m[2]) tokens.push({ day: +m[2] });
-    else if (MONTHS[m[3]]) tokens.push({ month: MONTHS[m[3]] });
-  }
-  var end = latestMention_(tokens, year, meetingDate);
-  if (end === false) return null;
-  explicit.forEach(function (iso) {
-    if (!end || iso > end) end = iso;
+  // Day-first when a number comes before the first month name.
+  var firstDigit = lower.search(/\d/);
+  var firstMonth = lower.search(new RegExp('\\b(' + MONTH_ALT + ')\\b'));
+  var dayFirst = firstDigit >= 0 && (firstMonth < 0 || firstDigit < firstMonth);
+  var re = new RegExp(dayFirst ? DAY_FIRST_RE.source : MONTH_FIRST_RE.source, 'g');
+
+  lower = lower.replace(re, function (_, a, b, year) {
+    var days = dayFirst ? a : b;
+    var month = MONTHS[dayFirst ? b : a];
+    days.match(/\d{1,2}/g).forEach(function (d) {
+      var iso = year ? isoIfValid_(+year, month, +d) : nearestYearIso_(month, +d, meetingDate);
+      if (iso) dates.push(iso);
+      else invalid = true;
+    });
+    return ' ';
   });
+  // Leftover numbers or month names mean part of the entry was not understood.
+  if (invalid || /\d/.test(lower) || new RegExp('\\b(' + MONTH_ALT + ')\\b').test(lower)) return null;
+  if (!dates.length) return null;
+
+  var end = dates.sort().pop();
   // "week of July 6" means the whole week, so it is not past until that week is over.
-  if (end && /\bweek of\b/.test(lower)) end = addDays(end, 6);
+  if (/\bweek of\b/.test(lower)) end = addDays(end, 6);
   return end;
 }
 
-/** Latest date named by month/day tokens, null if none, or false if some day number cannot be placed. */
-function latestMention_(tokens, year, meetingDate) {
-  if (!tokens.length) return null;
-
-  var dayFirst = tokens[0].day !== undefined;
-  var mentions = [];
-  var pending = [];
-  var current = null;
-  tokens.forEach(function (t) {
-    if (t.month) {
-      pending.forEach(function (d) { mentions.push([t.month, d]); });
-      pending = [];
-      current = t.month;
-    } else if (dayFirst || !current) {
-      pending.push(t.day);
-    } else {
-      mentions.push([current, t.day]);
-    }
-  });
-  if (pending.length) {
-    if (!current) return false; // days with no month at all
-    pending.forEach(function (d) { mentions.push([current, d]); });
-  }
-
+/** The ISO date for month/day in the year (meeting year ±1) nearest the meeting, or null if the day is invalid. */
+function nearestYearIso_(month, day, meetingDate) {
   var meetingYear = +meetingDate.slice(0, 4);
-  var end = null;
-  for (var i = 0; i < mentions.length; i++) {
-    var mo = mentions[i][0];
-    var d = mentions[i][1];
-    var iso = null;
-    if (year) {
-      iso = isoIfValid_(year, mo, d);
-    } else {
-      [meetingYear - 1, meetingYear, meetingYear + 1].forEach(function (y) {
-        var c = isoIfValid_(y, mo, d);
-        if (c && (!iso || daysBetween_(c, meetingDate) < daysBetween_(iso, meetingDate))) iso = c;
-      });
-    }
-    if (!iso) return false;
-    if (!end || iso > end) end = iso;
-  }
-  return end;
+  var best = null;
+  [meetingYear - 1, meetingYear, meetingYear + 1].forEach(function (y) {
+    var c = isoIfValid_(y, month, day);
+    if (c && (!best || daysBetween_(c, meetingDate) < daysBetween_(best, meetingDate))) best = c;
+  });
+  return best;
 }
 
 /**
@@ -171,4 +155,20 @@ function classifyOoo(text, meetingDate) {
   var words = trimmed.toLowerCase().match(/[a-z]+/g) || [];
   var looksDated = /\d/.test(trimmed) || words.some(function (w) { return MONTHS[w]; });
   return looksDated ? 'unparseable' : 'none';
+}
+
+/**
+ * Like classifyOoo, for an entry that also holds date chips (ISO dates in `chipDates`; Docs leaves chips out of the
+ * text). The entry ends at the latest date in the chips or the text; text with dates the parser can't read keeps the
+ * entry ("unparseable"), and "week of <chip>" lasts the whole week.
+ */
+function classifyOooWithChips(text, chipDates, meetingDate) {
+  if (!chipDates.length) return classifyOoo(text, meetingDate);
+  var kind = classifyOoo(text, meetingDate);
+  if (kind === 'unparseable') return kind;
+  var ends = chipDates.slice();
+  if (kind !== 'none') ends.push(parseOooEndDate(text, meetingDate));
+  var end = ends.sort().pop();
+  if (/\bweek of\b/i.test(String(text))) end = addDays(end, 6);
+  return end < meetingDate ? 'past' : 'upcoming';
 }

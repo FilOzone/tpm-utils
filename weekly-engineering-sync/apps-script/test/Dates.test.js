@@ -9,7 +9,7 @@ const vm = require('node:vm');
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'Dates.gs'), 'utf8'), ctx);
-const { parseMeetingDate, previousMeetingDate, addDays, dateVariableValues, parseOooEndDate, classifyOoo } = ctx;
+const { parseMeetingDate, previousMeetingDate, addDays, dateVariableValues, parseOooEndDate, classifyOoo, classifyOooWithChips } = ctx;
 
 test('parseMeetingDate accepts only a real YYYY-MM-DD title', () => {
   assert.equal(parseMeetingDate('2026-11-10'), '2026-11-10');
@@ -104,4 +104,41 @@ test('classifyOoo separates past, upcoming, unparseable and non-date text', () =
   assert.equal(classifyOoo('Maybe late Dec', m), 'unparseable');
   assert.equal(classifyOoo('None', m), 'none');
   assert.equal(classifyOoo('', m), 'none');
+});
+
+test('parseOooEndDate only counts a number as a day when it sits next to a month', () => {
+  // Each of these used to be read as a past date and deleted (PR #73 review).
+  const m = '2026-11-17';
+  for (const text of [
+    'Nov 9 and 12/3', // 12/3 is not November 12
+    'Nov 9; 12/1',
+    'Nov 9, out 2 weeks', // a duration, not November 2
+    'Nov 9 - mid December', // a month without a day
+    'Nov 9 until 2027', // a year that belongs to no date
+  ]) {
+    assert.equal(parseOooEndDate(text, m), null, text);
+    assert.equal(classifyOoo(text, m), 'unparseable', text);
+  }
+});
+
+test('parseOooEndDate binds each year to its own date', () => {
+  // The last year used to apply to every date, so the Dec 28 2026 start hid the Jan 4 2027 end.
+  assert.equal(parseOooEndDate('Jan 4 2027 (starting Dec 28 2026)', '2027-01-01'), '2027-01-04');
+  assert.equal(parseOooEndDate('Dec 28 2026 - Jan 4 2027', '2027-01-01'), '2027-01-04');
+  assert.equal(parseOooEndDate('29 Dec 2026 - 2 Jan', '2026-12-15'), '2027-01-02');
+});
+
+test('classifyOooWithChips weighs date chips and text together', () => {
+  const m = '2026-11-10';
+  assert.equal(classifyOooWithChips('', ['2026-11-09'], m), 'past');
+  assert.equal(classifyOooWithChips('(Madrid holiday)', ['2026-11-09'], m), 'past');
+  assert.equal(classifyOooWithChips('', ['2026-11-09', '2026-11-12'], m), 'upcoming');
+  // A Nov 9 chip followed by "through Nov 23" is still running.
+  assert.equal(classifyOooWithChips('through Nov 23', ['2026-11-09'], m), 'upcoming');
+  assert.equal(classifyOooWithChips('through Nov 9', ['2026-11-02'], m), 'past');
+  // Text the parser can't read keeps the entry, whatever the chip says.
+  assert.equal(classifyOooWithChips('out 2 weeks', ['2026-11-02'], m), 'unparseable');
+  // "week of" a chip lasts the whole week.
+  assert.equal(classifyOooWithChips('week of', ['2026-11-09'], m), 'upcoming');
+  assert.equal(classifyOooWithChips('Nov 23-27', [], m), 'upcoming');
 });

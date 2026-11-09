@@ -26,18 +26,18 @@ The first run asks each person to authorize the script (it needs to edit the doc
 | Top SP needs | Bullets replaced by one empty bullet | Paragraph starting "Top SP needs" |
 | SP status numbers | Cells holding only a number (optionally with `~`, a sign, `%` or a unit like `PiB`) are emptied; labels, ✔️/❌ headers, colors and the chart stay | Header containing "Mainnet" and "Calibration" |
 | Operational events | Text cleared in every row below the header; status row colors reset to white | Header containing "Date/window" |
-| Upcoming OOO | Entries whose end date is before the meeting are removed. Entries with unclear dates (e.g. "16th-21st", "9/7/26", "mid August") are kept and listed as ⚠️ | "Upcoming OOO" column of the Individual updates table (header containing "Person" and "Upcoming OOO") |
+| Upcoming OOO | Entries whose end date is before the meeting are removed. Entries with unclear dates (e.g. "16th-21st", "9/7/26", "mid August", "Nov 9, out 2 weeks") are kept and listed as ⚠️. Date chips and the text around them are read together | "Upcoming OOO" column of the Individual updates table (header containing "Person" and "Upcoming OOO") |
 | FOC review stats | Text cleared in every row below the header; Rev/PR shading reset to white | Header containing "Contributor" and "Rev/PR" |
 | Recording | Emptied | Heading exactly "Recording" |
 | AI Meeting Notes | Everything under the heading removed, up to the next heading of the same or higher level | Heading containing "AI Meeting Notes" |
 | Date variables | ⏭️ always: shows the values to set (`lastWeekReportDate` = latest dated tab before this one, `thisWeekReportDate` = tab title, `nextWeekReportDate` = title + 7 days) | Tab titles |
-| Checkboxes | Every person row's checklist cells (the columns between Person and Upcoming OOO) get one fresh unchecked checkbox; the "Add anyone else…" row is skipped. "Start recording" under Agenda keeps its text and gets a new unchecked checkbox. Runs last (see below) | Individual updates table (as for Upcoming OOO); paragraph starting "Start recording" |
+| Checkboxes | Every person row's checklist cells (the columns between Person and Upcoming OOO) get one fresh unchecked checkbox; the "Add anyone else…" row is skipped. "Start recording" under Agenda keeps its text and gets a new unchecked checkbox (⚠️ if that line is missing). Runs last (see below) | Individual updates table (as for Upcoming OOO); paragraph starting "Start recording" |
 
 If a "Found by" anchor is renamed in the doc, that step fails with ❌ and names the text it looked for; update the step in [PrepareNextMeeting.gs](PrepareNextMeeting.gs) (and bump the major version, see [AGENTS.md](AGENTS.md)).
 
 ### Guards
 
-The script refuses to run when the active tab's title is not a real `YYYY-MM-DD` date, when another tab has the same title, or when the tab was already prepared. Preparing is recorded per tab (document properties) as soon as you confirm, because running twice would copy the now-empty plan column over the Expected column.
+The script refuses to run when the active tab's title is not a real `YYYY-MM-DD` date, when another tab has the same title, or when the tab was already prepared. Preparing is recorded per tab (document properties) as soon as you confirm, because running twice would copy the now-empty plan column over the Expected column. Only one run at a time per doc: a second one waits up to a minute for the first, then sees the tab is already prepared (or says someone else is preparing a tab).
 
 ### Running it twice
 
@@ -49,7 +49,7 @@ If a run was interrupted and you really want to run it again on the same tab, op
 - **Checkboxes are re-created, not unchecked.** Neither Apps Script nor the Docs API exposes whether a checklist item is checked, and Apps Script can't create checklists. The step replaces each checklist cell's content with a new paragraph, tags it with a named range, and has the Docs API (advanced service) turn the tagged paragraphs into new `BULLET_CHECKBOX` lists. "Start recording" keeps its paragraph; the API removes its bullet and creates a new checkbox. The step checks that the API sees every tagged paragraph before writing anything.
 - **One server call, one Docs API read.** Opening the doc loads every tab, however little is asked for: measured 2026-11-09 on a 42-tab copy, `DocumentApp.getActiveDocument()` took 25s and a Docs API `documents.get` that asked only for tab titles took 16s; everything else is quick. So the dialog opens without touching the doc, the guards and all steps run in the one call after you confirm (the confirmation can't name the tab, since reading it costs the 25s; the results do), and the checkbox step reads the Docs API once. A run takes about a minute, about half of it opening the doc; the sidebar's last line shows the timings. The checkbox step runs last because it saves and closes the doc for the Docs API. Fewer tabs (for example, archiving old Meeting tabs to another doc) would make it faster.
 - **Empty bullets are fresh copies.** Clearing a body list item that is followed by a non-list paragraph deletes it (and can take the paragraph before it along), so Group Snaps and Top SP needs get a cleared copy of their first bullet, inserted before the old bullets are removed.
-- **OOO parsing is deliberately cautious.** Only entries it can date with certainty are removed. Notable rules (see [Dates.gs](Dates.gs)): the year is the one nearest the meeting; "week of X" lasts until X + 6 days; "may" counts as a month only next to a day number; numeric dates like `9/7` are never guessed.
+- **OOO parsing is deliberately cautious.** Only entries it can date with certainty are removed. Notable rules (see [Dates.gs](Dates.gs)): a number counts as a day only right next to a month name ("Nov 9", "23-27 Nov", "Dec 7/8th"), so any other number ("out 2 weeks", "12/3", "until 2027") or a month without a day ("mid December") makes the entry unclear; a year applies only to the date right before it, and a date without one takes the year nearest the meeting; "week of X" lasts until X + 6 days; "may" counts as a month only next to a day number; the entry ends at the latest date in its text and date chips.
 
 ## Development
 
@@ -104,14 +104,15 @@ Write `weekly-engineering-sync/apps-script/.clasp.json` as `{"scriptId": "<scrip
 
 ### Test on a copy of the doc
 
-1. Make a copy of the doc (File → Make a copy). Copies don't carry the script.
-2. Create a bound project for the copy the same way (empty directory, no `--type`), with `--title "FOC sync doc menu (test)" --parentId <copy doc ID>`, and write its scriptId to `weekly-engineering-sync/apps-script/.clasp.test.json` (gitignored) as `{"scriptId": "<scriptId>"}`. Then push with an absolute project path (clasp 3 rejects a relative `-P` path as escaping the project root):
+1. Make a copy of the doc (File → Make a copy). The copy carries its own copy of the bound script (a separate Apps Script project, at the version that was live), so it shows the menu; the fewer tabs the doc has, the faster test runs are.
+2. Find that project's ID: in the copy, Extensions → Apps Script (pick "FOC sync doc menu" if asked); the ID is in the editor URL, `.../projects/<ID>/edit`. Write it to `weekly-engineering-sync/apps-script/.clasp.test.json` (gitignored) as `{"scriptId": "<ID>"}` and push your version there with an absolute project path (clasp 3 rejects a relative `-P` path as escaping the project root):
 
    ```bash
    cd weekly-engineering-sync/apps-script
    clasp --user filoz -P "$PWD/.clasp.test.json" push --force
    ```
 
+   Don't bind a second project to the copy with `create-script`: the doc would show two menus.
 3. In the copy: duplicate the newest Meeting tab, rename it to the next date, run the menu, and check each row of the "What it does" table above. Also check that a second run is refused. The first run asks you to authorize the test project.
 
 ## Suggested host instructions for the doc

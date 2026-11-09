@@ -20,6 +20,7 @@ var CHECKBOX_RANGE_NAME = 'foc-prep-checkbox'; // new paragraphs that become che
 var RECHECK_RANGE_NAME = 'foc-prep-recheck'; // existing checklist items whose checkbox is re-created
 var ZERO_WIDTH_PLACEHOLDER = '\u200b'; // keeps a tagged empty paragraph non-empty; deleted by the API batch
 var PREPARED_KEY_PREFIX = 'prepared:';
+var LOCK_WAIT_MS = 60 * 1000; // how long a second run waits for one in progress
 
 /** The steps, in sidebar order. Each `run(ctx)` returns { status, detail } or throws (StepError for doc problems). */
 var PREP_STEPS = [
@@ -101,6 +102,20 @@ function resetPreparedMarkers() {
  * PREP_STEPS order. A failing step comes back as { status: 'failed' } and the rest still run.
  */
 function prepareActiveTab() {
+  // Two hosts confirming the same tab at once could both pass the once-per-tab guard. The second waits for the lock
+  // (a run takes about a minute), then sees the tab is prepared. Document locks are released when the run ends.
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(LOCK_WAIT_MS)) {
+    return { problem: 'Someone else is preparing a tab in this doc right now. Wait a minute and try again.' };
+  }
+  try {
+    return prepareActiveTabLocked_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function prepareActiveTabLocked_() {
   var started = Date.now();
   var doc = DocumentApp.getActiveDocument(); // loads the whole document; the slow part
   var openSeconds = secondsSince_(started);
@@ -266,11 +281,9 @@ function chipDates_(el) {
   return out;
 }
 
-/** Date chips win over text; otherwise classify the text (see Dates.gs). */
+/** Classify an OOO paragraph from its text and date chips together (see Dates.gs). */
 function classifyOooElement_(el, text, meetingDate) {
-  var end = chipDates_(el).sort().pop();
-  if (end) return end < meetingDate ? 'past' : 'upcoming';
-  return classifyOoo(text, meetingDate);
+  return classifyOooWithChips(text, chipDates_(el), meetingDate);
 }
 
 /**
@@ -314,9 +327,11 @@ function stepCheckboxes_(ctx) {
   var tagged = namedRangeIndexes_(docId, tabId, [CHECKBOX_RANGE_NAME, RECHECK_RANGE_NAME]); // one read: ~16s each
   var freshRanges = tagged[CHECKBOX_RANGE_NAME];
   var recheck = tagged[RECHECK_RANGE_NAME];
-  if (freshRanges.length !== cells) {
+  var recheckWanted = recording ? 1 : 0;
+  if (freshRanges.length !== cells || recheck.length !== recheckWanted) {
     // Checked before writing, so the API batch changes nothing; the placeholders are invisible.
-    throw new StepError('Prepared ' + cells + ' checkbox cells but the Docs API found ' + freshRanges.length + '; no checkboxes were created.');
+    throw new StepError('Prepared ' + cells + ' checkbox cells and ' + recheckWanted + ' "Start recording" line but the ' +
+      'Docs API found ' + freshRanges.length + ' and ' + recheck.length + '; no checkboxes were changed.');
   }
 
   var ops = [];
@@ -342,7 +357,11 @@ function stepCheckboxes_(ctx) {
   });
   Docs.Documents.batchUpdate({ requests: requests }, docId);
 
-  return done_(cells + ' checkboxes reset' + (recheck.length ? ', plus "Start recording"' : ' ("Start recording" not found)'));
+  if (!recording) {
+    return warn_(cells + ' checkboxes reset. Could not find the "Start recording" line under Agenda (looked for a ' +
+      'paragraph starting "Start recording"); uncheck it by hand.');
+  }
+  return done_(cells + ' checkboxes reset, plus "Start recording"');
 }
 
 function range_(tabId, startIndex, endIndex) {
