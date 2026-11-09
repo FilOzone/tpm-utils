@@ -3,8 +3,9 @@
  * YYYY-MM-DD) into a blank agenda, carrying last meeting's plans into the Expected column.
  *
  * Flow: the menu item checks preconditions and asks for confirmation, then opens Sidebar.html, which calls
- * runPrepStep() once per step so each ✅/⏭️/⚠️/❌ appears live. Steps are independent; one failing does not stop
- * the rest. What each step does and why: README.md in this folder.
+ * runPrepSteps() once. That one server call opens the document once and runs every step in order: opening the doc
+ * loads every tab and takes ~15-30s, so one call per step made a run take minutes. Steps are independent; one
+ * failing does not stop the rest. What each step does and why: README.md in this folder.
  *
  * Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script).
  * Edits made in the Apps Script editor are overwritten by the next `clasp push`.
@@ -25,11 +26,12 @@ var PREP_STEPS = [
   { id: 'spStatus', label: 'Clear the SP status numbers', run: stepSpStatus_ },
   { id: 'opsEvents', label: 'Clear Summary of operational events', run: function (ctx) { return clearNamedTable_(ctx, ['Date/window'], 'Summary of operational events'); } },
   { id: 'ooo', label: 'Remove past Upcoming OOO entries', run: stepOoo_ },
-  { id: 'checkboxes', label: 'Reset checkboxes (Individual updates, Start recording)', run: stepCheckboxes_ },
   { id: 'reviewStats', label: 'Clear FOC review stats', run: function (ctx) { return clearNamedTable_(ctx, ['Contributor', 'Rev/PR'], 'FOC review stats'); } },
   { id: 'recording', label: 'Clear the Recording link', run: stepRecording_ },
   { id: 'aiNotes', label: 'Clear AI Meeting Notes', run: stepAiNotes_ },
   { id: 'dateVariables', label: 'Date variables', run: stepDateVariables_ },
+  // Last: it saves and closes the document so the Docs API sees the edits, which ends DocumentApp use for the run.
+  { id: 'checkboxes', label: 'Reset checkboxes (Individual updates, Start recording)', run: stepCheckboxes_ },
 ];
 
 function done_(detail) { return { status: 'done', detail: detail || '' }; }
@@ -115,25 +117,31 @@ function resetPreparedMarkers() {
 
 // ---------------------------------------------------------------- sidebar entry point
 
-/** Called by the sidebar once per step. Never throws: failures come back as { status: 'failed' }. */
-function runPrepStep(stepId, tabId) {
+/**
+ * Called by the sidebar once: runs every step against one opened document and returns
+ * [{ id, status, detail }] in PREP_STEPS order. Never throws: a failing step comes back as { status: 'failed' }.
+ */
+function runPrepSteps(tabId) {
+  var ctx;
   try {
-    var step = PREP_STEPS.filter(function (s) { return s.id === stepId; })[0];
-    if (!step) throw new StepError('Unknown step "' + stepId + '".');
     var doc = DocumentApp.getActiveDocument();
     var tab = doc.getTab(tabId);
     if (!tab) throw new StepError('The tab being prepared no longer exists.');
-    var ctx = {
-      doc: doc,
-      tab: tab,
-      body: tab.asDocumentTab().getBody(),
-      meetingDate: parseMeetingDate(tab.getTitle()),
-    };
+    ctx = { doc: doc, tab: tab, body: tab.asDocumentTab().getBody(), meetingDate: parseMeetingDate(tab.getTitle()) };
     if (!ctx.meetingDate) throw new StepError('The tab title is no longer a YYYY-MM-DD date.');
-    return step.run(ctx);
   } catch (e) {
-    return failed_((e && e.message) || String(e));
+    var why = failed_((e && e.message) || String(e));
+    return PREP_STEPS.map(function (s) { return { id: s.id, status: why.status, detail: why.detail }; });
   }
+  return PREP_STEPS.map(function (step) {
+    var r;
+    try {
+      r = step.run(ctx);
+    } catch (e) {
+      r = failed_((e && e.message) || String(e));
+    }
+    return { id: step.id, status: r.status, detail: r.detail };
+  });
 }
 
 // ---------------------------------------------------------------- steps
@@ -238,12 +246,14 @@ function stepOoo_(ctx) {
       if (!isParagraphLike_(el)) continue;
       var text = textOf_(el).trim();
       var kind = classifyOooElement_(el, text, ctx.meetingDate);
+      // Date chips are not part of getText(), so name them by their dates.
+      var label = '"' + [text].concat(chipDates_(el)).filter(String).join(' ') + '" (' + who + ')';
       if (kind === 'past') {
-        removed.push('"' + text + '" (' + who + ')');
+        removed.push(label);
         if (cell.getNumChildren() > 1) el.removeFromParent();
         else el.clear();
       } else if (kind === 'unparseable') {
-        unsure.push('"' + text + '" (' + who + ')');
+        unsure.push(label);
       }
     }
   }
@@ -252,17 +262,20 @@ function stepOoo_(ctx) {
   return done_(detail);
 }
 
-/** Date chips win over text; otherwise classify the text (see Dates.gs). */
-function classifyOooElement_(el, text, meetingDate) {
+/** ISO dates of the date chips in a paragraph or list item. */
+function chipDates_(el) {
   var types = DocumentApp.ElementType;
-  var end = null;
+  var out = [];
   for (var i = 0; types.DATE && i < el.getNumChildren(); i++) {
     var child = el.getChild(i);
-    if (child.getType() === types.DATE) {
-      var iso = Utilities.formatDate(child.asDate().getTimestamp(), 'UTC', 'yyyy-MM-dd');
-      if (!end || iso > end) end = iso;
-    }
+    if (child.getType() === types.DATE) out.push(Utilities.formatDate(child.asDate().getTimestamp(), 'UTC', 'yyyy-MM-dd'));
   }
+  return out;
+}
+
+/** Date chips win over text; otherwise classify the text (see Dates.gs). */
+function classifyOooElement_(el, text, meetingDate) {
+  var end = chipDates_(el).sort().pop();
   if (end) return end < meetingDate ? 'past' : 'upcoming';
   return classifyOoo(text, meetingDate);
 }

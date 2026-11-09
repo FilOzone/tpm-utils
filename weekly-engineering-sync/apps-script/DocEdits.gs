@@ -115,21 +115,27 @@ function removeOrClear_(el) {
 
 /**
  * Remove every element in `els` (bullets, images, stray paragraphs) except `keep`, and leave exactly one empty,
- * top-level bullet: the first list item, emptied, or a new one inserted after `after` when there was none.
+ * top-level bullet right after `keep` (or `after`): a cleared copy of the first list item (same list style), or a
+ * new list item when there was none.
+ *
+ * The copy is cleared while the old items still follow it. Clearing a body list item that is followed by a
+ * non-list paragraph deletes it (and can take the paragraph before it along); seen on the doc 2026-11-09.
  */
 function leaveOneEmptyBullet_(body, els, keep, after) {
-  var bullet = null;
+  var first = null;
   els.forEach(function (el) {
-    if (!bullet && el.getType() === DocumentApp.ElementType.LIST_ITEM) bullet = el.asListItem();
+    if (!first && el.getType() === DocumentApp.ElementType.LIST_ITEM) first = el.asListItem();
   });
-  for (var i = els.length - 1; i >= 0; i--) {
-    if (els[i] !== keep && els[i] !== bullet) els[i].removeFromParent();
-  }
-  if (bullet) {
+  var at = body.getChildIndex(keep || after) + 1;
+  if (first) {
+    var bullet = body.insertListItem(at, first.copy());
     bullet.clear();
     bullet.setNestingLevel(0);
   } else {
-    body.insertListItem(body.getChildIndex(keep || after) + 1, '');
+    body.insertListItem(at, '');
+  }
+  for (var i = els.length - 1; i >= 0; i--) {
+    if (els[i] !== keep) els[i].removeFromParent();
   }
 }
 

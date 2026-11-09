@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
-  Live checklist for "Prepare for next meeting". Calls runPrepStep() once per step, in order, and keeps going after a
-  failure. Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script);
+  Checklist for "Prepare for next meeting". Calls runPrepSteps() once, which runs every step in order and keeps
+  going after a failure, then shows each step's result. Source of truth is GitHub (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script);
   edits made in the Apps Script editor are overwritten by the next `clasp push`.
 -->
 <html>
@@ -56,19 +56,31 @@
         }
       }
 
-      function run(i) {
-        if (i >= P.steps.length) return finish();
-        setRow(rows[i], 'running', '');
-        const record = (r) => {
-          const status = ICONS[r.status] ? r.status : 'failed';
-          counts[status] = (counts[status] || 0) + 1;
-          setRow(rows[i], status, r.detail);
-          run(i + 1);
+      // One server call runs every step (opening the doc is the slow part), so all rows resolve together.
+      function run() {
+        rows.forEach((li) => setRow(li, 'running', ''));
+        const started = Date.now();
+        const summary = document.getElementById('summary');
+        const tick = setInterval(() => {
+          summary.textContent = 'Working… ' + Math.round((Date.now() - started) / 1000) + 's (usually 1 to 2 minutes)';
+        }, 1000);
+        const record = (results) => {
+          clearInterval(tick);
+          P.steps.forEach((s, i) => {
+            const r = results.filter((x) => x.id === s.id)[0] || { status: 'failed', detail: 'No result returned.' };
+            const status = ICONS[r.status] ? r.status : 'failed';
+            counts[status] = (counts[status] || 0) + 1;
+            setRow(rows[i], status, r.detail);
+          });
+          finish();
         };
         google.script.run
           .withSuccessHandler(record)
-          .withFailureHandler((e) => record({ status: 'failed', detail: (e && e.message) || String(e) }))
-          .runPrepStep(P.steps[i].id, P.tabId);
+          .withFailureHandler((e) => {
+            const detail = (e && e.message) || String(e);
+            record(P.steps.map((s) => ({ id: s.id, status: 'failed', detail: detail })));
+          })
+          .runPrepSteps(P.tabId);
       }
 
       function finish() {
@@ -84,7 +96,7 @@
           'Finish any ⏭️/⚠️ items by hand. To undo everything, use File → Version history. Source: ' + a(P.sourceUrl, 'GitHub') + '.';
       }
 
-      run(0);
+      run();
     </script>
   </body>
 </html>
