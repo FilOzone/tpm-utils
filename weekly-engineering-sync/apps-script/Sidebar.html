@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!--
+  Results of "Prepare for next meeting", opened by PrepareDialog.html once the run is finished (showPrepResults), so
+  the doc can be scrolled while reading them. Source of truth is GitHub
+  (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script); edits made in the Apps
+  Script editor are overwritten by the next `clasp push`.
+-->
+<html>
+  <head>
+    <base target="_blank" />
+    <style>
+      body { font: 13px/1.4 Arial, sans-serif; margin: 12px; color: #202124; }
+      h3 { margin: 0 0 4px; font-size: 14px; }
+      .meta { color: #5f6368; margin-bottom: 12px; }
+      ol { list-style: none; padding: 0; margin: 0; }
+      li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+      .icon { width: 20px; flex: none; text-align: center; }
+      .detail { color: #5f6368; font-size: 12px; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+      .failed .detail { color: #c5221f; }
+      .warn .detail, .skipped .detail { color: #8a5a00; }
+      #summary { margin-top: 12px; font-weight: bold; }
+      #help, #timing { margin-top: 8px; color: #5f6368; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h3>Prepare for next meeting</h3>
+    <div class="meta" id="meta"></div>
+    <ol id="steps"></ol>
+    <div id="summary"></div>
+    <div id="help"></div>
+    <div id="timing"></div>
+    <script>
+      const P = <?!= payload ?>;
+      const O = P.outcome;
+      const ICONS = { done: '✅', warn: '⚠️', skipped: '⏭️', failed: '❌' };
+      const counts = { done: 0, warn: 0, skipped: 0, failed: 0 };
+
+      document.getElementById('meta').textContent = 'Tab ' + O.title + ' · meeting ' + O.meetingDate + ' · v' + P.version;
+      const list = document.getElementById('steps');
+      O.results.forEach((r) => {
+        const status = ICONS[r.status] ? r.status : 'failed';
+        counts[status]++;
+        const li = document.createElement('li');
+        li.className = status;
+        li.innerHTML = '<span class="icon"></span><div><div class="label"></div><div class="detail"></div></div>';
+        li.querySelector('.icon').textContent = ICONS[status];
+        li.querySelector('.label').textContent = r.label;
+        const d = li.querySelector('.detail');
+        d.textContent = r.detail || '';
+        if (status === 'failed') {
+          const link = document.createElement('a');
+          link.href = P.issuesUrl;
+          link.textContent = ' Report it on GitHub';
+          d.appendChild(link);
+        }
+        list.appendChild(li);
+      });
+
+      document.getElementById('summary').textContent =
+        'Finished: ' + counts.done + ' ✅  ' + counts.warn + ' ⚠️  ' + counts.skipped + ' ⏭️  ' + counts.failed + ' ❌';
+      const a = (href, text) => '<a href="' + href + '">' + text + '</a>';
+      document.getElementById('help').innerHTML =
+        (counts.failed
+          ? 'Something went wrong. The script lives in ' + a(P.sourceUrl, 'GitHub') +
+            '; please open an ' + a(P.issuesUrl, 'issue') + ' or a PR so it can be fixed. '
+          : '') +
+        'Finish any ⏭️/⚠️ items by hand. To undo everything, use File → Version history. Source: ' + a(P.sourceUrl, 'GitHub') + '.';
+      // Opening the doc dominates the run time; shown so slow runs can be explained.
+      const slowest = O.results.slice().sort((x, y) => y.seconds - x.seconds).slice(0, 3)
+        .map((r) => r.id + ' ' + r.seconds + 's').join(', ');
+      document.getElementById('timing').textContent =
+        'Took ' + O.seconds + 's: opening the doc ' + O.openSeconds + 's; slowest steps: ' + slowest + '.';
+    </script>
+  </body>
+</html>

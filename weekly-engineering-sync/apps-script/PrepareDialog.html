@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  "Prepare for next meeting" confirmation and progress. Opens instantly (no document load), then makes one server
+  call, prepareActiveTab(), while this modal keeps the editor from being edited. On success it hands the results to
+  the sidebar (showPrepResults) and closes. Source of truth is GitHub
+  (https://github.com/FilOzone/tpm-utils/tree/master/weekly-engineering-sync/apps-script); edits made in the Apps
+  Script editor are overwritten by the next `clasp push`.
+-->
+<html>
+  <head>
+    <base target="_blank" />
+    <style>
+      body { font: 13px/1.5 Arial, sans-serif; margin: 0 8px; color: #202124; }
+      p { margin: 0 0 10px; }
+      .buttons { text-align: right; margin-top: 16px; }
+      button { font: inherit; padding: 6px 16px; margin-left: 8px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; }
+      button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; }
+      #problem { white-space: pre-wrap; color: #c5221f; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="ask">
+      <p>Prepare <b>the tab you have open</b> for the next meeting? Its title must be the meeting date as
+        <code>YYYY-MM-DD</code>.</p>
+      <p>This only changes that tab. It carries each workstream's plan into the Expected column and clears last
+        meeting's content (sync topics, snaps, SP status, operational events, past OOO, checkboxes, review stats,
+        recording and AI notes). It can run once per tab. To undo, use File → Version history.</p>
+      <div class="buttons">
+        <button onclick="google.script.host.close()">Cancel</button>
+        <button class="primary" id="go">Prepare</button>
+      </div>
+    </div>
+    <div id="working" class="hidden">
+      <p><b>Working… <span id="secs">0</span>s</b></p>
+      <p>Usually about a minute. Please don't edit the doc until this closes; the results then open in a sidebar.
+        Details: <a id="readme">README</a>.</p>
+    </div>
+    <div id="refused" class="hidden">
+      <p id="problem"></p>
+      <div class="buttons"><button class="primary" onclick="google.script.host.close()">OK</button></div>
+    </div>
+    <script>
+      const P = <?!= payload ?>;
+      document.getElementById('readme').href = P.readmeUrl;
+      // The dialog opens at a fixed height; shrink or grow it to fit whatever is showing.
+      const fit = () => google.script.host.setHeight(document.body.scrollHeight + 16);
+      const show = (id) => {
+        ['ask', 'working', 'refused'].forEach((x) => document.getElementById(x).classList.toggle('hidden', x !== id));
+        fit();
+      };
+      fit();
+      const refuse = (text) => { document.getElementById('problem').textContent = text; show('refused'); };
+
+      document.getElementById('go').onclick = () => {
+        show('working');
+        const started = Date.now();
+        const tick = setInterval(() => {
+          document.getElementById('secs').textContent = Math.round((Date.now() - started) / 1000);
+        }, 1000);
+        google.script.run
+          .withSuccessHandler((outcome) => {
+            clearInterval(tick);
+            if (outcome.problem) return refuse(outcome.problem);
+            google.script.run
+              .withSuccessHandler(() => google.script.host.close())
+              .withFailureHandler((e) => refuse('Done, but the results sidebar could not open: ' + ((e && e.message) || e)))
+              .showPrepResults(outcome);
+          })
+          .withFailureHandler((e) => {
+            clearInterval(tick);
+            refuse('Something went wrong: ' + ((e && e.message) || e) + '\n\nCheck the tab, and use File → Version history to undo if needed.');
+          })
+          .prepareActiveTab();
+      };
+    </script>
+  </body>
+</html>

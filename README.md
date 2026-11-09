@@ -144,6 +144,13 @@ See [github-projects-client/README.md](github-projects-client/README.md).
 
 See [network-upgrades/README.md](network-upgrades/README.md).
 
+### 🗓️ Weekly Engineering Sync
+**Directory:** [weekly-engineering-sync/](weekly-engineering-sync/)
+
+Tooling for the FOC weekly engineering sync doc. First tool: a doc-bound Apps Script that adds a "🗄️ FOC → Prepare for next meeting" menu, which turns a duplicated Meeting tab into next meeting's blank agenda with a live checklist of what it did.
+
+See [weekly-engineering-sync/README.md](weekly-engineering-sync/README.md).
+
 ## Running Tests
 
 Run all package tests from the repo root:
