@@ -31,41 +31,25 @@ Complete workflow for finding relevant Filecoin Slack messages related to specif
 This is particularly useful for investigating storage provider issues and tracking community discussions.
 
 ### 📢 FOC-WG PR Notifier
-**File:** `foc_wg_pr_notifier.py`
+[`foc_wg_pr_notifier.py`](foc_wg_pr_notifier.py) posts a P1 review queue to `#foc-bots` at 14:00 UTC on weekdays. It finds open PRs awaiting review or re-review and shows the project, epic, and delivery ticket behind each review request.
 
-Automated daily notification system that fetches open PRs from [FilOzone GitHub Project 14 (View 32)](https://github.com/orgs/FilOzone/projects/14/views/32) and posts a formatted summary to the `#foc-bots` Slack channel.
+Add one clickable GitHub issue URL per line to the **GitHub epics** Text property in the [Notion release candidates view](https://app.notion.com/p/filecoindev/402dc41950c181318bb6dc23fa75034e?v=402dc41950c181159dce000c16b6ee8f). The pilot reads Product release milestones and skips the **Released**, **Launched**, **Cancelled**, and **Engineering complete** stages. Add delivery tickets as GitHub sub-issues of any listed epic and use GitHub’s linked PRs on those tickets. Epics, tickets, and PRs can span repositories.
 
-**Features:**
-- Queries GitHub Project 14 via GraphQL API
-- Applies View 32 filters (excludes "Done" status, specific milestones)
-- Groups PRs by repository
-- Posts formatted Slack messages with PR details
-- Runs automatically via GitHub Actions (see [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml))
+The [GitHub Actions workflow](.github/workflows/foc-wg-pr-notifier.yml) uses these repository secrets:
 
-**Testing:**
+| Secret | Required access |
+| --- | --- |
+| `FOC_WG_NOTION_TOKEN` | Read access to the underlying **Product & Marketing timeline** Notion database |
+| `FOC_WG_NOTIFIER_PAT` | Read access to issues and pull requests in the tracked repositories |
+| `SLACK_WEBHOOK_URL` | Incoming webhook for `#foc-bots`, needed for posting |
 
-1. **Local dry-run test** (recommended first step):
-   ```bash
-   GITHUB_TOKEN=your_token python foc_wg_pr_notifier.py --dry-run
-   ```
-   This will fetch PRs and show the message that would be posted without actually sending to Slack.
+Once the Notion and GitHub secrets are set, open [FOC-WG PR Notifier](https://github.com/FilOzone/tpm-utils/actions/workflows/foc-wg-pr-notifier.yml) in Actions, click **Run workflow**, select the branch to preview, and set `dry_run` to `true`. The job logs show the proposed digest and diagnostics for missing or invalid tracker links. A failed Notion read stops the run. A failed GitHub read marks the preview as incomplete and prevents a Slack post.
 
-2. **Local full test** (posts to Slack):
-   ```bash
-   GITHUB_TOKEN=your_token SLACK_WEBHOOK_URL=your_webhook python foc_wg_pr_notifier.py
-   ```
+For a local preview, install `requirements.txt`, set `GITHUB_TOKEN` and `NOTION_TOKEN` in your environment, then run:
 
-3. **GitHub Actions test**:
-   - Go to the [Actions tab](https://github.com/FilOzone/tpm-utils/actions) in the repository
-   - Select "FOC-WG PR Notifier" workflow
-   - Click "Run workflow"
-   - Choose "true" for dry_run to test without posting, or "false" to post to Slack
-   - Click "Run workflow" button
-
-***Periodic Runs:***
-This notifier is scheduled to run periodically per [./github/workflows/fog-wg-pr-notifier.yml](fog-wg-pr-notifier.yml).
-
-Project board API logic lives in [`github-projects-client/`](github-projects-client/) (shared with the FOC PR report and FilOzzy MCP).
+```bash
+python3 foc_wg_pr_notifier.py --dry-run
+```
 
 ### 📋 FOC PR report (Markdown)
 **Directory:** [foc-pr-report/](foc-pr-report/)
