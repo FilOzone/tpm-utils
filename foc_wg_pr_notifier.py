@@ -254,14 +254,15 @@ def render_queue(queue, user_map, diagnostic_count=0):
     return messages
 
 
-def load_user_map(path):
+def load_user_map(path, *, summary_only=False):
     try:
         with path.open(encoding="utf-8") as file:
             values = json.load(file)
         if not isinstance(values, dict):
             raise ValueError("expected a JSON object")
     except (OSError, ValueError) as exc:
-        print(f"Could not load Slack user mapping: {exc}", file=sys.stderr)
+        warning = "Could not load Slack user mapping"
+        print(f"{warning}." if summary_only else f"{warning}: {exc}", file=sys.stderr)
         return {}
     return {
         login.lower(): slack_id
@@ -290,6 +291,11 @@ def main():
     parser.add_argument(
         "--dry-run", action="store_true", help="Print the queue without posting"
     )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Keep project and reviewer details out of command output",
+    )
     args = parser.parse_args()
 
     github_token = args.token or os.getenv("GITHUB_TOKEN")
@@ -302,27 +308,63 @@ def main():
     if not args.dry_run and not webhook:
         parser.error("Set SLACK_WEBHOOK_URL or use --dry-run.")
 
+    try:
+        return run_notifier(args, github_token, notion_token, webhook)
+    except Exception:
+        if not args.summary_only:
+            raise
+        print(
+            "Unexpected notifier error. Run a private preview for details.",
+            file=sys.stderr,
+        )
+        return 1
+
+
+def run_notifier(args, github_token, notion_token, webhook):
     with requests.Session() as notion, requests.Session() as github:
         notion.headers["Authorization"] = f"Bearer {notion_token}"
         github.headers["Authorization"] = f"Bearer {github_token}"
         try:
             projects, diagnostics = fetch_projects(notion, args.notion_data_source_id)
         except (RuntimeError, requests.RequestException, ValueError) as exc:
-            print(f"Could not load Notion projects: {exc}", file=sys.stderr)
+            if args.summary_only:
+                status = (
+                    exc.response.status_code
+                    if (
+                        isinstance(exc, requests.HTTPError) and exc.response is not None
+                    )
+                    else None
+                )
+                suffix = f" (HTTP {status})" if status else ""
+                print(f"Could not load Notion projects{suffix}.", file=sys.stderr)
+            else:
+                print(f"Could not load Notion projects: {exc}", file=sys.stderr)
             return 1
         queue, incomplete = collect_queue(github, projects, diagnostics)
 
-    for diagnostic in diagnostics:
-        print(f"Queue diagnostic: {diagnostic}", file=sys.stderr)
+    if not args.summary_only:
+        for diagnostic in diagnostics:
+            print(f"Queue diagnostic: {diagnostic}", file=sys.stderr)
 
     if incomplete:
         print(
             "GitHub data is incomplete. No Slack message was posted.", file=sys.stderr
         )
-        if not args.dry_run:
+        if not args.dry_run or args.summary_only:
             return 1
 
-    messages = render_queue(queue, load_user_map(args.user_map), len(diagnostics))
+    if args.dry_run and args.summary_only:
+        print(
+            f"Dry run complete. Active milestones: {len(projects)}. "
+            f"PRs waiting for review: {len(queue)}. Source and routing notes: {len(diagnostics)}."
+        )
+        return 0
+
+    messages = render_queue(
+        queue,
+        load_user_map(args.user_map, summary_only=args.summary_only),
+        len(diagnostics),
+    )
     if args.dry_run:
         print("=== DRY RUN (incomplete) ===" if incomplete else "=== DRY RUN ===")
         print("\n\n".join(messages))

@@ -1,9 +1,11 @@
 """Regressions for cross-epic review routing and Slack previews."""
 
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from unittest import TestCase
 from unittest.mock import patch
 
-from foc_wg_pr_notifier import collect_queue, render_queue, review_targets
+from foc_wg_pr_notifier import collect_queue, main, render_queue, review_targets
 
 REPO = "example/sdk"
 ROOT = f"https://github.com/{REPO}"
@@ -40,6 +42,40 @@ def candidate(number, epic, ticket, *, branch, base, requested_at):
 
 
 class ReviewQueueTest(TestCase):
+    @patch("foc_wg_pr_notifier.requests.post")
+    @patch("foc_wg_pr_notifier.fetch_epic_candidates")
+    @patch("foc_wg_pr_notifier.fetch_projects")
+    def test_actions_preview_outputs_counts_only(self, projects, epic, post):
+        projects.return_value = (
+            [{"title": "Internal project", "url": MILESTONE, "epic_urls": [EPIC_A]}],
+            [f"Private diagnostic {MILESTONE}"],
+        )
+        epic.return_value = [
+            candidate(41, EPIC_A, 21, branch="first", base="main", requested_at=None)
+        ]
+        arguments = [
+            "foc_wg_pr_notifier.py",
+            "--token",
+            "test",
+            "--notion-token",
+            "test",
+            "--dry-run",
+            "--summary-only",
+        ]
+        output = StringIO()
+        with (
+            patch("sys.argv", arguments),
+            redirect_stdout(output),
+            redirect_stderr(output),
+        ):
+            self.assertEqual(main(), 0)
+        self.assertEqual(
+            output.getvalue(),
+            "Dry run complete. Active milestones: 1. PRs waiting for review: 1. "
+            "Source and routing notes: 1.\n",
+        )
+        post.assert_not_called()
+
     @patch("foc_wg_pr_notifier.fetch_epic_candidates")
     def test_multiple_epics_deduplicate_prs_and_preserve_stack_order(self, fetch):
         first = candidate(

@@ -7,7 +7,7 @@ from typing import TypedDict
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from requests import Session
+from requests import HTTPError, Session
 
 DEFAULT_NOTION_DATA_SOURCE_ID = "3f3dc419-50c1-80b0-bf72-000b0b8133b8"
 EPICS_PROPERTY = "GitHub epics"
@@ -100,9 +100,10 @@ def _query_projects(session: Session, source_id: str) -> Iterator[dict]:
             time.sleep(delay)
 
         if response.status_code in {401, 403, 404}:
-            raise RuntimeError(
+            raise HTTPError(
                 f"Notion returned HTTP {response.status_code}. Check the integration "
-                "token, its access to the source database, and the data source ID."
+                "token, its access to the source database, and the data source ID.",
+                response=response,
             )
         response.raise_for_status()
         result = response.json()

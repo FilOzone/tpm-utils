@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Preview the queue in the Actions log'
+        description: 'Check the queue and show counts without posting to Slack'
         default: true
         type: boolean
 
@@ -28,14 +28,14 @@ jobs:
 
       - name: Preview the P1 review queue
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
-        run: python foc_wg_pr_notifier.py --dry-run
+        run: python foc_wg_pr_notifier.py --dry-run --summary-only
         env:
           GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
           NOTION_TOKEN: ${{ secrets.FOC_WG_NOTION_TOKEN }}
 
       - name: Post the P1 review queue
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
-        run: python foc_wg_pr_notifier.py
+        run: python foc_wg_pr_notifier.py --summary-only
         env:
           GITHUB_TOKEN: ${{ secrets.FOC_WG_NOTIFIER_PAT }}
           NOTION_TOKEN: ${{ secrets.FOC_WG_NOTION_TOKEN }}

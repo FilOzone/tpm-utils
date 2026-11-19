@@ -43,9 +43,9 @@ The [GitHub Actions workflow](.github/workflows/foc-wg-pr-notifier.yml) uses the
 | `FOC_WG_NOTIFIER_PAT` | Read access to issues and pull requests in the tracked repositories |
 | `SLACK_WEBHOOK_URL` | Incoming webhook for `#foc-bots`, needed for posting |
 
-Once the Notion and GitHub secrets are set, open [FOC-WG PR Notifier](https://github.com/FilOzone/tpm-utils/actions/workflows/foc-wg-pr-notifier.yml) in Actions, click **Run workflow**, select the branch to preview, and set `dry_run` to `true`. The job logs show the proposed digest and diagnostics for missing or invalid tracker links. A failed Notion read stops the run. A failed GitHub read marks the preview as incomplete and prevents a Slack post.
+Once the Notion and GitHub secrets are set, open [FOC-WG PR Notifier](https://github.com/FilOzone/tpm-utils/actions/workflows/foc-wg-pr-notifier.yml) in Actions, click **Run workflow**, select the branch to preview, and set `dry_run` to `true`. The public Actions log shows aggregate counts of eligible PRs and diagnostic notes. A failed source read makes the run fail and prevents a Slack post.
 
-For a local preview, install `requirements.txt`, set `GITHUB_TOKEN` and `NOTION_TOKEN` in your environment, then run:
+To see the full digest and diagnostics privately, install `requirements.txt` locally, set `GITHUB_TOKEN` and `NOTION_TOKEN` in your environment, then run:
 
 ```bash
 python3 foc_wg_pr_notifier.py --dry-run
